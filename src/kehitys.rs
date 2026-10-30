@@ -25,6 +25,8 @@ pub struct Liput {
     pub nostot: Option<u32>,
     /// Pasianssi: aloittaa pelin voitettuna, loppujuhlan tarkistukseen.
     pub voitto: bool,
+    /// Pasianssi: pelaa pelin tilanteeseen, jossa siirrot loppuvat.
+    pub jumissa: bool,
     /// Kuvakaappauksen hetki viimeisen laukauksen jälkeen, animaatioiden tarkistukseen.
     pub aika_ms: u32,
 }
@@ -37,7 +39,7 @@ impl Liput {
             Some(Laji::Laivanupotus)
         } else if self.lauta.is_some() || !self.liu_ut.is_empty() {
             Some(Laji::Luvut)
-        } else if self.nostot.is_some() || self.voitto {
+        } else if self.nostot.is_some() || self.voitto || self.jumissa {
             Some(Laji::Pasianssi)
         } else {
             None
@@ -60,6 +62,7 @@ pub fn lue_liput() -> Result<Liput, String> {
         tallennus: None,
         nostot: None,
         voitto: false,
+        jumissa: false,
         aika_ms: OLETUSAIKA_MS,
     };
     let mut args = std::env::args().skip(1);
@@ -80,6 +83,7 @@ pub fn lue_liput() -> Result<Liput, String> {
             }
             "--draws" => liput.nostot = Some(arvo.parse().map_err(|_| "--draws: ei luku")?),
             "--win" => liput.voitto = arvo == "1",
+            "--stuck" => liput.jumissa = arvo == "1",
             "--board" => {
                 let luvut = arvo
                     .split(',')

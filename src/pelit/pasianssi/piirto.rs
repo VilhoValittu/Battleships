@@ -67,6 +67,7 @@ const TASOT: [(Vaikeus, &str, i32); 3] = [
 ];
 
 const VOITTOTEKSTI: &str = "****HIHIHIHIII VOITIT PELIN!****";
+const TAPPIOTEKSTI: &str = "**** SIIRROT LOPPUIVAT! ****";
 const VOITTO_KORTTI_VALI_MS: u32 = 110;
 const VOITTO_JALKIA: u32 = 6;
 const VOITTO_JALKI_MS: u32 = 45;
@@ -392,6 +393,8 @@ impl Piirtaja<'_> {
         }
         if peli.vaihe == Vaihe::Voitto {
             self.pasianssi_juhla(peli);
+        } else if peli.vaihe == Vaihe::Tappio {
+            self.pasianssi_loppupalkki(TAPPIOTEKSTI);
         }
     }
 
@@ -688,19 +691,16 @@ impl Piirtaja<'_> {
                 }
             }
         }
-        // Oma tausta, jotta teksti erottuu lentävien korttien päältä.
+        self.pasianssi_loppupalkki(VOITTOTEKSTI);
+    }
+
+    /// Oma tausta, jotta teksti erottuu korttien päältä.
+    fn pasianssi_loppupalkki(&mut self, teksti: &str) {
         let y = RUUDUN_KORKEUS as i32 - 84;
-        let leveys = VOITTOTEKSTI.chars().count() as i32 * OTSIKKO.2 + 36;
+        let leveys = teksti.chars().count() as i32 * OTSIKKO.2 + 36;
         self.k.laatikko(SARAKE_X, y, leveys, 48, WB_SININEN);
         self.k.kehys(SARAKE_X, y, leveys, 48, VALKOINEN);
-        self.vektoriteksti(
-            SARAKE_X + 18,
-            y + 13,
-            VOITTOTEKSTI,
-            OTSIKKO,
-            KELTAINEN,
-            true,
-        );
+        self.vektoriteksti(SARAKE_X + 18, y + 13, teksti, OTSIKKO, KELTAINEN, true);
     }
 }
 

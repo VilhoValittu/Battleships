@@ -20,12 +20,14 @@ const EI_PERUTTAVAA: &str = "Ei mitään peruttavaa.";
 const EI_KERATTAVAA: &str = "Ei siirtoja!";
 const JUMISSA: &str = "Siirrot näyttävät loppuneen. K = uusi peli.";
 const VOITTOVIESTI: &str = "Kaikki kortit ovat pakoissa!";
+const SIIRROT_LOPPU: &str = "Siirrot loppuivat. K = uusi peli.";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Vaihe {
     Alku,
     Pelissa,
     Voitto,
+    Tappio,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -123,6 +125,15 @@ impl Pasianssi {
             syvyys: 0,
         };
         self.aanijono.push((Aani::Ovi, 0));
+        if !self.lauta.on_siirtoja() {
+            self.siirrot_loppuivat();
+        }
+    }
+
+    fn siirrot_loppuivat(&mut self) {
+        self.vaihe = Vaihe::Tappio;
+        self.viesti = SIIRROT_LOPPU.to_string();
+        self.aanijono.push((Aani::Tappio, VOITTO_VIIVE_MS));
     }
 
     fn unohda_poiminta(&mut self) {
@@ -149,7 +160,7 @@ impl Pasianssi {
         match self.vaihe {
             Vaihe::Alku => self.kasittele_alku(syote),
             Vaihe::Pelissa => self.kasittele_pelissa(syote),
-            Vaihe::Voitto => self.kasittele_loppu(syote),
+            Vaihe::Voitto | Vaihe::Tappio => self.kasittele_loppu(syote),
         }
     }
 
@@ -259,6 +270,8 @@ impl Pasianssi {
             self.voitto_alku = self.kello_ms;
             self.viesti = VOITTOVIESTI.to_string();
             self.aanijono.push((Aani::Voitto, VOITTO_VIIVE_MS));
+        } else if !self.lauta.on_siirtoja() {
+            self.siirrot_loppuivat();
         } else if self.lauta.on_hyodyllisia_siirtoja() {
             self.viesti.clear();
         } else {
@@ -636,8 +649,8 @@ mod tests {
 
     #[test]
     fn peruutus_ja_keraa_toimivat_napeista_ja_vaikealla_ei_voi_perua() {
-        let mut peli = pelissa();
-        aseta(&mut peli, 0, &[kortti(Maa::Risti, 1)]);
+        let mut peli = kaksi_saraketta();
+        aseta(&mut peli, 2, &[kortti(Maa::Risti, 1)]);
         let (x, y) = piirto::napin_keskipiste(Nappi::Keraa);
         peli.kasittele(Syote::Klikkaus(x, y));
         assert_eq!(peli.lauta.tila.perustat[Maa::Risti as usize].len(), 1);
@@ -677,7 +690,7 @@ mod tests {
     }
 
     #[test]
-    fn jumiutumisesta_kerrotaan_mutta_peli_jatkuu() {
+    fn peli_loppuu_kun_siirrot_loppuvat_ja_kello_pysahtyy() {
         let mut peli = pelissa();
         peli.lauta.vaikeus = Vaikeus::Vaikea;
         peli.lauta.tila.kierratykset = 2;
@@ -688,6 +701,35 @@ mod tests {
             1,
             &[kortti(Maa::Risti, 5), kortti(Maa::Hertta, 1)],
         );
+        peli.edista(1000);
+        peli.kasittele(Syote::Kirjain('A'));
+        assert_eq!(peli.vaihe, Vaihe::Tappio);
+        assert_eq!(peli.viesti, SIIRROT_LOPPU);
+        assert!(peli.aanijono.contains(&(Aani::Tappio, VOITTO_VIIVE_MS)));
+        peli.edista(1000);
+        assert_eq!(peli.peliaika_ms, 1000);
+
+        // Lopussa kortteja ei enää liikuteta, vain uusi peli tai valikko.
+        peli.kasittele(Syote::Kirjain('N'));
+        assert_eq!(peli.lauta.tila.jate.len(), 1);
+        peli.kasittele(Syote::Kirjain('K'));
+        assert_eq!(peli.vaihe, Vaihe::Alku);
+    }
+
+    #[test]
+    fn jonon_osan_siirto_pitaa_pelin_kaynnissa_ja_vihje_nakyy() {
+        let mut peli = pelissa();
+        aseta(
+            &mut peli,
+            0,
+            &[
+                kortti(Maa::Hertta, 9),
+                kortti(Maa::Pata, 8),
+                kortti(Maa::Hertta, 7),
+            ],
+        );
+        aseta(&mut peli, 1, &[kortti(Maa::Risti, 8)]);
+        aseta(&mut peli, 2, &[kortti(Maa::Hertta, 1)]);
         peli.kasittele(Syote::Kirjain('A'));
         assert_eq!(peli.vaihe, Vaihe::Pelissa);
         assert_eq!(peli.viesti, JUMISSA);

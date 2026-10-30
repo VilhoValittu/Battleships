@@ -261,6 +261,59 @@ fn laillisten_siirtojen_jalkeen_kortit_sailyvat() {
 }
 
 #[test]
+fn siirrot_loppuvat_vasta_kun_mikaan_siirto_ei_kay() {
+    let mut lauta = tyhja(Vaikeus::Vaikea);
+    lauta.tila.kierratykset = 2;
+    lauta.tila.jate = vec![k(Maa::Hertta, 5)];
+    lauta.tila.sarakkeet[0] = sarake(&[k(Maa::Pata, 9)]);
+    assert!(!lauta.on_siirtoja());
+
+    // Jonon osa pääsee toisen sarakkeen päälle.
+    lauta.tila.sarakkeet[1] = sarake(&[k(Maa::Hertta, 10)]);
+    assert!(lauta.on_siirtoja());
+
+    // Perustan päällimmäisen saa takaisin sarakkeeseen.
+    lauta.tila.sarakkeet[1] = Sarake::default();
+    lauta.tila.perustat[Maa::Hertta as usize] = (1..=8).map(|a| k(Maa::Hertta, a)).collect();
+    assert!(lauta.on_siirtoja());
+}
+
+#[test]
+fn kuninkaan_siirto_tyhjasta_paikasta_toiseen_ei_ole_siirto() {
+    let mut lauta = tyhja(Vaikeus::Helppo);
+    lauta.tila.sarakkeet[0] = sarake(&[k(Maa::Pata, KUNINGAS)]);
+    assert!(!lauta.on_siirtoja());
+
+    // Piilokortin päältä kuningas kannattaa siirtää.
+    lauta.tila.sarakkeet[0] = Sarake {
+        kortit: vec![k(Maa::Risti, 2), k(Maa::Pata, KUNINGAS)],
+        piilossa: 1,
+    };
+    assert!(lauta.on_siirtoja());
+}
+
+#[test]
+fn pakasta_lasketaan_vain_kortit_jotka_noston_tahdissa_saa_esiin() {
+    let mut lauta = tyhja(Vaikeus::Normaali);
+    lauta.tila.sarakkeet[0] = sarake(&[k(Maa::Pata, 9)]);
+    // Sopiva hertta 8 jää kolmen noston keskelle, joten sitä ei koskaan saa päällimmäiseksi.
+    let huono = k(Maa::Hertta, 5);
+    lauta.tila.pakka = vec![huono, k(Maa::Hertta, 8), huono];
+    assert!(!lauta.on_siirtoja());
+
+    lauta.tila.pakka = vec![k(Maa::Hertta, 8), huono, huono];
+    assert!(lauta.on_siirtoja());
+
+    // Sama kortti jätepinossa tulee esiin vain, jos pakan saa vielä kääntää.
+    let mut vaikea = tyhja(Vaikeus::Vaikea);
+    vaikea.tila.sarakkeet[0] = sarake(&[k(Maa::Pata, 9)]);
+    vaikea.tila.jate = vec![huono, huono, k(Maa::Hertta, 8), huono];
+    assert!(vaikea.on_siirtoja());
+    vaikea.tila.kierratykset = 2;
+    assert!(!vaikea.on_siirtoja());
+}
+
+#[test]
 fn vihje_tunnistaa_pakan_ja_jumiutuneen_tilanteen() {
     let mut lauta = tyhja(Vaikeus::Vaikea);
     lauta.tila.kierratykset = 2;

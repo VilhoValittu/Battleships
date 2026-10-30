@@ -277,11 +277,33 @@ fn main() -> ExitCode {
                         .find(|taso| taso.nimi() == vaikeus.nimi());
                     peli.vaikeus = taso.unwrap_or(peli.vaikeus);
                 }
-                if liput.nostot.is_some() || liput.voitto {
+                if liput.nostot.is_some() || liput.voitto || liput.jumissa {
                     peli.kasittele(Syote::Ammu);
                 }
                 for _ in 0..liput.nostot.unwrap_or(0) {
                     peli.kasittele(Syote::Kirjain('N'));
+                }
+                if liput.jumissa {
+                    // Viimeinen siirto kerää ässän, ja peli toteaa lopun itse.
+                    let tila = &mut peli.lauta.tila;
+                    tila.pakka.clear();
+                    tila.jate.clear();
+                    tila.sarakkeet = Default::default();
+                    tila.sarakkeet[0].kortit = vec![Kortti {
+                        maa: Maa::Pata,
+                        arvo: 9,
+                    }];
+                    tila.sarakkeet[1].kortit = vec![
+                        Kortti {
+                            maa: Maa::Risti,
+                            arvo: 5,
+                        },
+                        Kortti {
+                            maa: Maa::Hertta,
+                            arvo: 1,
+                        },
+                    ];
+                    peli.kasittele(Syote::Kirjain('A'));
                 }
                 if liput.voitto {
                     for (pino, &maa) in peli.lauta.tila.perustat.iter_mut().zip(&Maa::KAIKKI) {

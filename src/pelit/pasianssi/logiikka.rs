@@ -335,26 +335,82 @@ impl Lauta {
         true
     }
 
-    /// Onko näkyvissä vielä hyödyllistä siirtoa. Vain vihje pelaajalle: jonon osan siirto
-    /// saattaa yhä auttaa, joten tämän takia peliä ei lopeteta.
-    pub fn on_hyodyllisia_siirtoja(&self) -> bool {
-        let kohteet = || {
-            (0..MAITA)
-                .map(Kohde::Perusta)
-                .chain((0..SARAKKEITA).map(Kohde::Sarake))
-        };
-        let kelpaa = |kortti: Kortti| {
-            kohteet().any(|kohde| match kohde {
-                Kohde::Perusta(perusta) => {
-                    Maa::KAIKKI[perusta] == kortti.maa
-                        && self.tila.perustat[perusta].len() + 1 == kortti.arvo as usize
-                }
-                Kohde::Sarake(sarake) => match self.tila.sarakkeet[sarake].kortit.last() {
+    /// Voiko kortin laskea jollekin perustalle tai sarakkeeseen.
+    fn kortille_on_paikka(&self, kortti: Kortti) -> bool {
+        let perustalle = (0..MAITA).any(|perusta| {
+            Maa::KAIKKI[perusta] == kortti.maa
+                && self.tila.perustat[perusta].len() + 1 == kortti.arvo as usize
+        });
+        perustalle
+            || self
+                .tila
+                .sarakkeet
+                .iter()
+                .any(|sarake| match sarake.kortit.last() {
                     Some(&paalla) => kortti.sopii_paalle(paalla),
                     None => kortti.arvo == KUNINGAS,
-                },
-            })
+                })
+    }
+
+    /// Saako jätepinon päällimmäiseksi nostamalla kortin, jolle on paikka.
+    fn pakasta_saa_kortin(&self) -> bool {
+        let nosto = self.vaikeus.nosto();
+        let kelpaa = |kortit: &[Kortti]| {
+            kortit
+                .chunks(nosto)
+                .filter_map(<[Kortti]>::last)
+                .any(|&kortti| self.kortille_on_paikka(kortti))
         };
+        let tila = &self.tila;
+        if tila
+            .jate
+            .last()
+            .is_some_and(|&k| self.kortille_on_paikka(k))
+        {
+            return true;
+        }
+        let pakasta: Vec<Kortti> = tila.pakka.iter().rev().copied().collect();
+        if kelpaa(&pakasta) {
+            return true;
+        }
+        // Yksi kokonainen kierto riittää: seuraavat toistavat samat kortit.
+        let saa_kaantaa = self
+            .vaikeus
+            .kierroksia()
+            .is_none_or(|kierroksia| self.kierros() < kierroksia);
+        let kierto: Vec<Kortti> = tila.jate.iter().chain(&pakasta).copied().collect();
+        saa_kaantaa && kelpaa(&kierto)
+    }
+
+    /// Onko laudalla enää yhtään siirtoa, joka muuttaa tilannetta. Pelkkä pakan selaaminen
+    /// ei ole sellainen, ei myöskään kokonaisen sarakkeen siirto tyhjästä paikasta toiseen.
+    pub fn on_siirtoja(&self) -> bool {
+        if self.pakasta_saa_kortin() {
+            return true;
+        }
+        let perustalta = (0..MAITA).any(|perusta| {
+            (0..SARAKKEITA)
+                .any(|kohde| self.voi_siirtaa(Lahde::Perusta(perusta), Kohde::Sarake(kohde)))
+        });
+        perustalta
+            || (0..SARAKKEITA).any(|sarake| {
+                let tiedot = &self.tila.sarakkeet[sarake];
+                (tiedot.piilossa..tiedot.kortit.len()).any(|kortti| {
+                    let lahde = Lahde::Sarake { sarake, kortti };
+                    let perustalle =
+                        (0..MAITA).any(|perusta| self.voi_siirtaa(lahde, Kohde::Perusta(perusta)));
+                    perustalle
+                        || (0..SARAKKEITA).any(|kohde| {
+                            let turha = kortti == 0 && self.tila.sarakkeet[kohde].kortit.is_empty();
+                            !turha && self.voi_siirtaa(lahde, Kohde::Sarake(kohde))
+                        })
+                })
+            })
+    }
+
+    /// Onko näkyvissä vielä hyödyllistä siirtoa. Vain vihje pelaajalle: jonon osan siirto
+    /// saattaa yhä auttaa, joten peli loppuu vasta, kun `on_siirtoja` on epätosi.
+    pub fn on_hyodyllisia_siirtoja(&self) -> bool {
         // Pakan kortit tulevat vielä vastaan, jos pakkaa on jäljellä tai sen saa kääntää.
         let pakka_kiertaa = !self.tila.pakka.is_empty() || self.voi_kierrattaa();
         let pakasta = if pakka_kiertaa {
@@ -362,9 +418,12 @@ impl Lauta {
                 .pakka
                 .iter()
                 .chain(&self.tila.jate)
-                .any(|&k| kelpaa(k))
+                .any(|&k| self.kortille_on_paikka(k))
         } else {
-            self.tila.jate.last().is_some_and(|&k| kelpaa(k))
+            self.tila
+                .jate
+                .last()
+                .is_some_and(|&k| self.kortille_on_paikka(k))
         };
         if pakasta {
             return true;
