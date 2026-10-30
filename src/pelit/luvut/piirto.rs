@@ -152,7 +152,8 @@ impl Piirtaja<'_> {
         let jatkuu = luvut.jatkuu;
         let varit = [2, 8, 64, 2048].map(|arvo| laatan_varit(arvo).0);
         self.maisema("**** 2048 ****", &lukupino(varit));
-        self.parhaat_alkuruudulla(PARHAAT_OTSIKKO, &luvut.parhaat);
+        let otsikko = listan_otsikko(luvut.netti_parhaat.is_some());
+        self.parhaat_alkuruudulla(otsikko, luvut.nakyva_lista());
         let mut y = OHJE_Y;
         for osa in [
             "Tervetuloa pelaamaan 2048-peliä.",
@@ -371,8 +372,8 @@ impl Piirtaja<'_> {
             PARHAAT_Y,
             PARHAAT_L,
             TULOS,
-            PARHAAT_OTSIKKO,
-            &luvut.parhaat,
+            listan_otsikko(luvut.netti_parhaat.is_some()),
+            luvut.nakyva_lista(),
         );
     }
 

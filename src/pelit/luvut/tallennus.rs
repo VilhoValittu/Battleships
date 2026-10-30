@@ -32,6 +32,8 @@ pub struct Tallennus {
     pub parhaat: Vec<Tulos>,
     /// Oletus on epätosi, joten vanhassa tallennuksessa äänet ovat päällä.
     pub hiljaa: bool,
+    /// 2048:n tulokset, jotka eivät ole vielä päässeet nettilistalle.
+    pub luvut_jono: Vec<Tulos>,
     /// Tiilirikon paras tulos. Vanhassa tallennuksessa nolla.
     pub tiilirikko: u32,
     /// Tiilirikon top 3, järjestys kuten `parhaat`.
@@ -68,6 +70,9 @@ impl Tallennus {
         for tulos in &self.tiilirikon_parhaat {
             teksti += &format!("tiilitop {} {}\n", tulos.pisteet, tulos.nimi);
         }
+        for tulos in &self.luvut_jono {
+            teksti += &format!("lukujono {} {}\n", tulos.pisteet, tulos.nimi);
+        }
         for tulos in &self.tiilirikon_jono {
             teksti += &format!("tiilijono {} {}\n", tulos.pisteet, tulos.nimi);
         }
@@ -92,7 +97,7 @@ impl Tallennus {
         let (mut paras, mut lauta, mut pisteet, mut siirrot) = (None, None, None, None);
         let (mut jatkettu, mut hiljaa) = (false, false);
         let (mut parhaat, mut tiilirikon_parhaat) = (Vec::new(), Vec::new());
-        let mut tiilirikon_jono = Vec::new();
+        let (mut luvut_jono, mut tiilirikon_jono) = (Vec::new(), Vec::new());
         let mut tiilirikko = None;
         for rivi in rivit {
             match rivi.split_once(' ') {
@@ -107,6 +112,11 @@ impl Tallennus {
                 Some(("tiilitop", arvo)) => {
                     if let Some(tulos) = tulos_tekstista(arvo) {
                         lisaa_tulos(&mut tiilirikon_parhaat, tulos);
+                    }
+                }
+                Some(("lukujono", arvo)) => {
+                    if let Some(tulos) = tulos_tekstista(arvo) {
+                        lisaa_tulos(&mut luvut_jono, tulos);
                     }
                 }
                 Some(("tiilijono", arvo)) => {
@@ -139,6 +149,7 @@ impl Tallennus {
             kesken,
             parhaat,
             hiljaa,
+            luvut_jono,
             tiilirikko: tiilirikko.unwrap_or(0),
             tiilirikon_parhaat,
             tiilirikon_jono,
@@ -192,6 +203,10 @@ mod tests {
                 },
             ],
             hiljaa: true,
+            luvut_jono: vec![Tulos {
+                nimi: "A1".to_string(),
+                pisteet: 300,
+            }],
             tiilirikko: 1250,
             tiilirikon_parhaat: vec![Tulos {
                 nimi: "TIILI".to_string(),
@@ -213,6 +228,7 @@ mod tests {
             kesken: None,
             parhaat: Vec::new(),
             hiljaa: false,
+            luvut_jono: Vec::new(),
             tiilirikko: 0,
             tiilirikon_parhaat: Vec::new(),
             tiilirikon_jono: Vec::new(),

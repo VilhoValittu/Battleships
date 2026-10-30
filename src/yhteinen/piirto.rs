@@ -4,7 +4,11 @@ use super::tulokset::{PARHAITA, Tulos};
 use super::vektori::{self, Kangas, kehapiste, varjosta};
 use super::{fontti, vektorifontti};
 
-pub const PARHAAT_OTSIKKO: &str = "TOP 3";
+/// Sivupalkkiin mahtuu yhdeksän merkkiä.
+pub fn listan_otsikko(netti: bool) -> &'static str {
+    if netti { "NETTI TOP" } else { "TOP 3" }
+}
+
 pub const LEVEYS: usize = 960;
 pub const KORKEUS: usize = 768;
 

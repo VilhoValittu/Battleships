@@ -12,21 +12,36 @@ use crate::yhteinen::tulokset::{Tulos, lista_tekstista};
 
 #[cfg(not(debug_assertions))]
 pub const OSOITE: &str = "https://klassikot8000-tulokset.palvelin.workers.dev";
-const PELI: &str = "tiilirikko";
 const AIKARAJA: Duration = Duration::from_secs(8);
 const KELVOTON_PYYNTO: u16 = 400;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Nettipeli {
+    Luvut,
+    Tiilirikko,
+}
+
+impl Nettipeli {
+    /// Pelin tunnus palvelimella.
+    fn tunnus(self) -> &'static str {
+        match self {
+            Nettipeli::Luvut => "luvut",
+            Nettipeli::Tiilirikko => "tiilirikko",
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Pyynto {
-    Hae,
-    Laheta(Tulos),
+    Hae(Nettipeli),
+    Laheta(Nettipeli, Tulos),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Vastaus {
-    Lista(Vec<Tulos>),
+    Lista(Nettipeli, Vec<Tulos>),
     /// Tulos on käsitelty, eikä sitä tarvitse lähettää uudelleen.
-    Lahetetty(Tulos),
+    Lahetetty(Nettipeli, Tulos),
 }
 
 pub struct Netti {
@@ -77,20 +92,29 @@ fn aja(osoite: &str, saapuvat: Receiver<Pyynto>, lahtevat: Sender<Vastaus>) {
 
 fn kasittele(agentti: &Agent, osoite: &str, pyynto: Pyynto) -> Vec<Vastaus> {
     match pyynto {
-        Pyynto::Hae => {
-            let vastaus = agentti.get(format!("{osoite}/top3?peli={PELI}")).call();
-            lue_lista(vastaus).map(Vastaus::Lista).into_iter().collect()
+        Pyynto::Hae(peli) => {
+            let tunnus = peli.tunnus();
+            let vastaus = agentti.get(format!("{osoite}/top3?peli={tunnus}")).call();
+            lue_lista(vastaus)
+                .map(|lista| Vastaus::Lista(peli, lista))
+                .into_iter()
+                .collect()
         }
-        Pyynto::Laheta(tulos) => {
+        Pyynto::Laheta(peli, tulos) => {
+            let tunnus = peli.tunnus();
             let vastaus = agentti
-                .post(format!("{osoite}/tulos?peli={PELI}"))
+                .post(format!("{osoite}/tulos?peli={tunnus}"))
                 .content_type("text/plain; charset=utf-8")
                 .send(format!("{} {}", tulos.pisteet, tulos.nimi));
             match vastaus {
                 // Palvelin hylkää tämän joka kerta, joten uudelleenyritys olisi turha.
-                Err(ureq::Error::StatusCode(KELVOTON_PYYNTO)) => vec![Vastaus::Lahetetty(tulos)],
+                Err(ureq::Error::StatusCode(KELVOTON_PYYNTO)) => {
+                    vec![Vastaus::Lahetetty(peli, tulos)]
+                }
                 vastaus => match lue_lista(vastaus) {
-                    Some(lista) => vec![Vastaus::Lista(lista), Vastaus::Lahetetty(tulos)],
+                    Some(lista) => {
+                        vec![Vastaus::Lista(peli, lista), Vastaus::Lahetetty(peli, tulos)]
+                    }
                     None => Vec::new(),
                 },
             }
@@ -167,28 +191,31 @@ mod tests {
         let netti = Netti::kaynnista(&osoite).unwrap();
         let odotettu = vec![tulos("VÄINÖ", 120), tulos("B", 50)];
 
-        netti.laheta(Pyynto::Hae);
+        netti.laheta(Pyynto::Hae(Nettipeli::Tiilirikko));
         assert_eq!(
             netti.vastaukset.recv().unwrap(),
-            Vastaus::Lista(odotettu.clone())
+            Vastaus::Lista(Nettipeli::Tiilirikko, odotettu.clone())
         );
 
-        netti.laheta(Pyynto::Laheta(tulos("VÄINÖ", 120)));
-        assert_eq!(netti.vastaukset.recv().unwrap(), Vastaus::Lista(odotettu));
+        netti.laheta(Pyynto::Laheta(Nettipeli::Luvut, tulos("VÄINÖ", 120)));
         assert_eq!(
             netti.vastaukset.recv().unwrap(),
-            Vastaus::Lahetetty(tulos("VÄINÖ", 120))
+            Vastaus::Lista(Nettipeli::Luvut, odotettu)
+        );
+        assert_eq!(
+            netti.vastaukset.recv().unwrap(),
+            Vastaus::Lahetetty(Nettipeli::Luvut, tulos("VÄINÖ", 120))
         );
 
-        netti.laheta(Pyynto::Laheta(tulos("X", 1)));
+        netti.laheta(Pyynto::Laheta(Nettipeli::Tiilirikko, tulos("X", 1)));
         assert_eq!(
             netti.vastaukset.recv().unwrap(),
-            Vastaus::Lahetetty(tulos("X", 1))
+            Vastaus::Lahetetty(Nettipeli::Tiilirikko, tulos("X", 1))
         );
 
         let pyynnot = saie.join().unwrap();
         assert!(pyynnot[0].starts_with("GET /top3?peli=tiilirikko "));
-        assert!(pyynnot[1].starts_with("POST /tulos?peli=tiilirikko "));
+        assert!(pyynnot[1].starts_with("POST /tulos?peli=luvut "));
         assert!(pyynnot[1].ends_with(" 120 VÄINÖ"));
     }
 
@@ -196,7 +223,8 @@ mod tests {
     fn palvelinvirhe_ei_kuittaa_tulosta_lahetetyksi() {
         let (osoite, saie) = palvelin(vec![http("500 Oops", "")]);
         let agentti = Agent::new_with_defaults();
-        assert!(kasittele(&agentti, &osoite, Pyynto::Laheta(tulos("A", 1))).is_empty());
+        let pyynto = Pyynto::Laheta(Nettipeli::Luvut, tulos("A", 1));
+        assert!(kasittele(&agentti, &osoite, pyynto).is_empty());
         saie.join().unwrap();
     }
 
@@ -206,6 +234,6 @@ mod tests {
         let osoite = format!("http://{}", kuuntelija.local_addr().unwrap());
         drop(kuuntelija);
         let agentti = Agent::new_with_defaults();
-        assert!(kasittele(&agentti, &osoite, Pyynto::Hae).is_empty());
+        assert!(kasittele(&agentti, &osoite, Pyynto::Hae(Nettipeli::Luvut)).is_empty());
     }
 }

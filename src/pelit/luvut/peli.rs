@@ -35,6 +35,10 @@ pub struct Luvut {
     pub lauta: Lukulauta,
     pub paras: u32,
     pub parhaat: Vec<Tulos>,
+    /// Nettilista. `None`, kunnes palvelin on vastannut.
+    pub netti_parhaat: Option<Vec<Tulos>>,
+    /// Kirjattu tulos, joka odottaa lähetystä nettilistalle.
+    pub lahetys: Option<Tulos>,
     /// Kirjoitettavana oleva nimimerkki.
     pub nimi: String,
     /// Tosi, kun uusi tulos odottaa tiedostoon kirjoitusta.
@@ -67,6 +71,8 @@ impl Luvut {
             lauta: Lukulauta::new(&mut arpa),
             paras: 0,
             parhaat: Vec::new(),
+            netti_parhaat: None,
+            lahetys: None,
             nimi: String::new(),
             uusi_tulos: false,
             siirtoja: 0,
@@ -83,6 +89,11 @@ impl Luvut {
             uusi_alkaa: false,
             arpa,
         }
+    }
+
+    /// Esillä oleva lista: nettilista, tai oma lista, jos verkkoon ei ole saatu yhteyttä.
+    pub fn nakyva_lista(&self) -> &[Tulos] {
+        self.netti_parhaat.as_deref().unwrap_or(&self.parhaat)
     }
 
     pub fn palauta(&mut self, kesken: Kesken) {
@@ -135,7 +146,7 @@ impl Luvut {
 
     /// Uusi peli hylkää nykyisen, joten hyvä tulos kirjataan ensin listalle.
     fn hylkaa_ja_aloita(&mut self) {
-        if mahtuu_parhaisiin(&self.parhaat, self.lauta.pisteet) {
+        if mahtuu_parhaisiin(self.nakyva_lista(), self.lauta.pisteet) {
             self.uusi_alkaa = true;
             self.kysy_nimi();
         } else {
@@ -149,7 +160,7 @@ impl Luvut {
     }
 
     fn paata_peli(&mut self) {
-        if mahtuu_parhaisiin(&self.parhaat, self.lauta.pisteet) {
+        if mahtuu_parhaisiin(self.nakyva_lista(), self.lauta.pisteet) {
             self.kysy_nimi();
         } else {
             self.vaihe = Vaihe::Tappio;
@@ -163,7 +174,12 @@ impl Luvut {
         }
         let nimi = ota_nimi(&mut self.nimi);
         let pisteet = self.lauta.pisteet;
-        lisaa_tulos(&mut self.parhaat, Tulos { nimi, pisteet });
+        let tulos = Tulos { nimi, pisteet };
+        lisaa_tulos(&mut self.parhaat, tulos.clone());
+        if let Some(lista) = &mut self.netti_parhaat {
+            lisaa_tulos(lista, tulos.clone());
+        }
+        self.lahetys = Some(tulos);
         self.uusi_tulos = true;
         if std::mem::take(&mut self.uusi_alkaa) {
             self.aloita_alusta();
@@ -479,6 +495,45 @@ mod tests {
         luvut.kasittele(Syote::Kirjain('K'));
         assert_eq!(luvut.vaihe, Vaihe::Alku);
         assert_eq!(luvut.parhaat.len(), 1);
+    }
+
+    #[test]
+    fn nettilista_ratkaisee_nimen_kysymisen_kun_se_on_tiedossa() {
+        let taysi = |pisteet| {
+            (0..3)
+                .map(|_| Tulos {
+                    nimi: "A".to_string(),
+                    pisteet,
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let mut luvut = pelissa(LUKKOON_PISTEILLA);
+        luvut.netti_parhaat = Some(taysi(1000));
+        luvut.kasittele(Syote::Nuoli(0, -1));
+        assert_eq!(luvut.vaihe, Vaihe::Tappio);
+        assert_eq!(luvut.lahetys, None);
+
+        let mut luvut = pelissa(LUKKOON_PISTEILLA);
+        luvut.parhaat = taysi(1000);
+        luvut.netti_parhaat = Some(taysi(2));
+        luvut.kasittele(Syote::Nuoli(0, -1));
+        assert_eq!(luvut.vaihe, Vaihe::Nimi);
+        luvut.kasittele(Syote::Kirjain('B'));
+        luvut.kasittele(Syote::Ammu);
+        assert_eq!(luvut.netti_parhaat.as_ref().unwrap()[0].nimi, "B");
+        assert_eq!(luvut.lahetys.as_ref().unwrap().pisteet, 4);
+    }
+
+    #[test]
+    fn ilman_verkkoa_tulos_kirjataan_omalle_listalle_ja_lahetettavaksi() {
+        let mut luvut = pelissa(LUKKOON_PISTEILLA);
+        luvut.kasittele(Syote::Nuoli(0, -1));
+        luvut.kasittele(Syote::Kirjain('B'));
+        luvut.kasittele(Syote::Ammu);
+        assert_eq!(luvut.nakyva_lista()[0].nimi, "B");
+        assert_eq!(luvut.netti_parhaat, None);
+        assert_eq!(luvut.lahetys.as_ref().unwrap().nimi, "B");
     }
 
     #[test]

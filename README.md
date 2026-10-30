@@ -4,9 +4,6 @@ The game is being rebuilt in Rust as a small Windows game with a C64/Amiga look,
 
 The launcher is in `src/kaynnistin/`, each game in its own folder under `src/pelit/` (`laivanupotus`, `luvut` = 2048, `pasianssi`, `tiilirikko` = Breakout), and code they share in `src/yhteinen/`.
 
-Breakout has an online top 3 served by the Cloudflare Worker in `palvelin/` (Worker + D1). The game falls back to the local list when offline and resends unsent scores on the next launch from the save file. Scores are not protected against cheating beyond input checks, a maximum score and a rate limit. Run the commands from `palvelin/`:
+2048 and Breakout have online top 3 lists served by the Cloudflare Worker in `palvelin/` (Worker + D1). The game falls back to the local list when offline and resends unsent scores on the next launch from the save file. Scores are not protected against cheating beyond input checks, a maximum score and a rate limit. Run the commands from `palvelin/`:
 
-- Tests: `node --test`
-- Local server: `npx wrangler@4 d1 execute klassikot8000-tulokset --local --file=schema.sql`, then `npx wrangler@4 dev`; point a debug build at it with `--net http://127.0.0.1:8787`
-- Deploy: `npx wrangler@4 deploy`
-- Remove a score: `npx wrangler@4 d1 execute klassikot8000-tulokset --remote --command "DELETE FROM tulokset WHERE nimi = 'NIMI'"`
+

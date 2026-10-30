@@ -7,7 +7,7 @@ pub mod piirto;
 use klassikot8000::laivanupotus::Vaikeus;
 use klassikot8000::pasianssi;
 
-use self::netti::{Pyynto, Vastaus};
+use self::netti::{Nettipeli, Pyynto, Vastaus};
 use crate::pelit::laivanupotus::peli::Peli;
 use crate::pelit::luvut::peli::Luvut;
 use crate::pelit::luvut::tallennus::Tallennus;
@@ -77,8 +77,9 @@ pub struct Kaynnistin {
     pub tallenna: bool,
     /// Pyynnöt, jotka `main.rs` välittää verkkosäikeelle.
     pub pyynnot: Vec<Pyynto>,
-    /// Tiilirikon nettilista, kun palvelin on vastannut.
-    netti_parhaat: Option<Vec<Tulos>>,
+    /// Nettilistat, kun palvelin on vastannut.
+    netti_luvut: Option<Vec<Tulos>>,
+    netti_tiilirikko: Option<Vec<Tulos>>,
     vaikeus: Vaikeus,
     pasianssin_vaikeus: pasianssi::Vaikeus,
     siemen: u64,
@@ -96,7 +97,8 @@ impl Kaynnistin {
             tallennus: Tallennus::default(),
             tallenna: false,
             pyynnot: Vec::new(),
-            netti_parhaat: None,
+            netti_luvut: None,
+            netti_tiilirikko: None,
             vaikeus: Vaikeus::Normaali,
             pasianssin_vaikeus: pasianssi::Vaikeus::Normaali,
             siemen,
@@ -161,6 +163,8 @@ impl Kaynnistin {
                 let mut peli = Luvut::new(siemen);
                 peli.paras = self.tallennus.paras;
                 peli.parhaat = self.tallennus.parhaat.clone();
+                peli.netti_parhaat = self.netti_luvut.clone();
+                self.pyynnot.push(Pyynto::Hae(Nettipeli::Luvut));
                 if let Some(kesken) = self.tallennus.kesken {
                     peli.palauta(kesken);
                 }
@@ -177,9 +181,9 @@ impl Kaynnistin {
                 let mut peli = Tiilirikko::new(siemen);
                 peli.paras = self.tallennus.tiilirikko;
                 peli.parhaat = self.tallennus.tiilirikon_parhaat.clone();
-                peli.netti_parhaat = self.netti_parhaat.clone();
+                peli.netti_parhaat = self.netti_tiilirikko.clone();
                 peli.aanet_paalla = self.aanet_paalla;
-                self.pyynnot.push(Pyynto::Hae);
+                self.pyynnot.push(Pyynto::Hae(Nettipeli::Tiilirikko));
                 Kaynnissa::Tiilirikko(Box::new(peli))
             }
         });
@@ -189,22 +193,38 @@ impl Kaynnistin {
     pub fn lataa(&mut self, tallennus: Tallennus) {
         self.aanet_paalla = !tallennus.hiljaa;
         // Edellisellä kerralla lähettämättä jääneet tulokset yritetään uudelleen.
-        let jono = tallennus.tiilirikon_jono.iter().cloned();
-        self.pyynnot.extend(jono.map(Pyynto::Laheta));
+        for (peli, jono) in [
+            (Nettipeli::Luvut, &tallennus.luvut_jono),
+            (Nettipeli::Tiilirikko, &tallennus.tiilirikon_jono),
+        ] {
+            let tulokset = jono.iter().cloned();
+            self.pyynnot
+                .extend(tulokset.map(|tulos| Pyynto::Laheta(peli, tulos)));
+        }
         self.tallennus = tallennus;
     }
 
     /// Ottaa verkkosäikeen vastauksen. Lähetetty tulos poistuu jonosta.
     pub fn vastaanota(&mut self, vastaus: Vastaus) {
         match vastaus {
-            Vastaus::Lista(lista) => {
+            Vastaus::Lista(Nettipeli::Luvut, lista) => {
+                if let Some(Kaynnissa::Luvut(peli)) = &mut self.peli {
+                    peli.netti_parhaat = Some(lista.clone());
+                }
+                self.netti_luvut = Some(lista);
+            }
+            Vastaus::Lista(Nettipeli::Tiilirikko, lista) => {
                 if let Some(Kaynnissa::Tiilirikko(peli)) = &mut self.peli {
                     peli.netti_parhaat = Some(lista.clone());
                 }
-                self.netti_parhaat = Some(lista);
+                self.netti_tiilirikko = Some(lista);
             }
-            Vastaus::Lahetetty(tulos) => {
-                self.tallennus.tiilirikon_jono.retain(|t| *t != tulos);
+            Vastaus::Lahetetty(peli, tulos) => {
+                let jono = match peli {
+                    Nettipeli::Luvut => &mut self.tallennus.luvut_jono,
+                    Nettipeli::Tiilirikko => &mut self.tallennus.tiilirikon_jono,
+                };
+                jono.retain(|t| *t != tulos);
                 self.tallenna = true;
             }
         }
@@ -217,15 +237,21 @@ impl Kaynnistin {
                 self.tallennus.paras = peli.paras;
                 self.tallennus.parhaat = peli.parhaat.clone();
                 self.tallennus.kesken = peli.kesken();
+                self.netti_luvut = peli.netti_parhaat.clone();
+                // Jono kirjataan tiedostoon, jottei tulos katoa, vaikka lähetys epäonnistuisi.
+                if let Some(tulos) = peli.lahetys.take() {
+                    lisaa_tulos(&mut self.tallennus.luvut_jono, tulos.clone());
+                    self.pyynnot.push(Pyynto::Laheta(Nettipeli::Luvut, tulos));
+                }
             }
             Some(Kaynnissa::Tiilirikko(peli)) => {
                 self.tallennus.tiilirikko = peli.paras;
                 self.tallennus.tiilirikon_parhaat = peli.parhaat.clone();
-                self.netti_parhaat = peli.netti_parhaat.clone();
-                // Jono kirjataan tiedostoon, jottei tulos katoa, vaikka lähetys epäonnistuisi.
+                self.netti_tiilirikko = peli.netti_parhaat.clone();
                 if let Some(tulos) = peli.lahetys.take() {
                     lisaa_tulos(&mut self.tallennus.tiilirikon_jono, tulos.clone());
-                    self.pyynnot.push(Pyynto::Laheta(tulos));
+                    self.pyynnot
+                        .push(Pyynto::Laheta(Nettipeli::Tiilirikko, tulos));
                 }
             }
             _ => {}
@@ -519,8 +545,11 @@ mod tests {
     fn nettitulos_jonottaa_tiedostossa_kunnes_lahetys_on_kuitattu() {
         let mut k = Kaynnistin::new(1);
         k.kaynnista(Laji::Tiilirikko);
-        assert_eq!(std::mem::take(&mut k.pyynnot), [Pyynto::Hae]);
-        k.vastaanota(Vastaus::Lista(Vec::new()));
+        assert_eq!(
+            std::mem::take(&mut k.pyynnot),
+            [Pyynto::Hae(Nettipeli::Tiilirikko)]
+        );
+        k.vastaanota(Vastaus::Lista(Nettipeli::Tiilirikko, Vec::new()));
         k.kasittele(Syote::Ammu);
         k.kasittele(Syote::Ammu);
         let Some(Kaynnissa::Tiilirikko(peli)) = &mut k.peli else {
@@ -541,18 +570,68 @@ mod tests {
         };
         assert_eq!(
             std::mem::take(&mut k.pyynnot),
-            [Pyynto::Laheta(tulos.clone())]
+            [Pyynto::Laheta(Nettipeli::Tiilirikko, tulos.clone())]
         );
         assert_eq!(k.tallennus.tiilirikon_jono.len(), 1);
 
         // lähetys ei ehtinyt perille: seuraava käynnistys yrittää uudelleen
         let mut uusi = Kaynnistin::new(2);
         uusi.lataa(Tallennus::tekstista(&k.tallennus.tekstiksi()));
-        assert_eq!(uusi.pyynnot, [Pyynto::Laheta(tulos.clone())]);
+        assert_eq!(
+            uusi.pyynnot,
+            [Pyynto::Laheta(Nettipeli::Tiilirikko, tulos.clone())]
+        );
 
-        uusi.vastaanota(Vastaus::Lahetetty(tulos));
+        uusi.vastaanota(Vastaus::Lahetetty(Nettipeli::Tiilirikko, tulos));
         assert!(uusi.tallenna);
         assert!(uusi.tallennus.tiilirikon_jono.is_empty());
+    }
+
+    #[test]
+    fn luvut_ja_tiilirikko_pitavat_nettilistansa_ja_jononsa_erillaan() {
+        let tulos = |nimi: &str, pisteet| Tulos {
+            nimi: nimi.to_string(),
+            pisteet,
+        };
+        let lukkoon = [
+            [2, 2, 16, 8],
+            [16, 32, 64, 16],
+            [4, 16, 8, 32],
+            [16, 32, 64, 128],
+        ];
+        let mut k = Kaynnistin::new(1);
+        k.vastaanota(Vastaus::Lista(Nettipeli::Tiilirikko, vec![tulos("T", 9)]));
+        k.kaynnista(Laji::Luvut);
+        assert_eq!(
+            std::mem::take(&mut k.pyynnot),
+            [Pyynto::Hae(Nettipeli::Luvut)]
+        );
+        assert_eq!(luvut(&mut k).netti_parhaat, None);
+        k.vastaanota(Vastaus::Lista(Nettipeli::Luvut, Vec::new()));
+        assert_eq!(luvut(&mut k).netti_parhaat, Some(Vec::new()));
+
+        k.kasittele(Syote::Ammu);
+        luvut(&mut k).lauta = Lukulauta::ruuduista(lukkoon);
+        k.kasittele(Syote::Nuoli(0, -1));
+        k.kasittele(Syote::Kirjain('A'));
+        k.kasittele(Syote::Ammu);
+        let odotettu = tulos("A", 4);
+        assert_eq!(
+            std::mem::take(&mut k.pyynnot),
+            [Pyynto::Laheta(Nettipeli::Luvut, odotettu.clone())]
+        );
+        assert_eq!(k.tallennus.luvut_jono.len(), 1);
+        assert!(k.tallennus.tiilirikon_jono.is_empty());
+
+        // lähetys ei ehtinyt perille: seuraava käynnistys yrittää uudelleen
+        let mut uusi = Kaynnistin::new(2);
+        uusi.lataa(Tallennus::tekstista(&k.tallennus.tekstiksi()));
+        assert_eq!(
+            uusi.pyynnot,
+            [Pyynto::Laheta(Nettipeli::Luvut, odotettu.clone())]
+        );
+        uusi.vastaanota(Vastaus::Lahetetty(Nettipeli::Luvut, odotettu));
+        assert!(uusi.tallennus.luvut_jono.is_empty());
     }
 
     #[test]
