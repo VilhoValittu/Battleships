@@ -33,13 +33,13 @@ Windows x86_64 only. No Linux/macOS/wasm/mobile targets, no CI workflows, Docker
 
 ## "Fancy" means a real window
 
-The terminal-UI idea is dropped. **Decided by the user (2026-10-30): `minifb`** with `default-features = false` and a software 320x256 framebuffer, C64/Amiga look, mouse and keyboard. The user's goals: small packaged size and low memory use. Only `main.rs` touches minifb; `src/ui/` and the logic library stay free of framework types. Randomness is the repo's own `Arpa` (xorshift64*), not `rand`, to keep the package small. Measured release exe before sound: 239 KB with static CRT (139 KB without, but then it needs the VC++ runtime), about 125 KB zipped, 1.8 MB private memory. Sound uses `tinyaudio` (DirectSound via `winapi`, chosen to keep `unsafe` out of this repo), opened only in `main.rs`; with it the exe is 275 KB and private memory 3.7 MB.
+The terminal-UI idea is dropped. **Decided by the user (2026-10-30): `minifb`** with `default-features = false` and a software 960x768 framebuffer (raised from 320x256 by the user's request, 2026-10-30, for vector graphics; `Scale::FitScreen` always drops one integer step, so on 1080p this opens at 1x, the same window size the old 320x256 got at 3x, while 640x512 would shrink to 1x: `src/ui/vektori.rs` lines, polygons and the 3D ship, `src/ui/vektorifontti.rs` stroke font for headings; body text stays the 8x8 bitmap font drawn at 3x), C64/Amiga look, mouse and keyboard. The user's goals: small packaged size and low memory use. Only `main.rs` touches minifb; `src/ui/` and the logic library stay free of framework types. Randomness is the repo's own `Arpa` (xorshift64*), not `rand`, to keep the package small. Measured release exe before sound: 239 KB with static CRT (139 KB without, but then it needs the VC++ runtime), about 125 KB zipped, 1.8 MB private memory. Sound uses `tinyaudio` (DirectSound via `winapi`, chosen to keep `unsafe` out of this repo), opened only in `main.rs`; with it the exe is 275 KB and private memory 3.7 MB.
 
 Details the window version has to get right:
 
 - Fixed window title `Laivanupotus`, so `play-game/window-shot.ps1` can find it.
 - Finnish text must render: check `ä ö Ä Ö` (for example `HÄVISIT PELIN!`, `Hävittäjä`) in a screenshot; the font is the 8x8 bitmap table in `src/ui/fontti.rs`, no font files.
-- Dev flags exist in debug builds only (`src/kehitys.rs`), so the release exe stays small: `--seed <n>`, `--moves B3,C4`, `--screenshot <path>`. Details in `play-game`.
+- Dev flags exist in debug builds only (`src/kehitys.rs`), so the release exe stays small: `--seed <n>`, `--moves B3,C4`, `--screenshot <path>`, `--time <ms>`. Details in `play-game`.
 
 ## Step order
 

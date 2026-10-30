@@ -7,13 +7,19 @@ pub struct Liput {
     pub siemen: Option<u64>,
     pub kuvakaappaus: Option<String>,
     pub siirrot: Vec<laivanupotus::Ruutu>,
+    /// Kuvakaappauksen hetki viimeisen laukauksen jälkeen, animaatioiden tarkistukseen.
+    pub aika_ms: u32,
 }
+
+// Riittää siihen, että kaikki tehosteet ovat päättyneet.
+const OLETUSAIKA_MS: u32 = 3000;
 
 pub fn lue_liput() -> Result<Liput, String> {
     let mut liput = Liput {
         siemen: None,
         kuvakaappaus: None,
         siirrot: Vec::new(),
+        aika_ms: OLETUSAIKA_MS,
     };
     let mut args = std::env::args().skip(1);
     while let Some(lippu) = args.next() {
@@ -21,6 +27,7 @@ pub fn lue_liput() -> Result<Liput, String> {
         match lippu.as_str() {
             "--seed" => liput.siemen = Some(arvo.parse().map_err(|_| "--seed: ei luku")?),
             "--screenshot" => liput.kuvakaappaus = Some(arvo),
+            "--time" => liput.aika_ms = arvo.parse().map_err(|_| "--time: ei luku")?,
             "--moves" => {
                 for osa in arvo.split(',') {
                     let ruutu = osa.parse().map_err(|_| format!("--moves: {osa}"))?;

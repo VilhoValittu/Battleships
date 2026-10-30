@@ -4,9 +4,26 @@ use super::aanet::Aani;
 use super::piirto;
 
 // Kierroksen äänet tulevat peräkkäin, jotta laukaus ja sen seuraus erottuvat.
-const TULOS_VIIVE_MS: u32 = 220;
+pub const TULOS_VIIVE_MS: u32 = 220;
 const VASTAUS_VIIVE_MS: u32 = 950;
 const LOPPU_VIIVE_MS: u32 = 900;
+pub const TEHOSTE_KESTO_MS: u32 = 800;
+
+/// Laukauksen lento ja osuman animaatio. Ajastus on sama kuin äänillä.
+#[derive(Clone, Copy, Debug)]
+pub struct Tehoste {
+    /// Tosi, kun laukaus osuu pelaajan omalle laudalle.
+    pub omalle: bool,
+    pub ruutu: Ruutu,
+    pub tulos: Laukaustulos,
+    pub laukaus_ms: u32,
+}
+
+impl Tehoste {
+    fn osuma_ms(&self) -> u32 {
+        self.laukaus_ms + TULOS_VIIVE_MS
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Vaihe {
@@ -43,6 +60,9 @@ pub struct Peli {
     pub aanet_paalla: bool,
     /// Soitettavat äänet ja niiden viiveet millisekunteina. `main.rs` tyhjentää jonon.
     pub aanijono: Vec<(Aani, u32)>,
+    pub tehosteet: Vec<Tehoste>,
+    /// Pelin alusta kulunut aika, josta kaikki animaatiot lasketaan.
+    pub kello_ms: u32,
     arpa: Arpa,
 }
 
@@ -59,8 +79,31 @@ impl Peli {
             lopeta: false,
             aanet_paalla: true,
             aanijono: Vec::new(),
+            tehosteet: Vec::new(),
+            kello_ms: 0,
             arpa,
         }
+    }
+
+    pub fn edista(&mut self, ms: u32) {
+        self.kello_ms = self.kello_ms.saturating_add(ms);
+        let kello = self.kello_ms;
+        self.tehosteet
+            .retain(|t| kello < t.osuma_ms() + TEHOSTE_KESTO_MS);
+    }
+
+    /// Onko ruutuun ammuttu laukaus vielä ilmassa? Tulos ei saa näkyä ennen osumaa.
+    pub fn odottaa_osumaa(&self, omalle: bool, ruutu: Ruutu) -> bool {
+        self.tehosteet
+            .iter()
+            .any(|t| t.omalle == omalle && t.ruutu == ruutu && self.kello_ms < t.osuma_ms())
+    }
+
+    /// Onko vastustajan laukaus vielä matkalla? Silloin sen tulosta ei kerrota.
+    pub fn vastaus_kesken(&self) -> bool {
+        self.tehosteet
+            .iter()
+            .any(|t| t.omalle && self.kello_ms < t.osuma_ms())
     }
 
     fn aloita_alusta(&mut self) {
@@ -70,6 +113,7 @@ impl Peli {
         self.kursori = Ruutu { rivi: 0, sarake: 0 };
         self.viestit = Default::default();
         self.ammuttu_jo = false;
+        self.tehosteet.clear();
     }
 
     /// Käsittelee syötteen ja kertoo, muuttuiko näkymä.
@@ -168,6 +212,12 @@ impl Peli {
         self.viestit = [tulos_teksti("Sinä ammuit", ruutu, tulos), String::new()];
         self.aanijono.push((Aani::Laukaus, 0));
         self.aanijono.push((tuloksen_aani(tulos), TULOS_VIIVE_MS));
+        self.tehosteet.push(Tehoste {
+            omalle: false,
+            ruutu,
+            tulos,
+            laukaus_ms: self.kello_ms,
+        });
         if self.vastustaja.kaikki_upotettu() {
             self.vaihe = Vaihe::Voitto;
             self.aanijono.push((Aani::Voitto, LOPPU_VIIVE_MS));
@@ -181,6 +231,12 @@ impl Peli {
             self.aanijono.push((Aani::Tulipallo, VASTAUS_VIIVE_MS));
             self.aanijono
                 .push((tuloksen_aani(tulos), VASTAUS_VIIVE_MS + TULOS_VIIVE_MS));
+            self.tehosteet.push(Tehoste {
+                omalle: true,
+                ruutu,
+                tulos,
+                laukaus_ms: self.kello_ms + VASTAUS_VIIVE_MS,
+            });
         }
         if self.oma.kaikki_upotettu() {
             self.vaihe = Vaihe::Tappio;
@@ -361,6 +417,26 @@ mod tests {
         peli.aanijono.clear();
         peli.ammu(Ruutu { rivi: 0, sarake: 0 });
         assert_eq!(peli.aanijono, [(Aani::Ahkaisy, 0)]);
+    }
+
+    #[test]
+    fn tulos_paljastuu_vasta_osumahetkella_ja_tehoste_poistuu() {
+        let mut peli = pelissa(1);
+        let ruutu = Ruutu { rivi: 0, sarake: 0 };
+        peli.ammu(ruutu);
+        assert!(peli.odottaa_osumaa(false, ruutu));
+        assert!(peli.vastaus_kesken());
+
+        peli.edista(TULOS_VIIVE_MS);
+        assert!(!peli.odottaa_osumaa(false, ruutu));
+        assert!(peli.vastaus_kesken());
+
+        peli.edista(VASTAUS_VIIVE_MS);
+        assert!(!peli.vastaus_kesken());
+        assert!(!peli.tehosteet.is_empty());
+
+        peli.edista(TEHOSTE_KESTO_MS);
+        assert!(peli.tehosteet.is_empty());
     }
 
     #[test]

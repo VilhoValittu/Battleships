@@ -46,11 +46,12 @@ Then open the PNG with the Read tool to see it. Always stop the process afterwar
 
 ### Prefer game-side dev flags over synthetic input
 
-These exist in debug builds only (`target\debug\laivanupotus.exe`; verified). The screenshot is rendered without opening a window, at 320x256:
+These exist in debug builds only (`target\debug\laivanupotus.exe`; verified). The screenshot is rendered without opening a window, at 960x768:
 
 - `--seed <n>`: reproducible placement and AI.
 - `--screenshot <path>`: draw a few frames, save a PNG with the framework's own frame capture, exit. More reliable than `window-shot.ps1` for GPU windows.
 - Optionally `--moves "B3,C4,..."`: replay shots to reach a given state (mid-game, sunk ship, win, loss) without clicking.
+- `--time <ms>`: advance the animation clock before the screenshot (default 3000, all effects finished). All `--moves` shots start at clock 0, so use one move to inspect an effect: `--moves G1 --time 110` shows the shell in flight, `--time 500` the explosion. On the intro screen it sets the 3D ship's angle.
 
 Synthetic keystrokes or clicks (`SendKeys`, `SendInput`) go to whichever window has focus, which may be the user's editor or browser. Avoid them. To test keys in the real window, `PostMessage` `WM_KEYDOWN`/`WM_KEYUP` to the game's own `MainWindowHandle` with the scan code in `lParam` bits 16+ and about 100 ms between them (verified; it cannot reach other apps). The mouse position comes from `GetCursorPos`, so real clicks cannot be tested this way without moving the user's cursor; `Syote::Klikkaus` and the pixel-to-cell mapping have unit tests.
 

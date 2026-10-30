@@ -64,6 +64,8 @@ Added by the user's request (2026-10-30), not in the Python: a fleet statistic u
 
 Added by the user's request (2026-10-30), not in the Python: Doom-spirited sound effects, synthesized in `src/ui/aanet.rs` (no Doom assets or sound files). Door when a game starts, shotgun for the player's shot, fireball for the opponent's, then splash (miss), explosion (hit) or big explosion with a demon death rattle (sink); a grunt for a repeat shot; own metal riff on a win, descending chords and a scream on a loss. On by default. `M` or the `Ääni:` switch at the top right toggles them in any phase, silencing playing and queued sounds at once; the choice survives a replay but not a restart. With no audio device the game runs silently.
 
+Added by the user's request (2026-10-30), not in the Python: C64/Amiga-style vector graphics at 960x768. A rotating 3D battleship over a perspective sea on the intro screen, vector ships on the own board, and an animated shell flight and explosion or splash for each shot, timed with the sounds. A shot's cell mark appears on impact; the opponent's message, and the win or loss line with its buttons, wait for the opponent's shot to land. The buttons and `K`/`E` already work during that short wait. Enemy ships stay hidden as before; sunk-ship reveal is still not implemented.
+
 ## Gaps that are safe to improve (only when the user has asked for the feature)
 
 - Intro text hard-codes "5 laivaa (pituudet 5, 4, 3, 3 ja 2)" instead of deriving from `LAIVAT`.

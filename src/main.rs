@@ -7,18 +7,19 @@ mod ui;
 use std::mem::{ManuallyDrop, take};
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use minifb::{Key, KeyRepeat, MouseButton, MouseMode, Scale, Window, WindowOptions};
 use tinyaudio::{OutputDevice, OutputDeviceParameters, run_output_device};
 
 use ui::aanet::{Mikseri, NAYTETAAJUUS};
-use ui::peli::{Peli, Syote, Vaihe};
+#[cfg(debug_assertions)]
+use ui::peli::Vaihe;
+use ui::peli::{Peli, Syote};
 use ui::piirto::{self, KORKEUS, LEVEYS};
 
 const OTSIKKO: &str = "Laivanupotus";
 const PAIVITYKSIA_SEKUNNISSA: usize = 30;
-const VILKKU_PAIVITYKSINA: u32 = 12;
 // Noin 36 ms: kytkin hiljentää äänet heti, mutta puskuri ei tyhjene kesken.
 const AANIPUSKURI: usize = 400;
 
@@ -89,9 +90,7 @@ fn pelisilmukka(mut peli: Peli, kuva: &mut [u32]) -> Result<(), minifb::Error> {
     // käyttöjärjestelmä vapauttaa laitteen prosessin päättyessä joka tapauksessa.
     let _aanilaite = ManuallyDrop::new(avaa_aanilaite(Arc::clone(&mikseri)));
 
-    let mut likainen = true;
-    let mut vilkku = true;
-    let mut paivityksia = 0;
+    let mut edellinen = Instant::now();
     let mut hiiri = (-1, -1);
     let mut nappi_alhaalla = false;
 
@@ -101,7 +100,7 @@ fn pelisilmukka(mut peli: Peli, kuva: &mut [u32]) -> Result<(), minifb::Error> {
                 // toisto vain nuolille, ettei pohjassa pidetty välilyönti ammu sarjaa
                 let toistuva = matches!(syote, Syote::Nuoli(..));
                 if toistuva || ikkuna.is_key_pressed(nappain, KeyRepeat::No) {
-                    likainen |= peli.kasittele(syote);
+                    peli.kasittele(syote);
                 }
             }
         }
@@ -110,11 +109,11 @@ fn pelisilmukka(mut peli: Peli, kuva: &mut [u32]) -> Result<(), minifb::Error> {
             let piste = (x as i32, y as i32);
             if piste != hiiri {
                 hiiri = piste;
-                likainen |= peli.kasittele(Syote::Hiiri(piste.0, piste.1));
+                peli.kasittele(Syote::Hiiri(piste.0, piste.1));
             }
             let alhaalla = ikkuna.get_mouse_down(MouseButton::Left);
             if alhaalla && !nappi_alhaalla {
-                likainen |= peli.kasittele(Syote::Klikkaus(piste.0, piste.1));
+                peli.kasittele(Syote::Klikkaus(piste.0, piste.1));
             }
             nappi_alhaalla = alhaalla;
         } else {
@@ -128,20 +127,13 @@ fn pelisilmukka(mut peli: Peli, kuva: &mut [u32]) -> Result<(), minifb::Error> {
             }
         }
 
-        paivityksia += 1;
-        if paivityksia == VILKKU_PAIVITYKSINA {
-            paivityksia = 0;
-            vilkku = !vilkku;
-            likainen |= matches!(peli.vaihe, Vaihe::Alku | Vaihe::Ammunta);
-        }
+        let nyt = Instant::now();
+        peli.edista(nyt.duration_since(edellinen).as_millis() as u32);
+        edellinen = nyt;
 
-        if likainen {
-            piirto::piirra(&peli, vilkku, kuva);
-            ikkuna.update_with_buffer(kuva, LEVEYS, KORKEUS)?;
-            likainen = false;
-        } else {
-            ikkuna.update();
-        }
+        // Vesi ja tähtäin elävät koko ajan, joten joka päivitys piirretään kokonaan.
+        piirto::piirra(&peli, kuva);
+        ikkuna.update_with_buffer(kuva, LEVEYS, KORKEUS)?;
     }
     Ok(())
 }
@@ -169,7 +161,8 @@ fn main() -> ExitCode {
         }
         peli.aanijono.clear();
         if let Some(polku) = liput.kuvakaappaus {
-            piirto::piirra(&peli, true, &mut kuva);
+            peli.edista(liput.aika_ms);
+            piirto::piirra(&peli, &mut kuva);
             return match kehitys::tallenna_png(&polku, &kuva, LEVEYS, KORKEUS) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(virhe) => {
