@@ -8,5 +8,7 @@ pub mod laivanupotus;
 pub mod luvut;
 #[path = "pelit/pasianssi/logiikka.rs"]
 pub mod pasianssi;
+#[path = "pelit/tiilirikko/logiikka.rs"]
+pub mod tiilirikko;
 
 pub use arpa::Arpa;

@@ -3,3 +3,4 @@
 pub mod laivanupotus;
 pub mod luvut;
 pub mod pasianssi;
+pub mod tiilirikko;

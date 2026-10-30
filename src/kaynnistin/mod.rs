@@ -10,6 +10,7 @@ use crate::pelit::laivanupotus::peli::Peli;
 use crate::pelit::luvut::peli::Luvut;
 use crate::pelit::luvut::tallennus::Tallennus;
 use crate::pelit::pasianssi::peli::{self as pasianssi_peli, Pasianssi};
+use crate::pelit::tiilirikko::peli::Tiilirikko;
 use crate::yhteinen::aanet::Aani;
 use crate::yhteinen::piirto::{aanikytkimella, ruudulta_kuvaan};
 use crate::yhteinen::syote::Syote;
@@ -19,6 +20,7 @@ pub enum Laji {
     Laivanupotus,
     Luvut,
     Pasianssi,
+    Tiilirikko,
 }
 
 pub struct Kortti {
@@ -27,7 +29,7 @@ pub struct Kortti {
     pub kuvaus: &'static str,
 }
 
-pub const PELIT: [Kortti; 3] = [
+pub const PELIT: [Kortti; 4] = [
     Kortti {
         laji: Laji::Laivanupotus,
         nimi: "LAIVANUPOTUS",
@@ -43,12 +45,18 @@ pub const PELIT: [Kortti; 3] = [
         nimi: "PASIANSSI",
         kuvaus: "Klassinen pasianssi, kolme tasoa.",
     },
+    Kortti {
+        laji: Laji::Tiilirikko,
+        nimi: "TIILIRIKKO",
+        kuvaus: "Riko tiilet, pidä pallo kentällä.",
+    },
 ];
 
 pub enum Kaynnissa {
     Laivanupotus(Box<Peli>),
     Luvut(Box<Luvut>),
     Pasianssi(Box<Pasianssi>),
+    Tiilirikko(Box<Tiilirikko>),
 }
 
 /// Pelin valinta ja käynnissä oleva peli. Asetukset säilyvät, kun peli vaihtuu.
@@ -91,7 +99,27 @@ impl Kaynnistin {
             Some(Kaynnissa::Laivanupotus(_)) => "Laivanupotus",
             Some(Kaynnissa::Luvut(_)) => "2048",
             Some(Kaynnissa::Pasianssi(_)) => "Pasianssi",
+            Some(Kaynnissa::Tiilirikko(_)) => "Tiilirikko",
             None => "Pelikone",
+        }
+    }
+
+    /// Reaaliaikainen peli tarvitsee tiheämmän päivityksen kuin vuoropelit.
+    pub fn toimintapeli(&self) -> bool {
+        matches!(self.peli, Some(Kaynnissa::Tiilirikko(_)))
+    }
+
+    /// Pohjassa olevat nuolet. Näppäintoisto olisi mailan ohjaukseen liian nykivä.
+    pub fn aseta_ohjaus(&mut self, vasen: bool, oikea: bool) {
+        if let Some(Kaynnissa::Tiilirikko(peli)) = &mut self.peli {
+            peli.ohjaus = oikea as i8 - vasen as i8;
+        }
+    }
+
+    /// Ikkuna ei ole aktiivinen, joten reaaliaikainen peli jää odottamaan.
+    pub fn keskeyta(&mut self) {
+        if let Some(Kaynnissa::Tiilirikko(peli)) = &mut self.peli {
+            peli.keskeyta();
         }
     }
 
@@ -136,6 +164,12 @@ impl Kaynnistin {
                 peli.aanet_paalla = self.aanet_paalla;
                 Kaynnissa::Pasianssi(Box::new(peli))
             }
+            Laji::Tiilirikko => {
+                let mut peli = Tiilirikko::new(siemen);
+                peli.paras = self.tallennus.tiilirikko;
+                peli.aanet_paalla = self.aanet_paalla;
+                Kaynnissa::Tiilirikko(Box::new(peli))
+            }
         });
     }
 
@@ -147,10 +181,14 @@ impl Kaynnistin {
 
     pub fn paivita_tallennus(&mut self) {
         self.tallennus.hiljaa = !self.aanet_paalla;
-        if let Some(Kaynnissa::Luvut(peli)) = &self.peli {
-            self.tallennus.paras = peli.paras;
-            self.tallennus.parhaat = peli.parhaat.clone();
-            self.tallennus.kesken = peli.kesken();
+        match &self.peli {
+            Some(Kaynnissa::Luvut(peli)) => {
+                self.tallennus.paras = peli.paras;
+                self.tallennus.parhaat = peli.parhaat.clone();
+                self.tallennus.kesken = peli.kesken();
+            }
+            Some(Kaynnissa::Tiilirikko(peli)) => self.tallennus.tiilirikko = peli.paras,
+            _ => {}
         }
     }
 
@@ -168,6 +206,14 @@ impl Kaynnistin {
             Some(Kaynnissa::Laivanupotus(peli)) => peli.edista(ms),
             Some(Kaynnissa::Luvut(peli)) => peli.edista(ms),
             Some(Kaynnissa::Pasianssi(peli)) => peli.edista(ms),
+            Some(Kaynnissa::Tiilirikko(peli)) => {
+                peli.edista(ms);
+                // Tiilirikko päättyy ajan kuluessa eikä syötteeseen, joten ennätys kirjataan täällä.
+                if std::mem::take(&mut peli.uusi_tulos) {
+                    self.paivita_tallennus();
+                    self.tallenna = true;
+                }
+            }
             None => {}
         }
     }
@@ -177,6 +223,7 @@ impl Kaynnistin {
             Some(Kaynnissa::Laivanupotus(peli)) => std::mem::take(&mut peli.aanijono),
             Some(Kaynnissa::Luvut(peli)) => std::mem::take(&mut peli.aanijono),
             Some(Kaynnissa::Pasianssi(peli)) => std::mem::take(&mut peli.aanijono),
+            Some(Kaynnissa::Tiilirikko(peli)) => std::mem::take(&mut peli.aanijono),
             None => Vec::new(),
         }
     }
@@ -211,6 +258,11 @@ impl Kaynnistin {
                 peli.kasittele(syote);
                 self.aanet_paalla = peli.aanet_paalla;
                 self.pasianssin_vaikeus = peli.vaikeus;
+                peli.lopeta
+            }
+            Some(Kaynnissa::Tiilirikko(peli)) => {
+                peli.kasittele(syote);
+                self.aanet_paalla = peli.aanet_paalla;
                 peli.lopeta
             }
             None => {
@@ -329,10 +381,11 @@ mod tests {
         k.kasittele(Syote::Nuoli(1, 0));
         k.kasittele(Syote::Nuoli(1, 0));
         k.kasittele(Syote::Nuoli(1, 0));
-        assert_eq!(k.valittu, 2);
+        k.kasittele(Syote::Nuoli(1, 0));
+        assert_eq!(k.valittu, 3);
         k.kasittele(Syote::Numero(0));
         k.kasittele(Syote::Numero(9));
-        assert_eq!(k.valittu, 2);
+        assert_eq!(k.valittu, 3);
 
         let (x, y) = piirto::kortin_keskipiste(0);
         k.kasittele(Syote::Hiiri(x, y));
@@ -346,6 +399,55 @@ mod tests {
         k.kasittele(Syote::Klikkaus(x, y));
         assert!(matches!(k.peli, Some(Kaynnissa::Pasianssi(_))));
         assert_eq!(k.otsikko(), "Pasianssi");
+        k.kasittele(Syote::Peru);
+
+        let (x, y) = piirto::kortin_keskipiste(3);
+        k.kasittele(Syote::Klikkaus(x, y));
+        assert!(matches!(k.peli, Some(Kaynnissa::Tiilirikko(_))));
+        assert_eq!(k.otsikko(), "Tiilirikko");
+        assert!(k.toimintapeli());
+    }
+
+    #[test]
+    fn tiilirikon_ennatys_tallentuu_pelin_paattyessa_ja_palautuu() {
+        let mut k = Kaynnistin::new(1);
+        k.kaynnista(Laji::Tiilirikko);
+        k.kasittele(Syote::Ammu);
+        k.kasittele(Syote::Ammu);
+        let Some(Kaynnissa::Tiilirikko(peli)) = &mut k.peli else {
+            panic!("tiilirikko ei ole käynnissä");
+        };
+        peli.paras = 70;
+        peli.lauta.elamat = 1;
+        peli.lauta.pallo = (300.0, 600.0);
+        peli.lauta.nopeus = (0.0, 300.0);
+        k.edista(5);
+        assert!(k.tallenna);
+        assert_eq!(k.tallennus.tiilirikko, 70);
+
+        let mut uusi = Kaynnistin::new(2);
+        uusi.lataa(Tallennus::tekstista(&k.tallennus.tekstiksi()));
+        uusi.kaynnista(Laji::Tiilirikko);
+        let Some(Kaynnissa::Tiilirikko(peli)) = &uusi.peli else {
+            panic!("tiilirikko ei ole käynnissä");
+        };
+        assert_eq!(peli.paras, 70);
+    }
+
+    #[test]
+    fn nuolet_ohjaavat_tiilirikkoa_pohjassa_ollessaan() {
+        let mut k = Kaynnistin::new(1);
+        k.kaynnista(Laji::Tiilirikko);
+        k.aseta_ohjaus(true, false);
+        let Some(Kaynnissa::Tiilirikko(peli)) = &k.peli else {
+            panic!("tiilirikko ei ole käynnissä");
+        };
+        assert_eq!(peli.ohjaus, -1);
+        k.aseta_ohjaus(true, true);
+        let Some(Kaynnissa::Tiilirikko(peli)) = &k.peli else {
+            panic!("tiilirikko ei ole käynnissä");
+        };
+        assert_eq!(peli.ohjaus, 0);
     }
 
     #[test]
@@ -514,7 +616,12 @@ mod tests {
         let mut kuva = vec![0; LEVEYS * KORKEUS];
         let mut k = Kaynnistin::new(1);
         piirto::piirra(&k, &mut ruutu, &mut kuva);
-        for laji in [Laji::Laivanupotus, Laji::Luvut, Laji::Pasianssi] {
+        for laji in [
+            Laji::Laivanupotus,
+            Laji::Luvut,
+            Laji::Pasianssi,
+            Laji::Tiilirikko,
+        ] {
             k.kaynnista(laji);
             k.edista(100);
             piirto::piirra(&k, &mut ruutu, &mut kuva);

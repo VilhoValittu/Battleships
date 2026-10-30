@@ -29,9 +29,13 @@ pub enum Aani {
     Liuku,
     /// 2048: kaksi lukua yhdistyy.
     Yhdistys,
+    /// Tiilirikko: pallo kimpoaa seinästä tai mailasta.
+    Pomppu,
+    /// Tiilirikko: pallo osuu tiileen.
+    Tiili,
 }
 
-const AANIA: usize = 11;
+const AANIA: usize = 13;
 
 struct Soitto {
     aani: Aani,
@@ -62,6 +66,8 @@ impl Mikseri {
                 tappio(&mut arpa),
                 liuku(&mut arpa),
                 yhdistys(),
+                pomppu(),
+                tiili(),
             ],
             soivat: Vec::new(),
             paalla: true,
@@ -292,6 +298,14 @@ fn yhdistys() -> Vec<i8> {
     })
 }
 
+fn pomppu() -> Vec<i8> {
+    rakenna(0.05, |t| kantti(330.0 * t) * 0.35 * (1.0 - t / 0.05))
+}
+
+fn tiili() -> Vec<i8> {
+    rakenna(0.07, |t| kantti(880.0 * t) * 0.35 * (1.0 - t / 0.07))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -316,6 +330,8 @@ mod tests {
             Aani::Tappio,
             Aani::Liuku,
             Aani::Yhdistys,
+            Aani::Pomppu,
+            Aani::Tiili,
         ] {
             let mut mikseri = Mikseri::new();
             mikseri.soita(aani, 0);

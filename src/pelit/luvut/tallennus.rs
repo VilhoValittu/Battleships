@@ -38,6 +38,8 @@ pub struct Tallennus {
     pub parhaat: Vec<Tulos>,
     /// Oletus on epätosi, joten vanhassa tallennuksessa äänet ovat päällä.
     pub hiljaa: bool,
+    /// Tiilirikon paras tulos. Vanhassa tallennuksessa nolla.
+    pub tiilirikko: u32,
 }
 
 fn luku(teksti: &str) -> Option<u32> {
@@ -82,8 +84,8 @@ fn ruudut(teksti: &str) -> Option<Ruudut> {
 impl Tallennus {
     pub fn tekstiksi(&self) -> String {
         let mut teksti = format!(
-            "{OTSAKE}\nparas {}\nhiljaa {}\n",
-            self.paras, self.hiljaa as u8,
+            "{OTSAKE}\nparas {}\nhiljaa {}\ntiilirikko {}\n",
+            self.paras, self.hiljaa as u8, self.tiilirikko,
         );
         for tulos in &self.parhaat {
             teksti += &format!("top {} {}\n", tulos.pisteet, tulos.nimi);
@@ -109,10 +111,12 @@ impl Tallennus {
         let (mut paras, mut lauta, mut pisteet, mut siirrot) = (None, None, None, None);
         let (mut jatkettu, mut hiljaa) = (false, false);
         let mut parhaat = Vec::new();
+        let mut tiilirikko = None;
         for rivi in rivit {
             match rivi.split_once(' ') {
                 Some(("paras", arvo)) => paras = luku(arvo),
                 Some(("hiljaa", arvo)) => hiljaa = arvo == "1",
+                Some(("tiilirikko", arvo)) => tiilirikko = luku(arvo),
                 Some(("top", arvo)) => {
                     if let Some(tulos) = tulos(arvo) {
                         lisaa_tulos(&mut parhaat, tulos);
@@ -143,6 +147,7 @@ impl Tallennus {
             kesken,
             parhaat,
             hiljaa,
+            tiilirikko: tiilirikko.unwrap_or(0),
         }
     }
 }
@@ -193,6 +198,7 @@ mod tests {
                 },
             ],
             hiljaa: true,
+            tiilirikko: 1250,
         }
     }
 
@@ -205,6 +211,7 @@ mod tests {
             kesken: None,
             parhaat: Vec::new(),
             hiljaa: false,
+            tiilirikko: 0,
         };
         assert_eq!(Tallennus::tekstista(&t.tekstiksi()), t);
     }
@@ -249,6 +256,7 @@ mod tests {
         let t = Tallennus::tekstista("klassikot8000 1\nparas 7\n");
         assert_eq!(t.paras, 7);
         assert!(!t.hiljaa);
+        assert_eq!(t.tiilirikko, 0);
         assert!(t.parhaat.is_empty());
     }
 

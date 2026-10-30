@@ -12,7 +12,7 @@ use std::path::Path;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use minifb::{Key, KeyRepeat, MouseButton, MouseMode, Scale, Window, WindowOptions};
 use tinyaudio::{OutputDevice, OutputDeviceParameters, run_output_device};
@@ -25,6 +25,8 @@ use klassikot8000::luvut::Lukulauta;
 #[cfg(debug_assertions)]
 use klassikot8000::pasianssi::{self, KUNINGAS, Kortti, Maa};
 #[cfg(debug_assertions)]
+use klassikot8000::tiilirikko::Tiilipeli;
+#[cfg(debug_assertions)]
 use pelit::laivanupotus::peli::Vaihe;
 #[cfg(debug_assertions)]
 use pelit::luvut::peli as luvut;
@@ -36,6 +38,7 @@ use yhteinen::piirto::{KORKEUS, LEVEYS, RUUDUN_KORKEUS, RUUDUN_LEVEYS, Sovitus, 
 use yhteinen::syote::Syote;
 
 const PAIVITYKSIA_SEKUNNISSA: usize = 30;
+const TOIMINTAPELIN_PAIVITYKSIA: usize = 60;
 // Noin 36 ms: kytkin hiljentää äänet heti, mutta puskuri ei tyhjene kesken.
 const AANIPUSKURI: usize = 400;
 // Scale::FitScreen kertoo tämän suurimmalla kertoimella, joka mahtuu näytölle, ja vähentää
@@ -100,6 +103,14 @@ fn nappain_syotteeksi(nappain: Key) -> Option<Syote> {
     })
 }
 
+fn paivitystaajuus(kaynnistin: &Kaynnistin) -> usize {
+    if kaynnistin.toimintapeli() {
+        TOIMINTAPELIN_PAIVITYKSIA
+    } else {
+        PAIVITYKSIA_SEKUNNISSA
+    }
+}
+
 /// Avaa äänilaitteen. Jos sitä ei ole, peli toimii hiljaa.
 fn avaa_aanilaite(mikseri: Arc<Mutex<Mikseri>>) -> Option<OutputDevice> {
     let parametrit = OutputDeviceParameters {
@@ -138,7 +149,7 @@ fn pelisilmukka(
     let mut ikkuna = Window::new(otsikko, IKKUNAN_POHJA.0, IKKUNAN_POHJA.1, asetukset)?;
     // Oletuspaikassa ikkuna voisi jatkua ruudun yli, ja sulkemisnappi jäisi piiloon.
     ikkuna.set_position(0, 0);
-    ikkuna.set_target_fps(PAIVITYKSIA_SEKUNNISSA);
+    ikkuna.set_target_fps(paivitystaajuus(&kaynnistin));
     let mut ikkunakuva = Vec::new();
 
     let mikseri = Arc::new(Mutex::new(Mikseri::new()));
@@ -186,6 +197,14 @@ fn pelisilmukka(
             nappi_alhaalla = false;
         }
 
+        kaynnistin.aseta_ohjaus(
+            ikkuna.is_key_down(Key::Left),
+            ikkuna.is_key_down(Key::Right),
+        );
+        if !ikkuna.is_active() {
+            kaynnistin.keskeyta();
+        }
+
         if let Ok(mut mikseri) = mikseri.lock() {
             if take(&mut kaynnistin.hiljenna) {
                 mikseri.aseta_paalle(false);
@@ -203,11 +222,13 @@ fn pelisilmukka(
         if kaynnistin.otsikko() != otsikko {
             otsikko = kaynnistin.otsikko();
             ikkuna.set_title(otsikko);
+            ikkuna.set_target_fps(paivitystaajuus(&kaynnistin));
         }
 
-        let nyt = Instant::now();
-        kaynnistin.edista(nyt.duration_since(edellinen).as_millis() as u32);
-        edellinen = nyt;
+        // Millisekunnin osat jäävät seuraavaan kierrokseen, jottei peli hidastu 60 Hz:llä.
+        let kulunut = edellinen.elapsed().as_millis() as u32;
+        kaynnistin.edista(kulunut);
+        edellinen += Duration::from_millis(kulunut as u64);
 
         // Vesi ja tähtäin elävät koko ajan, joten joka päivitys piirretään kokonaan.
         piirto::piirra(&kaynnistin, ruutu, kuva);
@@ -313,6 +334,18 @@ fn main() -> ExitCode {
                     peli.lauta.tila.pakka.clear();
                     peli.lauta.tila.jate.clear();
                     peli.vaihe = pasianssi_peli::Vaihe::Voitto;
+                }
+            }
+            Some(Kaynnissa::Tiilirikko(peli)) => {
+                if let Some(kentta) = liput.kentta {
+                    peli.kasittele(Syote::Ammu);
+                    peli.lauta = Tiilipeli::new(kentta);
+                    peli.kasittele(Syote::Ammu);
+                    // Aikahyppy on rajattu, joten kuvakaappauksen hetki ajetaan pieninä askelina.
+                    for _ in 0..liput.aika_ms / 16 {
+                        peli.edista(16);
+                        peli.kasittele(Syote::Ammu);
+                    }
                 }
             }
             None => {}

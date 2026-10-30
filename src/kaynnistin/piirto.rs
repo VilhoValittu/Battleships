@@ -1,15 +1,15 @@
 //! Käynnistimen näkymä: pelikortit ja ohjeet.
 
 use super::{Kaynnissa, Kaynnistin, PELIT};
-use crate::pelit::{laivanupotus, luvut, pasianssi};
+use crate::pelit::{laivanupotus, luvut, pasianssi, tiilirikko};
 use crate::yhteinen::piirto::*;
 use crate::yhteinen::vektori::{self, Kangas};
 
 const KORTTI_X: i32 = 48;
 const KORTTI_L: i32 = LEVEYS as i32 - 2 * KORTTI_X;
-const KORTTI_Y: i32 = 372;
-const KORTTI_K: i32 = 72;
-const KORTTI_ASKEL: i32 = KORTTI_K + 8;
+const KORTTI_Y: i32 = 360;
+const KORTTI_K: i32 = 60;
+const KORTTI_ASKEL: i32 = KORTTI_K + 6;
 const KORTTI_SISENNYS: i32 = 18;
 
 pub fn kortti_pisteesta(x: i32, y: i32) -> Option<usize> {
@@ -38,6 +38,7 @@ pub fn piirra(kaynnistin: &Kaynnistin, ruutu: &mut [u32], kuva: &mut [u32]) {
         Some(Kaynnissa::Pasianssi(peli)) => pasianssi::piirto::piirra_alku(peli, kuva),
         Some(Kaynnissa::Laivanupotus(peli)) => laivanupotus::piirto::piirra(peli, kuva),
         Some(Kaynnissa::Luvut(peli)) => luvut::piirto::piirra(peli, kuva),
+        Some(Kaynnissa::Tiilirikko(peli)) => tiilirikko::piirto::piirra(peli, kuva),
         None => {
             let mut p = Piirtaja {
                 k: Kangas::new(kuva),
@@ -70,21 +71,24 @@ impl Piirtaja<'_> {
                 .laatikko(KORTTI_X + KORTTI_L, y + 3, 3, KORTTI_K, MUSTA);
             let x = KORTTI_X + KORTTI_SISENNYS;
             let nimi = format!("{} {}", i + 1, kortti.nimi);
-            self.vektoriteksti(x, y + 9, &nimi, OTSIKKO, nimi_vari, true);
-            self.teksti(x, y + 42, kortti.kuvaus, MUSTA);
+            self.vektoriteksti(x, y + 6, &nimi, OTSIKKO, nimi_vari, true);
+            self.teksti(x, y + 33, kortti.kuvaus, MUSTA);
         }
-        let mut y = KORTTI_Y + PELIT.len() as i32 * KORTTI_ASKEL + 12;
+        let mut y = KORTTI_Y + PELIT.len() as i32 * KORTTI_ASKEL + 6;
+        const VIIMEINEN: &str = "Esc: lopeta.";
         for rivi in [
             "Nuolet, numero tai hiiri: valitse.",
             "Välilyönti tai klikkaus: pelaa.",
             "M: äänet päälle tai pois.",
-            "Esc: lopeta.",
+            VIIMEINEN,
         ] {
             self.teksti(KORTTI_X, y, rivi, VALKOINEN);
             y += RIVIN_KORKEUS;
         }
+        // Neljä korttia vie alarivin, joten kursori jää viimeisen ohjeen perään.
         if self.vilkku() {
-            self.k.laatikko(KORTTI_X, y, MERKKI, MERKKI, REUNA);
+            let x = KORTTI_X + (VIIMEINEN.chars().count() as i32 + 1) * MERKKI;
+            self.k.laatikko(x, y - RIVIN_KORKEUS, MERKKI, MERKKI, REUNA);
         }
     }
 }

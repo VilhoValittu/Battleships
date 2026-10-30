@@ -1,0 +1,322 @@
+use klassikot8000::Arpa;
+use klassikot8000::tiilirikko::{ASKEL_MS, KENTTIA, Tapahtuma, Tiilipeli, Tila};
+
+use super::piirto;
+use crate::yhteinen::aanet::Aani;
+use crate::yhteinen::piirto::aanikytkimella;
+use crate::yhteinen::syote::Syote;
+
+pub const KIPINA_MS: u32 = 350;
+// Ikkunan raahaus voi pysäyttää silmukan: pallo ei saa sen jälkeen hypätä kerralla pitkälle.
+const SUURIN_KURO_MS: u32 = 100;
+const LOPPU_VIIVE_MS: u32 = 250;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Vaihe {
+    Alku,
+    Pelissa,
+    Tauko,
+    Voitto,
+    Tappio,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Nappi {
+    Uudestaan,
+    Valikko,
+}
+
+pub struct Tiilirikko {
+    pub vaihe: Vaihe,
+    pub lauta: Tiilipeli,
+    pub paras: u32,
+    /// Tosi, kun päättyneen pelin ennätys odottaa tiedostoon kirjoitusta.
+    pub uusi_tulos: bool,
+    pub viesti: String,
+    /// Rikkoutuneet tiilet (rivi, sarake, alkuhetki) tehostetta varten.
+    pub kipinat: Vec<(usize, usize, u32)>,
+    /// Pyyntö palata käynnistimeen.
+    pub lopeta: bool,
+    pub aanet_paalla: bool,
+    pub aanijono: Vec<(Aani, u32)>,
+    pub kello_ms: u32,
+    /// Pohjassa olevien nuolten suunta: -1, 0 tai 1.
+    pub ohjaus: i8,
+    kertyma_ms: u32,
+    arpa: Arpa,
+}
+
+impl Tiilirikko {
+    pub fn new(siemen: u64) -> Self {
+        Self {
+            vaihe: Vaihe::Alku,
+            lauta: Tiilipeli::new(0),
+            paras: 0,
+            uusi_tulos: false,
+            viesti: String::new(),
+            kipinat: Vec::new(),
+            lopeta: false,
+            aanet_paalla: true,
+            aanijono: Vec::new(),
+            kello_ms: 0,
+            ohjaus: 0,
+            kertyma_ms: 0,
+            arpa: Arpa::new(siemen),
+        }
+    }
+
+    pub fn edista(&mut self, ms: u32) {
+        self.kello_ms = self.kello_ms.saturating_add(ms);
+        let kello = self.kello_ms;
+        self.kipinat
+            .retain(|&(_, _, alku)| kello < alku.saturating_add(KIPINA_MS));
+        if self.vaihe != Vaihe::Pelissa {
+            return;
+        }
+        self.kertyma_ms = (self.kertyma_ms + ms).min(SUURIN_KURO_MS);
+        while self.kertyma_ms >= ASKEL_MS && self.vaihe == Vaihe::Pelissa {
+            self.kertyma_ms -= ASKEL_MS;
+            for tapahtuma in self.lauta.askel(self.ohjaus) {
+                self.kasittele_tapahtuma(tapahtuma);
+            }
+        }
+    }
+
+    fn kasittele_tapahtuma(&mut self, tapahtuma: Tapahtuma) {
+        match tapahtuma {
+            Tapahtuma::Seina | Tapahtuma::Maila => self.aanijono.push((Aani::Pomppu, 0)),
+            Tapahtuma::Tiili {
+                rivi,
+                sarake,
+                rikki,
+            } => {
+                self.aanijono.push((Aani::Tiili, 0));
+                if rikki {
+                    self.kipinat.push((rivi, sarake, self.kello_ms));
+                }
+                self.paras = self.paras.max(self.lauta.pisteet);
+            }
+            Tapahtuma::Menetys => {
+                self.aanijono.push((Aani::Rajahdys, 0));
+                self.viesti = format!("Pallo meni! Palloja jäljellä: {}.", self.lauta.elamat);
+            }
+            Tapahtuma::KenttaLapi => {
+                self.aanijono.push((Aani::Yhdistys, 0));
+                self.viesti = format!(
+                    "Kenttä läpi! Seuraavana {}/{KENTTIA}.",
+                    self.lauta.kentta + 1
+                );
+            }
+            Tapahtuma::Voitto => {
+                self.aanijono.push((Aani::Voitto, LOPPU_VIIVE_MS));
+                self.lopeta_peli(Vaihe::Voitto);
+            }
+            Tapahtuma::Ohi => {
+                self.aanijono.push((Aani::Tappio, LOPPU_VIIVE_MS));
+                self.lopeta_peli(Vaihe::Tappio);
+            }
+        }
+    }
+
+    fn lopeta_peli(&mut self, vaihe: Vaihe) {
+        self.vaihe = vaihe;
+        self.ohjaus = 0;
+        self.uusi_tulos = true;
+        self.viesti = format!("Pisteet: {}.", self.lauta.pisteet);
+    }
+
+    fn aloita_alusta(&mut self) {
+        self.lauta = Tiilipeli::new(0);
+        self.vaihe = Vaihe::Pelissa;
+        self.viesti.clear();
+        self.kipinat.clear();
+        self.kertyma_ms = 0;
+        self.aanijono.push((Aani::Ovi, 0));
+    }
+
+    /// Ikkuna menetti kohdistuksen: lennossa oleva pallo ei saa kadota pelaajan poissa ollessa.
+    pub fn keskeyta(&mut self) {
+        if self.vaihe == Vaihe::Pelissa && self.lauta.tila == Tila::Lennossa {
+            self.vaihe = Vaihe::Tauko;
+        }
+    }
+
+    pub fn kasittele(&mut self, syote: Syote) {
+        if syote == Syote::Peru {
+            self.lopeta = true;
+            return;
+        }
+        let kytkimella = matches!(syote, Syote::Klikkaus(x, y) if aanikytkimella(x, y));
+        if syote == Syote::VaihdaAanet || kytkimella {
+            self.aanet_paalla = !self.aanet_paalla;
+            return;
+        }
+        match self.vaihe {
+            Vaihe::Alku => {
+                if matches!(syote, Syote::Ammu | Syote::Klikkaus(..)) {
+                    self.aloita_alusta();
+                }
+            }
+            Vaihe::Pelissa => match syote {
+                Syote::Hiiri(x, _) => self.lauta.aseta_maila((x - piirto::KENTTA_X) as f32),
+                Syote::Ammu | Syote::Klikkaus(..) if self.lauta.tila == Tila::Kiinni => {
+                    self.viesti.clear();
+                    self.lauta.laukaise(&mut self.arpa);
+                }
+                Syote::Kirjain('P') => self.vaihe = Vaihe::Tauko,
+                _ => {}
+            },
+            Vaihe::Tauko => {
+                if matches!(
+                    syote,
+                    Syote::Ammu | Syote::Klikkaus(..) | Syote::Kirjain('P')
+                ) {
+                    self.vaihe = Vaihe::Pelissa;
+                }
+            }
+            Vaihe::Voitto | Vaihe::Tappio => self.kasittele_loppu(syote),
+        }
+    }
+
+    fn kasittele_loppu(&mut self, syote: Syote) {
+        let nappi = match syote {
+            Syote::Kirjain('K') => Some(Nappi::Uudestaan),
+            Syote::Kirjain('E') => Some(Nappi::Valikko),
+            Syote::Klikkaus(x, y) => piirto::nappi_pisteesta(x, y),
+            _ => None,
+        };
+        match nappi {
+            Some(Nappi::Uudestaan) => self.aloita_alusta(),
+            Some(Nappi::Valikko) => self.lopeta = true,
+            None => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use klassikot8000::tiilirikko::{KORKEUS, LEVEYS, MAILA_L, RIVEJA, SARAKKEITA};
+
+    fn lennossa() -> Tiilirikko {
+        let mut peli = Tiilirikko::new(1);
+        peli.kasittele(Syote::Ammu);
+        peli.kasittele(Syote::Ammu);
+        assert_eq!(peli.lauta.tila, Tila::Lennossa);
+        peli
+    }
+
+    #[test]
+    fn valilyonti_aloittaa_ja_toinen_laukaisee() {
+        let mut peli = Tiilirikko::new(1);
+        peli.kasittele(Syote::Nuoli(0, 1));
+        assert_eq!(peli.vaihe, Vaihe::Alku);
+        peli.kasittele(Syote::Ammu);
+        assert_eq!(peli.vaihe, Vaihe::Pelissa);
+        assert_eq!(peli.lauta.tila, Tila::Kiinni);
+        peli.kasittele(Syote::Ammu);
+        assert_eq!(peli.lauta.tila, Tila::Lennossa);
+    }
+
+    #[test]
+    fn hiiri_ja_pohjassa_oleva_nuoli_liikuttavat_mailaa() {
+        let mut peli = Tiilirikko::new(1);
+        peli.kasittele(Syote::Ammu);
+        peli.kasittele(Syote::Hiiri(piirto::KENTTA_X + 200, 300));
+        assert_eq!(peli.lauta.maila_x, 200.0);
+        peli.kasittele(Syote::Hiiri(-500, 300));
+        assert_eq!(peli.lauta.maila_x, MAILA_L / 2.0);
+
+        peli.ohjaus = 1;
+        peli.edista(50);
+        assert!(peli.lauta.maila_x > MAILA_L / 2.0);
+        assert_eq!(peli.lauta.pallo.0, peli.lauta.maila_x);
+    }
+
+    #[test]
+    fn tauko_pysayttaa_pallon_ja_jatkuu_samasta() {
+        let mut peli = lennossa();
+        peli.kasittele(Syote::Kirjain('P'));
+        let paikka = peli.lauta.pallo;
+        peli.edista(100);
+        assert_eq!(peli.lauta.pallo, paikka);
+        peli.kasittele(Syote::Kirjain('P'));
+        peli.edista(100);
+        assert_ne!(peli.lauta.pallo, paikka);
+
+        peli.keskeyta();
+        assert_eq!(peli.vaihe, Vaihe::Tauko);
+    }
+
+    #[test]
+    fn kohdistuksen_menetys_ei_keskeyta_kiinni_olevaa_palloa() {
+        let mut peli = Tiilirikko::new(1);
+        peli.kasittele(Syote::Ammu);
+        peli.keskeyta();
+        assert_eq!(peli.vaihe, Vaihe::Pelissa);
+    }
+
+    #[test]
+    fn iso_aikahyppy_ei_siirra_palloa_kerralla_pitkalle() {
+        let mut peli = lennossa();
+        let alku = peli.lauta.pallo;
+        peli.edista(60_000);
+        let matka = (peli.lauta.pallo.1 - alku.1).abs();
+        assert!(matka < 100.0, "{matka}");
+    }
+
+    #[test]
+    fn viimeisen_pallon_menetys_paattaa_pelin_ja_paras_sailyy_uudessa() {
+        let mut peli = lennossa();
+        peli.lauta.pisteet = 40;
+        peli.paras = 40;
+        peli.lauta.elamat = 1;
+        peli.lauta.pallo = (LEVEYS / 2.0, KORKEUS + 8.0);
+        peli.lauta.nopeus = (0.0, 300.0);
+        peli.aanijono.clear();
+        peli.edista(ASKEL_MS);
+        assert_eq!(peli.vaihe, Vaihe::Tappio);
+        assert!(peli.uusi_tulos);
+        assert_eq!(peli.aanijono, [(Aani::Tappio, LOPPU_VIIVE_MS)]);
+
+        peli.kasittele(Syote::Kirjain('K'));
+        assert_eq!(peli.vaihe, Vaihe::Pelissa);
+        assert_eq!(peli.lauta.pisteet, 0);
+        assert_eq!(peli.paras, 40);
+    }
+
+    #[test]
+    fn rikkoutuva_tiili_jattaa_kipinan_ja_soittaa_aanen() {
+        let mut peli = lennossa();
+        peli.lauta.tiilet = [[0; SARAKKEITA]; RIVEJA];
+        peli.lauta.tiilet[0][0] = 1;
+        peli.lauta.tiilet[7][10] = 1;
+        peli.lauta.pallo = (30.0, 80.0);
+        peli.lauta.nopeus = (0.0, -300.0);
+        peli.aanijono.clear();
+        peli.edista(ASKEL_MS);
+        assert_eq!(peli.kipinat.len(), 1);
+        assert_eq!(peli.aanijono, [(Aani::Tiili, 0)]);
+        assert_eq!(peli.paras, 10);
+        peli.edista(KIPINA_MS);
+        assert!(peli.kipinat.is_empty());
+    }
+
+    #[test]
+    fn lopun_napit_ja_esc_toimivat() {
+        let mut peli = Tiilirikko::new(1);
+        peli.vaihe = Vaihe::Voitto;
+        let (x, y) = piirto::napin_keskipiste(Nappi::Uudestaan);
+        peli.kasittele(Syote::Klikkaus(x, y));
+        assert_eq!(peli.vaihe, Vaihe::Pelissa);
+
+        peli.vaihe = Vaihe::Tappio;
+        let (x, y) = piirto::napin_keskipiste(Nappi::Valikko);
+        peli.kasittele(Syote::Klikkaus(x, y));
+        assert!(peli.lopeta);
+
+        let mut peli = lennossa();
+        peli.kasittele(Syote::Peru);
+        assert!(peli.lopeta);
+    }
+}
