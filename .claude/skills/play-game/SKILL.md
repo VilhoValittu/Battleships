@@ -41,18 +41,18 @@ Then open the PNG with the Read tool to see it. Always stop the process afterwar
 [window-shot.ps1](window-shot.ps1) saves **one window** to a PNG and crops away the invisible resize border. Options: `-Title`, `-ProcId`, `-Out`, `-Screen`.
 
 - Verified with a WinForms test window: by `-Title`, by `-ProcId` (identical output), a clean "Window not found" error, and Finnish `ÄÖäö` rendering. Run through `powershell.exe` with `-ExecutionPolicy Bypass`.
-- **Not verified on an OpenGL/GPU game window.** If the PNG comes out black, retry with `-Screen` (copies the window's pixels from the desktop; the window must be visible and not covered, or other apps' pixels land in the picture, so do not use it casually).
+- Verified on the real minifb game window (no `-Screen` needed). If a PNG ever comes out black, retry with `-Screen` (copies the window's pixels from the desktop; the window must be visible and not covered, or other apps' pixels land in the picture, so do not use it casually).
 - Capture only the game window. Never screenshot the whole desktop; it can show the user's private things.
 
 ### Prefer game-side dev flags over synthetic input
 
-Build these into the game (`rust-port` step 3) so tests never need to fake the keyboard:
+These exist in debug builds only (`target\debug\laivanupotus.exe`; verified). The screenshot is rendered without opening a window, at 320x256:
 
 - `--seed <n>`: reproducible placement and AI.
 - `--screenshot <path>`: draw a few frames, save a PNG with the framework's own frame capture, exit. More reliable than `window-shot.ps1` for GPU windows.
 - Optionally `--moves "B3,C4,..."`: replay shots to reach a given state (mid-game, sunk ship, win, loss) without clicking.
 
-Synthetic keystrokes or clicks (`SendKeys`, `SendInput`) go to whichever window has focus, which may be the user's editor or browser. Avoid them. If they are ever really needed, first confirm the foreground window is the game (`GetForegroundWindow` equals the game's handle) and tell the user.
+Synthetic keystrokes or clicks (`SendKeys`, `SendInput`) go to whichever window has focus, which may be the user's editor or browser. Avoid them. To test keys in the real window, `PostMessage` `WM_KEYDOWN`/`WM_KEYUP` to the game's own `MainWindowHandle` with the scan code in `lParam` bits 16+ and about 100 ms between them (verified; it cannot reach other apps). The mouse position comes from `GetCursorPos`, so real clicks cannot be tested this way without moving the user's cursor; `Syote::Klikkaus` and the pixel-to-cell mapping have unit tests.
 
 ## Cleanup
 

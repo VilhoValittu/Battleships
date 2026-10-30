@@ -33,26 +33,25 @@ Windows x86_64 only. No Linux/macOS/wasm/mobile targets, no CI workflows, Docker
 
 ## "Fancy" means a real window
 
-The terminal-UI idea is dropped. Default proposal: a windowed 2D game with **`macroquad`** (small, quick to build, simple drawing/input/audio). Alternative if the user wants an engine: `bevy` (much heavier compile). Adding the framework is a big decision: state the choice and why, and get the user's okay before the first dependency, unless they already picked one. Keep the logic library free of framework types so the choice stays swappable.
+The terminal-UI idea is dropped. **Decided by the user (2026-10-30): `minifb`** with `default-features = false` and a software 320x256 framebuffer, C64/Amiga look, mouse and keyboard. The user's goals: small packaged size and low memory use. Only `main.rs` touches minifb; `src/ui/` and the logic library stay free of framework types. Randomness is the repo's own `Arpa` (xorshift64*), not `rand`, to keep the package small. Measured release exe before sound: 239 KB with static CRT (139 KB without, but then it needs the VC++ runtime), about 125 KB zipped, 1.8 MB private memory. Sound uses `tinyaudio` (DirectSound via `winapi`, chosen to keep `unsafe` out of this repo), opened only in `main.rs`; with it the exe is 275 KB and private memory 3.7 MB.
 
 Details the window version has to get right:
 
 - Fixed window title `Laivanupotus`, so `play-game/window-shot.ps1` can find it.
-- Finnish text must render: check `ä ö Ä Ö` (for example `HÄVISIT PELIN!`, `Hävittäjä`) in a screenshot; bundle a TTF in `assets/` if the default font lacks them.
-- Dev flags on the game binary instead of synthetic keystrokes: `--seed <n>` (reproducible placement and AI) and `--screenshot <path>` (draw a few frames, save a PNG, exit). Details in `play-game`.
+- Finnish text must render: check `ä ö Ä Ö` (for example `HÄVISIT PELIN!`, `Hävittäjä`) in a screenshot; the font is the 8x8 bitmap table in `src/ui/fontti.rs`, no font files.
+- Dev flags exist in debug builds only (`src/kehitys.rs`), so the release exe stays small: `--seed <n>`, `--moves B3,C4`, `--screenshot <path>`. Details in `play-game`.
 
 ## Step order
 
 1. `cargo init` in the repo root (package `laivanupotus`), add `rust-toolchain.toml` (above), `.gitignore` (`/target`, `__pycache__/`), `.gitattributes` with `*.rs text eol=lf`, `*.toml text eol=lf`, `Cargo.lock text eol=lf` (the Python file and `.vscode/pyproject.toml` are stored CRLF; do not renormalize them).
-2. **Logic library with tests, no I/O and no drawing.** Port `sijoita_laivat`, `kasittele_laukaus`, `kaikki_upotettu`, `ruudun_nimi`, the AI shot choice. Randomness is injected (`impl rand::Rng`), never a global RNG inside logic, so tests seed `StdRng::seed_from_u64`.
-3. **Window with the same flow:** random placement, click to shoot, same Finnish result messages, win/loss text, play-again. Click handling replaces the row/column prompts.
+2. **Logic library with tests, no I/O and no drawing (done).** Randomness is injected (`&mut Arpa`), never a global RNG inside logic, so tests seed `Arpa::new`.
+3. **Window with the same flow (done):** random placement, click or keyboard to shoot, same Finnish result messages, win/loss text, play-again.
 4. **Polish and upgrades**, one named step at a time, each with tests and a screenshot: animations, sound, manual ship placement, hunt-mode AI, sunk-ship reveal. Update `game-spec` when behaviour changes on purpose.
 
 ## Layout
 
 ```
 Cargo.toml  rust-toolchain.toml  .gitignore  .gitattributes
-assets/            // font, sounds, images
 src/lib.rs         // re-exports; pure game logic
 src/ruutu.rs       // Ruutu { rivi, sarake }, parsing "B10", Display
 src/laivasto.rs    // Laiva, Laivasto, placement, Laukaustulos, kasittele_laukaus
@@ -70,10 +69,10 @@ Mirror the Python's Finnish domain words so old and new code stay greppable side
 |---|---|
 | `KOKO`, `SARAKKEET`, `LAIVAT` | `const KOKO: usize`, `SARAKKEET: &str`, `LAIVAT: [(&str, usize); 5]` |
 | `(rivi, sarake)` tuple | `struct Ruutu { rivi: u8, sarake: u8 }` (0-based, `Copy, Eq, Hash`) |
-| `sijoita_laivat()` | `Laivasto::satunnainen(&mut impl Rng)` |
-| `kasittele_laukaus(...)` | `Laivasto::kasittele_laukaus(&mut self, Ruutu) -> Laukaustulos` (`Ohi`, `Osuma`, `Upposi(&str)`) |
+| `sijoita_laivat()` | `Laivasto::satunnainen(&mut Arpa)` |
+| `kasittele_laukaus(...)` | `Laivasto::kasittele_laukaus(&mut self, Ruutu) -> Option<Laukaustulos>` (`Ohi`, `Osuma`, `Upposi(&str)`; `None` = already shot) |
 | `kaikki_upotettu(...)` | `Laivasto::kaikki_upotettu()` |
-| `vastustajan_laukaus(...)` | `vastustaja::valitse(&Ammutut, &mut impl Rng) -> Ruutu` |
+| `vastustajan_laukaus(...)` | `vastustaja::valitse(Ruudut, &mut Arpa) -> Option<Ruutu>` |
 | `pelilauta`, `laukaus`, `tulos_teksti` | UI layer, not logic |
 
 Snake_case functions, CamelCase types, ASCII-only identifiers (no ä/ö, as in the Python). Game text stays Finnish, copied from `game-spec`. Code comments follow the repo: Finnish, short, why not what. Talk to the user in Finnish.

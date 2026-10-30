@@ -13,7 +13,7 @@ Code, comments and all UI text are Finnish. Identifiers are ASCII-fied Finnish (
 
 - Board 10x10. Columns `A`-`J` (`SARAKKEET`), rows `1`-`10`. Internally `(rivi, sarake)`, both 0-based.
 - Fleet, both sides, fixed order in `LAIVAT`: Lentotukialus 5, Taistelulaiva 4, Hävittäjä 3, Sukellusvene 3, Partioalus 2 (17 cells).
-- Placement is random (`sijoita_laivat`): pick horizontal `(0,1)` or vertical `(1,0)`, pick a start that keeps the ship on the board, retry until it does not overlap a placed ship. Ships may **touch**; only overlap is rejected. The player does not place their own ships.
+- Placement is random (`sijoita_laivat`): pick horizontal `(0,1)` or vertical `(1,0)`, pick a start that keeps the ship on the board, retry until it does not overlap a placed ship. The Python lets ships touch; **the Rust game forbids it by the user's request (2026-10-30)**: ships keep at least one empty cell between them, also diagonally. The player does not place their own ships.
 - Two boards. `pelaajan_ammutut` = shots the player fired at the opponent's board; `vastustajan_ammutut` = shots the opponent fired at the player's board.
 - Turn order: player shoots, win check, opponent shoots, loss check. The player always goes first, and if the player sinks the last ship the opponent does **not** get a reply shot.
 - A ship sinks when all its cells are in the shot set. `kasittele_laukaus` reports the ship name only on the shot that completes it; earlier hits on it report plain hit.
@@ -57,6 +57,12 @@ Start of every game: a separator line, `Tervetuloa pelaamaan laivanupotusta.`, r
 Interface mechanics change necessarily: typed row/column prompts and their errors (`Syötä validi numero!`, `Syötä validi kirjain!`) become mouse clicks; clicking an already shot cell does nothing (the `Ammuit jo tähän!` rule still holds, show it as feedback or ignore the click); the ASCII board becomes graphics with the same meanings (unknown, miss, hit, own ship); the clear-screen trick and the `k`/`e` replay prompt become a redraw and a button or key.
 
 Everything else carries over unchanged: fleet and placement rules, turn order and the no-reply-after-win rule, sink reporting on the completing shot only, the random AI, and the Finnish message texts (`ohi.`, `OSUMA!`, `... upposi!`, win and loss lines).
+
+Implemented window controls: intro screen before every game (Space, Enter or click starts); the cursor moves with mouse hover, arrows, `A`-`J` and `1`-`0` (`0` = row 10); click, Space or Enter shoots; a repeat shot shows `Ammuit jo tähän!`; at the end `K` or its button replays, `E` or its button quits; `Esc` quits at any time.
+
+Added by the user's request (2026-10-30), not in the Python: a fleet statistic under each board, `Upotettu n/5` and all five ship names with their length. A sunk ship turns orange and struck through, with red length blocks. It shows only sunk or not sunk, never hits on a floating ship, so it gives away nothing about the opponent beyond the `upposi!` messages.
+
+Added by the user's request (2026-10-30), not in the Python: Doom-spirited sound effects, synthesized in `src/ui/aanet.rs` (no Doom assets or sound files). Door when a game starts, shotgun for the player's shot, fireball for the opponent's, then splash (miss), explosion (hit) or big explosion with a demon death rattle (sink); a grunt for a repeat shot; own metal riff on a win, descending chords and a scream on a loss. On by default. `M` or the `Ääni:` switch at the top right toggles them in any phase, silencing playing and queued sounds at once; the choice survives a replay but not a restart. With no audio device the game runs silently.
 
 ## Gaps that are safe to improve (only when the user has asked for the feature)
 
