@@ -1,50 +1,59 @@
 ---
 name: play-game
-description: How to launch and drive the Battleships game from the Bash tool, which has no TTY, using piped stdin for deterministic runs and tmux for interactive/TUI screens. Use to see a change working, reproduce a bug, or compare the Python and Rust versions.
+description: How to run the Battleships Python reference with scripted input and how to launch the Windows game, look at its window via a screenshot of that one window, and avoid typing into the user's other apps. Use to see a change working, reproduce a bug, or compare Python and Rust behaviour.
 ---
 
-# Running and driving the game
+# Running and looking at the game (Windows)
 
-The Bash tool has no terminal, so `python3 battleshipsingle.py` or a TUI binary cannot be used directly. Two verified approaches (tmux 3.x and `script` exist; `expect` does not).
+Commands are Windows PowerShell 5.1 (see `local-checks` for its pitfalls). From a Git Bash tool wrap them in `powershell -NoProfile -Command` / `-File`. What was actually run is marked **verified** (checked 2026-10-30 on this machine); the rest is untested until the Rust game exists.
 
-## 1. Scripted run through stdin (Python, deterministic)
+## 1. Python reference with scripted input (verified)
 
-The game reads two lines per shot: row (`1`-`10`), then column (`A`-`J`). Feeding all 100 cells guarantees the game ends, either by the player's win or the opponent winning first.
+The game reads two lines per shot (row `1`-`10`, then column `A`-`J`). Feeding all 100 cells guarantees a finished game. Run from the repo root:
 
-```bash
-S=<scratchpad dir>
-python3 - > $S/in.txt <<'EOF'
-for r in range(1, 11):
-    for c in "ABCDEFGHIJ":
-        print(r); print(c)
-print("e")   # answers the replay prompt if the game is run normally
-EOF
-PYTHONDONTWRITEBYTECODE=1 python3 -c "import random, battleshipsingle as b; random.seed(1); b.pelaa()" < $S/in.txt | tail -30
+```powershell
+$env:PYTHONUTF8 = '1'; $env:PYTHONDONTWRITEBYTECODE = '1'
+[Console]::OutputEncoding = New-Object Text.UTF8Encoding($false)
+$in = @(foreach ($r in 1..10) { foreach ($c in [char[]]'ABCDEFGHIJ') { "$r"; "$c" } }) + 'e'
+$in | python -c "import random, battleshipsingle as b; random.seed(1); b.pelaa()" | Select-Object -Last 30
 ```
 
-`pelaa()` plays one game without the replay prompt. Seeding makes the run repeatable (seed 1 ran to completion with an opponent win). `PYTHONDONTWRITEBYTECODE=1 python3 battleshipsingle.py < $S/in.txt` also works (verified: ends with `Lopetetaan peli.`), the trailing `e` answers the replay prompt. Use scratchpad files for the input, never the repo. If input runs out before a prompt is answered Python raises `EOFError`.
+- `PYTHONUTF8=1` and the UTF-8 console encoding are needed: with piped output Python otherwise uses cp1252 and PowerShell decodes it as an OEM codepage, so `HÄVISIT` shows as `H─VISIT` (seen).
+- `pelaa()` plays one game. `python battleshipsingle.py` with the same input also works; the trailing `e` answers the replay prompt.
+- `random.seed(1)` gives the same game on Windows as on Linux (ends `HÄVISIT PELIN!`, 3171 output lines). Output contains the terminal clear sequence `\x1b[H...`; ignore it.
+- The Python version is the reference only. It cannot be compared to Rust output line for line (different RNG), only by behaviour, see `game-spec`.
 
-For Rust, make the logic seedable (see `rust-port`) and give the CLI milestone a way to take stdin the same way, so the same recipe works.
+## 2. The Rust window game
 
-## 2. Interactive screens through tmux (verified with the Python game)
+Once built (`cargo build`, binary `target\debug\laivanupotus.exe`; window title `Laivanupotus`):
 
-```bash
-tmux kill-session -t bs 2>/dev/null
-tmux new-session -d -s bs -x 100 -y 40 'python3 battleshipsingle.py'   # or: 'cargo run --quiet'
-sleep 1
-tmux send-keys -t bs 1 Enter A Enter          # keys one by one; Enter, Escape, Up, C-c, ...
-sleep 0.5
-tmux capture-pane -t bs -p | grep -v '^$'     # current screen as text
-tmux kill-session -t bs
+```powershell
+$p = Start-Process target\debug\laivanupotus.exe -ArgumentList '--seed','1' -PassThru
+Start-Sleep -Seconds 3                                  # let the window appear
+powershell -NoProfile -ExecutionPolicy Bypass -File .claude\skills\play-game\window-shot.ps1 -ProcId $p.Id -Out "$env:TEMP\bs_shot.png"
+Stop-Process -Id $p.Id
 ```
 
-- The pane is taller than the content, so plain `tail` shows blank lines; filter with `grep -v '^$'` or capture everything.
-- Add `-e` to `capture-pane` to keep colour escape codes when checking styling.
-- Always `sleep` before capturing; the app needs a moment to redraw.
-- Always kill the session afterwards. For a TUI that ignores `q`, use `tmux kill-session`.
-- Try more than one pane size (for example `-x 80 -y 24` and `-x 120 -y 40`) for layout changes.
-- The Rust recipe is the same but has not been run yet, because the Rust binary does not exist. Confirm it when it does and fix this file if it differs.
+Then open the PNG with the Read tool to see it. Always stop the process afterwards.
+
+### `window-shot.ps1`
+
+[window-shot.ps1](window-shot.ps1) saves **one window** to a PNG and crops away the invisible resize border. Options: `-Title`, `-ProcId`, `-Out`, `-Screen`.
+
+- Verified with a WinForms test window: by `-Title`, by `-ProcId` (identical output), a clean "Window not found" error, and Finnish `ÄÖäö` rendering. Run through `powershell.exe` with `-ExecutionPolicy Bypass`.
+- **Not verified on an OpenGL/GPU game window.** If the PNG comes out black, retry with `-Screen` (copies the window's pixels from the desktop; the window must be visible and not covered, or other apps' pixels land in the picture, so do not use it casually).
+- Capture only the game window. Never screenshot the whole desktop; it can show the user's private things.
+
+### Prefer game-side dev flags over synthetic input
+
+Build these into the game (`rust-port` step 3) so tests never need to fake the keyboard:
+
+- `--seed <n>`: reproducible placement and AI.
+- `--screenshot <path>`: draw a few frames, save a PNG with the framework's own frame capture, exit. More reliable than `window-shot.ps1` for GPU windows.
+- Optionally `--moves "B3,C4,..."`: replay shots to reach a given state (mid-game, sunk ship, win, loss) without clicking.
+
+Synthetic keystrokes or clicks (`SendKeys`, `SendInput`) go to whichever window has focus, which may be the user's editor or browser. Avoid them. If they are ever really needed, first confirm the foreground window is the game (`GetForegroundWindow` equals the game's handle) and tell the user.
 
 ## Cleanup
 
-`PYTHONDONTWRITEBYTECODE=1` avoids `__pycache__/`; if it appears anyway, delete it. Check `git status --short` shows only intended files.
+Delete screenshot PNGs and `__pycache__\`, stop game processes, and check `git status --short` shows only intended files.

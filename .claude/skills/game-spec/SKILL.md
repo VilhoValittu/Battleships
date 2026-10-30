@@ -7,7 +7,7 @@ description: Reference spec of the Battleships game as implemented in battleship
 
 `battleshipsingle.py` (174 lines, stdlib only) is the **source of truth** for behaviour until the user says otherwise. Re-read the file if this spec and the code disagree; the code wins, then fix this file.
 
-Code, comments and all UI text are Finnish. Identifiers are ASCII-fied Finnish (`kasittele`, `nayta`), no ä/ö.
+Code, comments and all UI text are Finnish. Identifiers are ASCII-fied Finnish (`kasittele`, `nayta`), no ä/ö. The file is stored with CRLF line endings; keep them if you edit it. The Rust target is a native Windows window game (see `rust-port`); the last section says what changes with that.
 
 ## Rules
 
@@ -36,7 +36,7 @@ Per round: `tulosta_ruudut` prints the banner, the opponent board (`VASTUSTAJAN 
 
 Cell glyphs (`pelilauta`): `X` shot and ship, `-` shot and water, `#` unshot ship (own board only), space otherwise. Rendering: row label `{n:2}|`, each cell ` {glyph} |`, header ` A   B ...`. Sunk ships are not revealed any further on the opponent board.
 
-After the player enters a shot the screen and scrollback are cleared (`\033[H\033[2J\033[3J`), then the result message is shown with the next board redraw.
+After the player enters a shot the screen and scrollback are cleared (`\033[H\033[2J\033[3J`, a terminal-only trick), then the result message is shown with the next board redraw.
 
 Message strings (`tulos_teksti`, player first line begins with a blank line):
 
@@ -51,6 +51,12 @@ Message strings (`tulos_teksti`, player first line begins with a blank line):
 Endings (appended to the message, boards drawn once more): win `****HIHIHIHIII VOITIT PELIN!****`, loss `HÄVISIT PELIN!`. The opponent's unhit ships are **not** revealed at the end, even after a loss.
 
 Start of every game: a separator line, `Tervetuloa pelaamaan laivanupotusta.`, rules lines, separator. Replay prompt: `Haluatko pelata uudestaan? k = kyllä, e = ei : `. Only an exact lowercase `k` continues (no strip, no `K`); anything else prints `Lopetetaan peli.` and exits.
+
+## What changes in a window, and what must not
+
+Interface mechanics change necessarily: typed row/column prompts and their errors (`Syötä validi numero!`, `Syötä validi kirjain!`) become mouse clicks; clicking an already shot cell does nothing (the `Ammuit jo tähän!` rule still holds, show it as feedback or ignore the click); the ASCII board becomes graphics with the same meanings (unknown, miss, hit, own ship); the clear-screen trick and the `k`/`e` replay prompt become a redraw and a button or key.
+
+Everything else carries over unchanged: fleet and placement rules, turn order and the no-reply-after-win rule, sink reporting on the completing shot only, the random AI, and the Finnish message texts (`ohi.`, `OSUMA!`, `... upposi!`, win and loss lines).
 
 ## Gaps that are safe to improve (only when the user has asked for the feature)
 
