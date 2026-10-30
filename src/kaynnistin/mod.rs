@@ -167,6 +167,7 @@ impl Kaynnistin {
             Laji::Tiilirikko => {
                 let mut peli = Tiilirikko::new(siemen);
                 peli.paras = self.tallennus.tiilirikko;
+                peli.parhaat = self.tallennus.tiilirikon_parhaat.clone();
                 peli.aanet_paalla = self.aanet_paalla;
                 Kaynnissa::Tiilirikko(Box::new(peli))
             }
@@ -187,15 +188,20 @@ impl Kaynnistin {
                 self.tallennus.parhaat = peli.parhaat.clone();
                 self.tallennus.kesken = peli.kesken();
             }
-            Some(Kaynnissa::Tiilirikko(peli)) => self.tallennus.tiilirikko = peli.paras,
+            Some(Kaynnissa::Tiilirikko(peli)) => {
+                self.tallennus.tiilirikko = peli.paras;
+                self.tallennus.tiilirikon_parhaat = peli.parhaat.clone();
+            }
             _ => {}
         }
     }
 
     /// Ikkuna suljetaan: nimeä odottava tulos kirjataan, ettei se katoa.
     pub fn viimeistele(&mut self) {
-        if let Some(Kaynnissa::Luvut(peli)) = &mut self.peli {
-            peli.vahvista_nimi();
+        match &mut self.peli {
+            Some(Kaynnissa::Luvut(peli)) => peli.vahvista_nimi(),
+            Some(Kaynnissa::Tiilirikko(peli)) => peli.vahvista_nimi(),
+            _ => {}
         }
         self.paivita_tallennus();
     }
@@ -233,6 +239,7 @@ impl Kaynnistin {
         self.kasittele_nakyma(syote);
         let uusi_tulos = match &mut self.peli {
             Some(Kaynnissa::Luvut(peli)) => std::mem::take(&mut peli.uusi_tulos),
+            Some(Kaynnissa::Tiilirikko(peli)) => std::mem::take(&mut peli.uusi_tulos),
             _ => false,
         };
         if uusi_tulos || self.aanet_paalla != aanet_ennen {
@@ -432,6 +439,44 @@ mod tests {
             panic!("tiilirikko ei ole käynnissä");
         };
         assert_eq!(peli.paras, 70);
+    }
+
+    #[test]
+    fn tiilirikon_top3_tallentuu_nimen_jalkeen_ja_sulkiessa_ja_palautuu() {
+        let paattyva = |k: &mut Kaynnistin| {
+            k.kaynnista(Laji::Tiilirikko);
+            k.kasittele(Syote::Ammu);
+            k.kasittele(Syote::Ammu);
+            let Some(Kaynnissa::Tiilirikko(peli)) = &mut k.peli else {
+                panic!("tiilirikko ei ole käynnissä");
+            };
+            peli.lauta.pisteet = 70;
+            peli.lauta.elamat = 1;
+            peli.lauta.pallo = (300.0, 600.0);
+            peli.lauta.nopeus = (0.0, 300.0);
+            k.edista(5);
+        };
+
+        let mut k = Kaynnistin::new(1);
+        paattyva(&mut k);
+        k.tallenna = false;
+        k.kasittele(Syote::Kirjain('A'));
+        k.kasittele(Syote::Ammu);
+        assert!(k.tallenna);
+        assert_eq!(k.tallennus.tiilirikon_parhaat[0].nimi, "A");
+
+        let mut uusi = Kaynnistin::new(2);
+        uusi.lataa(Tallennus::tekstista(&k.tallennus.tekstiksi()));
+        uusi.kaynnista(Laji::Tiilirikko);
+        let Some(Kaynnissa::Tiilirikko(peli)) = &uusi.peli else {
+            panic!("tiilirikko ei ole käynnissä");
+        };
+        assert_eq!(peli.parhaat[0].pisteet, 70);
+
+        let mut k = Kaynnistin::new(1);
+        paattyva(&mut k);
+        k.viimeistele();
+        assert_eq!(k.tallennus.tiilirikon_parhaat[0].nimi, "NIMETÖN");
     }
 
     #[test]

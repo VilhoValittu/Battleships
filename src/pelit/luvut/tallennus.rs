@@ -9,12 +9,12 @@ use std::path::PathBuf;
 
 use klassikot8000::luvut::{Lukulauta, Ruudut, SIVU};
 
+use crate::yhteinen::tulokset::{NIMEN_PITUUS, Tulos, lisaa_tulos};
+
 const OTSAKE: &str = "klassikot8000 1";
 // Rajat pitävät muokatun tiedoston luvut sellaisina, ettei pistelasku voi ylivuotaa.
 const SUURIN_LAATTA: u32 = 1 << 20;
 const SUURIN_LUKU: u32 = 1_000_000_000;
-pub const PARHAITA: usize = 3;
-pub const NIMEN_PITUUS: usize = 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Kesken {
@@ -22,12 +22,6 @@ pub struct Kesken {
     pub pisteet: u32,
     pub siirrot: u32,
     pub jatkettu: bool,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Tulos {
-    pub nimi: String,
-    pub pisteet: u32,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -40,21 +34,12 @@ pub struct Tallennus {
     pub hiljaa: bool,
     /// Tiilirikon paras tulos. Vanhassa tallennuksessa nolla.
     pub tiilirikko: u32,
+    /// Tiilirikon top 3, järjestys kuten `parhaat`.
+    pub tiilirikon_parhaat: Vec<Tulos>,
 }
 
 fn luku(teksti: &str) -> Option<u32> {
     teksti.parse().ok().filter(|&arvo| arvo <= SUURIN_LUKU)
-}
-
-/// Tasapisteissä vanhempi tulos säilyttää paikkansa, joten sen ohi ei pääse.
-pub fn mahtuu_parhaisiin(parhaat: &[Tulos], pisteet: u32) -> bool {
-    pisteet > 0 && (parhaat.len() < PARHAITA || parhaat.iter().any(|t| t.pisteet < pisteet))
-}
-
-pub fn lisaa_tulos(parhaat: &mut Vec<Tulos>, tulos: Tulos) {
-    let paikka = parhaat.partition_point(|t| t.pisteet >= tulos.pisteet);
-    parhaat.insert(paikka, tulos);
-    parhaat.truncate(PARHAITA);
 }
 
 fn tulos(teksti: &str) -> Option<Tulos> {
@@ -90,6 +75,9 @@ impl Tallennus {
         for tulos in &self.parhaat {
             teksti += &format!("top {} {}\n", tulos.pisteet, tulos.nimi);
         }
+        for tulos in &self.tiilirikon_parhaat {
+            teksti += &format!("tiilitop {} {}\n", tulos.pisteet, tulos.nimi);
+        }
         if let Some(kesken) = &self.kesken {
             let luvut: Vec<String> = kesken.ruudut.iter().flatten().map(u32::to_string).collect();
             teksti += &format!(
@@ -110,7 +98,7 @@ impl Tallennus {
         }
         let (mut paras, mut lauta, mut pisteet, mut siirrot) = (None, None, None, None);
         let (mut jatkettu, mut hiljaa) = (false, false);
-        let mut parhaat = Vec::new();
+        let (mut parhaat, mut tiilirikon_parhaat) = (Vec::new(), Vec::new());
         let mut tiilirikko = None;
         for rivi in rivit {
             match rivi.split_once(' ') {
@@ -120,6 +108,11 @@ impl Tallennus {
                 Some(("top", arvo)) => {
                     if let Some(tulos) = tulos(arvo) {
                         lisaa_tulos(&mut parhaat, tulos);
+                    }
+                }
+                Some(("tiilitop", arvo)) => {
+                    if let Some(tulos) = tulos(arvo) {
+                        lisaa_tulos(&mut tiilirikon_parhaat, tulos);
                     }
                 }
                 Some(("lauta", arvo)) => lauta = ruudut(arvo),
@@ -148,6 +141,7 @@ impl Tallennus {
             parhaat,
             hiljaa,
             tiilirikko: tiilirikko.unwrap_or(0),
+            tiilirikon_parhaat,
         }
     }
 }
@@ -199,6 +193,10 @@ mod tests {
             ],
             hiljaa: true,
             tiilirikko: 1250,
+            tiilirikon_parhaat: vec![Tulos {
+                nimi: "TIILI".to_string(),
+                pisteet: 1250,
+            }],
         }
     }
 
@@ -212,6 +210,7 @@ mod tests {
             parhaat: Vec::new(),
             hiljaa: false,
             tiilirikko: 0,
+            tiilirikon_parhaat: Vec::new(),
         };
         assert_eq!(Tallennus::tekstista(&t.tekstiksi()), t);
     }
@@ -220,24 +219,6 @@ mod tests {
     fn vieras_tai_tyhja_tiedosto_antaa_tyhjan_tallennuksen() {
         assert_eq!(Tallennus::tekstista(""), Tallennus::default());
         assert_eq!(Tallennus::tekstista("paras 99\n"), Tallennus::default());
-    }
-
-    #[test]
-    fn parhaat_pysyvat_jarjestyksessa_ja_tasapisteilla_vanhempi_sailyy() {
-        let tulos = |nimi: &str, pisteet| Tulos {
-            nimi: nimi.to_string(),
-            pisteet,
-        };
-        let mut parhaat = Vec::new();
-        assert!(!mahtuu_parhaisiin(&parhaat, 0));
-        for (nimi, pisteet) in [("B", 200), ("C", 100), ("A", 300)] {
-            assert!(mahtuu_parhaisiin(&parhaat, pisteet));
-            lisaa_tulos(&mut parhaat, tulos(nimi, pisteet));
-        }
-        assert!(!mahtuu_parhaisiin(&parhaat, 100));
-        assert!(mahtuu_parhaisiin(&parhaat, 101));
-        lisaa_tulos(&mut parhaat, tulos("D", 200));
-        assert_eq!(parhaat, [tulos("A", 300), tulos("B", 200), tulos("D", 200)]);
     }
 
     #[test]

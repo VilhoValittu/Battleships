@@ -1,5 +1,6 @@
 use std::f32::consts::TAU;
 
+use super::tulokset::{PARHAITA, Tulos};
 use super::vektori::{self, Kangas, kehapiste, varjosta};
 use super::{fontti, vektorifontti};
 
@@ -81,6 +82,12 @@ const LAIVAN_KOKO: f32 = 33.0;
 pub const SUURI: (i32, i32, i32) = (30, 45, 39);
 pub const OTSIKKO: (i32, i32, i32) = (15, 21, 21);
 pub const TULOS: (i32, i32, i32) = (12, 18, 18);
+
+const PARHAAT_RIVI: i32 = 26;
+// Alkuruudulla lista on maiseman vasemmassa laidassa, pyörivän mallin vieressä.
+const ALKU_PARHAAT: (i32, i32, i32, i32) = (36, 204, 318, 126);
+const NIMI_OTSIKKO: &str = "TOP 3 -TULOS!";
+pub const NIMI_OHJE: &str = "Kirjoita nimimerkki, Enter = valmis.";
 
 pub fn aanikytkimella(x: i32, y: i32) -> bool {
     (AANI_X..AANI_X + AANI_L).contains(&x) && (AANI_Y..AANI_Y + AANI_K).contains(&y)
@@ -402,6 +409,53 @@ impl Piirtaja<'_> {
         for y in [9, 15, 21, 27] {
             self.k
                 .laatikko(raita_x, y, nimi_x - 12 - raita_x, 3, WB_SININEN);
+        }
+    }
+
+    /// Sijoitus ja nimi vasemmalla, pisteet oikeassa laidassa. Tyhjä paikka näkyy viivana.
+    pub fn parhaat_lista(
+        &mut self,
+        x: i32,
+        y: i32,
+        leveys: i32,
+        koko: (i32, i32, i32),
+        parhaat: &[Tulos],
+    ) {
+        self.teksti(x, y, "TOP 3", KELTAINEN);
+        for i in 0..PARHAITA {
+            let rivi_y = y + 30 + i as i32 * PARHAAT_RIVI;
+            let tulos = parhaat.get(i);
+            let nimi = tulos.map_or("-", |t| t.nimi.as_str());
+            let vasen = format!("{} {nimi}", i + 1);
+            self.vektoriteksti(x, rivi_y, &vasen, koko, VALKOINEN, false);
+            if let Some(tulos) = tulos {
+                let pisteet = tulos.pisteet.to_string();
+                let pituus = pisteet.chars().count() as i32 * koko.2;
+                let oikea = x + leveys - pituus;
+                self.vektoriteksti(oikea, rivi_y, &pisteet, koko, KELTAINEN, false);
+            }
+        }
+    }
+
+    pub fn parhaat_alkuruudulla(&mut self, parhaat: &[Tulos]) {
+        let (x, y, l, k) = ALKU_PARHAAT;
+        self.k.laatikko(x, y, l, k, TAUSTA_TUMMA);
+        self.k.kehys(x, y, l, k, REUNA);
+        self.parhaat_lista(x + 12, y + 9, l - 24, TULOS, parhaat);
+    }
+
+    /// Paneelin sisältö, kun tulos pääsi listalle ja odottaa nimimerkkiä.
+    pub fn nimikysely(&mut self, pisteet: u32, nimi: &str) {
+        let otsikko = format!("{NIMI_OTSIKKO} {pisteet}");
+        let ohje_y = PANEELI_RIVI_Y + 2 * RIVIN_KORKEUS;
+        self.vektoriteksti(TEKSTI_X, ohje_y - 21, &otsikko, TULOS, KELTAINEN, true);
+        self.teksti(TEKSTI_X, ohje_y + 6, NIMI_OHJE, HUTI);
+        let alarivi = PANEELI_RIVI_Y + (PANEELI_RIVEJA as i32 - 1) * RIVIN_KORKEUS;
+        let kentta = format!("> {nimi}");
+        self.teksti(TEKSTI_X, alarivi, &kentta, VALKOINEN);
+        if self.vilkku() {
+            let x = TEKSTI_X + kentta.chars().count() as i32 * MERKKI;
+            self.k.laatikko(x, alarivi, MERKKI, MERKKI, REUNA);
         }
     }
 

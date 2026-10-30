@@ -5,5 +5,6 @@ pub mod aanet;
 pub mod fontti;
 pub mod piirto;
 pub mod syote;
+pub mod tulokset;
 pub mod vektori;
 pub mod vektorifontti;

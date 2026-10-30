@@ -26,6 +26,9 @@ const VAUHTI_TIILTA_KOHTI: f32 = 4.0;
 const SUURIN_VAUHTI: f32 = 660.0;
 const SUURIN_KULMA: f32 = 1.05;
 const PISTEET_OSUMASTA: u32 = 10;
+// Bonus putoaa tasaisesti nollaan aikarajan aikana ja kerrotaan kentän numerolla.
+const AIKABONUS_ALUSSA: u32 = 1000;
+const AIKARAJA_MS: u32 = 240_000;
 
 /// Numero kertoo, montako osumaa tiili kestää.
 const KENTAT: [&[&str]; 5] = [
@@ -93,8 +96,12 @@ pub enum Tapahtuma {
         rikki: bool,
     },
     Menetys,
-    KenttaLapi,
-    Voitto,
+    KenttaLapi {
+        bonus: u32,
+    },
+    Voitto {
+        bonus: u32,
+    },
     Ohi,
 }
 
@@ -108,6 +115,9 @@ pub struct Tiilipeli {
     pub pisteet: u32,
     /// Nollasta alkava kentän numero.
     pub kentta: usize,
+    /// Kentällä kulunut aika. Kello käy vain pallon lentäessä, joten tauko ja
+    /// laukaisun odotus eivät vie pisteitä.
+    pub kentan_ms: u32,
     vauhti: f32,
 }
 
@@ -134,6 +144,7 @@ impl Tiilipeli {
             elamat: ELAMIA,
             pisteet: 0,
             kentta,
+            kentan_ms: 0,
             vauhti: 0.0,
         };
         peli.kiinnita_pallo();
@@ -142,6 +153,12 @@ impl Tiilipeli {
 
     pub fn tiilia_jaljella(&self) -> usize {
         self.tiilet.iter().flatten().filter(|&&t| t > 0).count()
+    }
+
+    /// Bonus, jonka kentän läpäisy juuri nyt antaisi.
+    pub fn aikabonus(&self) -> u32 {
+        let jaljella = AIKARAJA_MS.saturating_sub(self.kentan_ms);
+        AIKABONUS_ALUSSA * (self.kentta as u32 + 1) * (jaljella / 1000) / (AIKARAJA_MS / 1000)
     }
 
     fn kiinnita_pallo(&mut self) {
@@ -183,6 +200,7 @@ impl Tiilipeli {
         if self.tila != Tila::Lennossa {
             return tapahtumat;
         }
+        self.kentan_ms = self.kentan_ms.saturating_add(ASKEL_MS);
 
         // Akselit erikseen: törmäyksen suunta on aina selvä, eikä pallo jää tiilen sisään.
         self.pallo.0 += self.nopeus.0 * ASKEL_S;
@@ -290,14 +308,17 @@ impl Tiilipeli {
         if self.tiilia_jaljella() > 0 {
             return;
         }
+        let bonus = self.aikabonus();
+        self.pisteet += bonus;
         if self.kentta + 1 == KENTTIA {
             self.tila = Tila::Voitto;
-            tapahtumat.push(Tapahtuma::Voitto);
+            tapahtumat.push(Tapahtuma::Voitto { bonus });
         } else {
             self.kentta += 1;
+            self.kentan_ms = 0;
             self.tiilet = kentan_tiilet(self.kentta);
             self.kiinnita_pallo();
-            tapahtumat.push(Tapahtuma::KenttaLapi);
+            tapahtumat.push(Tapahtuma::KenttaLapi { bonus });
         }
     }
 }

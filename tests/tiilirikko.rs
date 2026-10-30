@@ -1,7 +1,7 @@
 use klassikot8000::Arpa;
 use klassikot8000::tiilirikko::{
-    ELAMIA, KENTTIA, KORKEUS, LEVEYS, MAILA_L, MAILA_Y, PALLON_SADE, RIVEJA, SARAKKEITA, TIILET_Y,
-    TIILI_K, TIILI_L, Tapahtuma, Tiilipeli, Tila,
+    ASKEL_MS, ELAMIA, KENTTIA, KORKEUS, LEVEYS, MAILA_L, MAILA_Y, PALLON_SADE, RIVEJA, SARAKKEITA,
+    TIILET_Y, TIILI_K, TIILI_L, Tapahtuma, Tiilipeli, Tila,
 };
 
 /// Peli, jossa on vain yksi tiili kaukana pallosta: kenttä ei vaihdu kesken testin.
@@ -190,15 +190,66 @@ fn viimeinen_tiili_avaa_seuraavan_kentan_ja_viimeisessa_kentassa_voittaa() {
         peli.askel(0)
     };
     let tapahtumat = viimeistele(&mut peli);
-    assert_eq!(tapahtumat.last(), Some(&Tapahtuma::KenttaLapi));
+    assert!(matches!(
+        tapahtumat.last(),
+        Some(Tapahtuma::KenttaLapi { .. })
+    ));
     assert_eq!(peli.kentta, KENTTIA - 1);
     assert_eq!(peli.tila, Tila::Kiinni);
     assert!(peli.tiilia_jaljella() > 0);
 
     peli.laukaise(&mut Arpa::new(1));
     let tapahtumat = viimeistele(&mut peli);
-    assert_eq!(tapahtumat.last(), Some(&Tapahtuma::Voitto));
+    assert!(matches!(tapahtumat.last(), Some(Tapahtuma::Voitto { .. })));
     assert_eq!(peli.tila, Tila::Voitto);
+}
+
+/// Rikkoo kentän ainoan tiilen, kun kentällä on kulunut `kulunut_ms`. Palauttaa bonuksen ja pisteiden kasvun.
+fn lapaisy(kentta: usize, kulunut_ms: u32) -> (u32, u32) {
+    let mut peli = Tiilipeli::new(kentta);
+    peli.tiilet = [[0; SARAKKEITA]; RIVEJA];
+    peli.tiilet[0][0] = 1;
+    peli.laukaise(&mut Arpa::new(1));
+    // Osuman askel kuluttaa vielä oman aikansa.
+    peli.kentan_ms = kulunut_ms.saturating_sub(ASKEL_MS);
+    peli.pallo = (TIILI_L / 2.0, TIILET_Y + TIILI_K + PALLON_SADE + 0.5);
+    peli.nopeus = (0.0, -300.0);
+    let tapahtumat = peli.askel(0);
+    let bonus = match tapahtumat.last() {
+        Some(Tapahtuma::KenttaLapi { bonus } | Tapahtuma::Voitto { bonus }) => *bonus,
+        muu => panic!("{muu:?}"),
+    };
+    (bonus, peli.pisteet)
+}
+
+#[test]
+fn nopeampi_lapaisy_antaa_enemman_pisteita() {
+    let (alussa, pisteet) = lapaisy(0, 0);
+    assert!((990..1000).contains(&alussa), "{alussa}");
+    assert_eq!(pisteet, 10 + alussa);
+    assert_eq!(lapaisy(0, 120_000).0, 500);
+    assert_eq!(lapaisy(0, 240_000).0, 0);
+    assert_eq!(lapaisy(0, 999_000).0, 0);
+    assert!(lapaisy(0, 60_000).1 > lapaisy(0, 180_000).1);
+    assert_eq!(lapaisy(KENTTIA - 1, 120_000).0, 500 * KENTTIA as u32);
+}
+
+#[test]
+fn kentan_kello_kay_vain_lennossa_ja_nollautuu_kentan_vaihtuessa() {
+    let mut peli = Tiilipeli::new(0);
+    peli.askel(0);
+    assert_eq!(peli.kentan_ms, 0);
+    peli.laukaise(&mut Arpa::new(1));
+    peli.askel(0);
+    assert_eq!(peli.kentan_ms, ASKEL_MS);
+
+    peli.tiilet = [[0; SARAKKEITA]; RIVEJA];
+    peli.tiilet[0][0] = 1;
+    peli.pallo = (TIILI_L / 2.0, TIILET_Y + TIILI_K + PALLON_SADE + 0.5);
+    peli.nopeus = (0.0, -300.0);
+    peli.askel(0);
+    assert_eq!(peli.kentta, 1);
+    assert_eq!(peli.kentan_ms, 0);
 }
 
 fn pallo_tiilen_sisalla(peli: &Tiilipeli) -> bool {

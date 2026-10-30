@@ -2,16 +2,16 @@ use klassikot8000::Arpa;
 use klassikot8000::luvut::{Lukulauta, Siirto, Suunta, TAVOITE};
 
 use super::piirto;
-use super::tallennus::{Kesken, NIMEN_PITUUS, Tulos, lisaa_tulos, mahtuu_parhaisiin};
+use super::tallennus::Kesken;
 use crate::yhteinen::aanet::Aani;
 use crate::yhteinen::piirto::aanikytkimella;
 use crate::yhteinen::syote::Syote;
+use crate::yhteinen::tulokset::{Tulos, lisaa_tulos, mahtuu_parhaisiin, muokkaa_nimea, ota_nimi};
 
 pub const LIUKU_MS: u32 = 110;
 pub const KIPINA_MS: u32 = 450;
 const YHDISTYS_VIIVE_MS: u32 = 60;
 const LOPPU_VIIVE_MS: u32 = 250;
-const OLETUSNIMI: &str = "NIMETÖN";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Vaihe {
@@ -156,17 +156,12 @@ impl Luvut {
         }
     }
 
-    /// Kirjaa odottavan tuloksen. Ikkunan sulkeminen ei saa hävittää sitä, joten
-    /// tyhjä nimi korvataan oletuksella.
+    /// Kirjaa odottavan tuloksen.
     pub fn vahvista_nimi(&mut self) {
         if self.vaihe != Vaihe::Nimi {
             return;
         }
-        let nimi = if self.nimi.is_empty() {
-            OLETUSNIMI.to_string()
-        } else {
-            std::mem::take(&mut self.nimi)
-        };
+        let nimi = ota_nimi(&mut self.nimi);
         let pisteet = self.lauta.pisteet;
         lisaa_tulos(&mut self.parhaat, Tulos { nimi, pisteet });
         self.uusi_tulos = true;
@@ -178,23 +173,9 @@ impl Luvut {
     }
 
     fn kasittele_nimi(&mut self, syote: Syote) {
-        let merkki = match syote {
-            Syote::Kirjain(kirjain) => kirjain,
-            // M on äänikytkimen pikanäppäin, mutta nimessä se on kirjain.
-            Syote::VaihdaAanet => 'M',
-            Syote::Numero(numero) => (b'0' + numero) as char,
-            Syote::Pyyhi => {
-                self.nimi.pop();
-                return;
-            }
-            Syote::Ammu | Syote::Peru => {
-                self.vahvista_nimi();
-                return;
-            }
-            _ => return,
-        };
-        if self.nimi.chars().count() < NIMEN_PITUUS {
-            self.nimi.push(merkki);
+        match syote {
+            Syote::Ammu | Syote::Peru => self.vahvista_nimi(),
+            _ => muokkaa_nimea(&mut self.nimi, syote),
         }
     }
 
@@ -519,7 +500,7 @@ mod tests {
         luvut.kasittele(Syote::Nuoli(0, -1));
         luvut.kasittele(Syote::Peru);
         assert!(!luvut.lopeta);
-        assert_eq!(luvut.parhaat[0].nimi, OLETUSNIMI);
+        assert_eq!(luvut.parhaat[0].nimi, "NIMETÖN");
 
         let mut luvut = pelissa(LUKKOON_PISTEILLA);
         luvut.kasittele(Syote::Nuoli(0, -1));

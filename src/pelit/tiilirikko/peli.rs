@@ -1,10 +1,11 @@
 use klassikot8000::Arpa;
-use klassikot8000::tiilirikko::{ASKEL_MS, KENTTIA, Tapahtuma, Tiilipeli, Tila};
+use klassikot8000::tiilirikko::{ASKEL_MS, Tapahtuma, Tiilipeli, Tila};
 
 use super::piirto;
 use crate::yhteinen::aanet::Aani;
 use crate::yhteinen::piirto::aanikytkimella;
 use crate::yhteinen::syote::Syote;
+use crate::yhteinen::tulokset::{Tulos, lisaa_tulos, mahtuu_parhaisiin, muokkaa_nimea, ota_nimi};
 
 pub const KIPINA_MS: u32 = 350;
 // Ikkunan raahaus voi pysäyttää silmukan: pallo ei saa sen jälkeen hypätä kerralla pitkälle.
@@ -18,6 +19,8 @@ pub enum Vaihe {
     Tauko,
     Voitto,
     Tappio,
+    /// Tulos pääsi kolmen parhaan joukkoon ja odottaa nimimerkkiä.
+    Nimi,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -30,6 +33,9 @@ pub struct Tiilirikko {
     pub vaihe: Vaihe,
     pub lauta: Tiilipeli,
     pub paras: u32,
+    pub parhaat: Vec<Tulos>,
+    /// Kirjoitettavana oleva nimimerkki.
+    pub nimi: String,
     /// Tosi, kun päättyneen pelin ennätys odottaa tiedostoon kirjoitusta.
     pub uusi_tulos: bool,
     pub viesti: String,
@@ -43,6 +49,8 @@ pub struct Tiilirikko {
     /// Pohjassa olevien nuolten suunta: -1, 0 tai 1.
     pub ohjaus: i8,
     kertyma_ms: u32,
+    /// Vaihe, johon nimimerkin jälkeen palataan: voitto tai tappio.
+    loppu: Vaihe,
     arpa: Arpa,
 }
 
@@ -52,6 +60,8 @@ impl Tiilirikko {
             vaihe: Vaihe::Alku,
             lauta: Tiilipeli::new(0),
             paras: 0,
+            parhaat: Vec::new(),
+            nimi: String::new(),
             uusi_tulos: false,
             viesti: String::new(),
             kipinat: Vec::new(),
@@ -61,6 +71,7 @@ impl Tiilirikko {
             kello_ms: 0,
             ohjaus: 0,
             kertyma_ms: 0,
+            loppu: Vaihe::Tappio,
             arpa: Arpa::new(siemen),
         }
     }
@@ -83,6 +94,7 @@ impl Tiilirikko {
     }
 
     fn kasittele_tapahtuma(&mut self, tapahtuma: Tapahtuma) {
+        self.paras = self.paras.max(self.lauta.pisteet);
         match tapahtuma {
             Tapahtuma::Seina | Tapahtuma::Maila => self.aanijono.push((Aani::Pomppu, 0)),
             Tapahtuma::Tiili {
@@ -94,22 +106,19 @@ impl Tiilirikko {
                 if rikki {
                     self.kipinat.push((rivi, sarake, self.kello_ms));
                 }
-                self.paras = self.paras.max(self.lauta.pisteet);
             }
             Tapahtuma::Menetys => {
                 self.aanijono.push((Aani::Rajahdys, 0));
                 self.viesti = format!("Pallo meni! Palloja jäljellä: {}.", self.lauta.elamat);
             }
-            Tapahtuma::KenttaLapi => {
+            Tapahtuma::KenttaLapi { bonus } => {
                 self.aanijono.push((Aani::Yhdistys, 0));
-                self.viesti = format!(
-                    "Kenttä läpi! Seuraavana {}/{KENTTIA}.",
-                    self.lauta.kentta + 1
-                );
+                self.viesti = format!("Kenttä läpi! Aikabonus +{bonus}.");
             }
-            Tapahtuma::Voitto => {
+            Tapahtuma::Voitto { bonus } => {
                 self.aanijono.push((Aani::Voitto, LOPPU_VIIVE_MS));
                 self.lopeta_peli(Vaihe::Voitto);
+                self.viesti = format!("Aikabonus +{bonus}. Pisteet: {}.", self.lauta.pisteet);
             }
             Tapahtuma::Ohi => {
                 self.aanijono.push((Aani::Tappio, LOPPU_VIIVE_MS));
@@ -119,10 +128,37 @@ impl Tiilirikko {
     }
 
     fn lopeta_peli(&mut self, vaihe: Vaihe) {
-        self.vaihe = vaihe;
+        self.loppu = vaihe;
+        self.vaihe = if mahtuu_parhaisiin(&self.parhaat, self.lauta.pisteet) {
+            self.nimi.clear();
+            Vaihe::Nimi
+        } else {
+            vaihe
+        };
         self.ohjaus = 0;
         self.uusi_tulos = true;
         self.viesti = format!("Pisteet: {}.", self.lauta.pisteet);
+    }
+
+    /// Kirjaa odottavan tuloksen.
+    pub fn vahvista_nimi(&mut self) {
+        if self.vaihe != Vaihe::Nimi {
+            return;
+        }
+        let nimi = ota_nimi(&mut self.nimi);
+        let pisteet = self.lauta.pisteet;
+        lisaa_tulos(&mut self.parhaat, Tulos { nimi, pisteet });
+        self.uusi_tulos = true;
+        self.vaihe = self.loppu;
+    }
+
+    fn kasittele_nimi(&mut self, syote: Syote) {
+        match syote {
+            // Laukaisuun painettu välilyönti ei saa kuitata nimeä ennen kuin sitä on kirjoitettu.
+            Syote::Ammu if self.nimi.is_empty() => {}
+            Syote::Ammu | Syote::Peru => self.vahvista_nimi(),
+            _ => muokkaa_nimea(&mut self.nimi, syote),
+        }
     }
 
     fn aloita_alusta(&mut self) {
@@ -142,6 +178,11 @@ impl Tiilirikko {
     }
 
     pub fn kasittele(&mut self, syote: Syote) {
+        // Klikkaus jatkaa eteenpäin, jotta äänikytkin toimii nimeä kirjoittaessakin.
+        if self.vaihe == Vaihe::Nimi && !matches!(syote, Syote::Klikkaus(..)) {
+            self.kasittele_nimi(syote);
+            return;
+        }
         if syote == Syote::Peru {
             self.lopeta = true;
             return;
@@ -175,6 +216,7 @@ impl Tiilirikko {
                 }
             }
             Vaihe::Voitto | Vaihe::Tappio => self.kasittele_loppu(syote),
+            Vaihe::Nimi => {}
         }
     }
 
@@ -196,13 +238,25 @@ impl Tiilirikko {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use klassikot8000::tiilirikko::{KORKEUS, LEVEYS, MAILA_L, RIVEJA, SARAKKEITA};
+    use klassikot8000::tiilirikko::{KENTTIA, KORKEUS, LEVEYS, MAILA_L, RIVEJA, SARAKKEITA};
 
     fn lennossa() -> Tiilirikko {
         let mut peli = Tiilirikko::new(1);
         peli.kasittele(Syote::Ammu);
         peli.kasittele(Syote::Ammu);
         assert_eq!(peli.lauta.tila, Tila::Lennossa);
+        peli
+    }
+
+    /// Viimeinen pallo putoaa seuraavalla askeleella.
+    fn paattyva(pisteet: u32) -> Tiilirikko {
+        let mut peli = lennossa();
+        peli.lauta.pisteet = pisteet;
+        peli.paras = pisteet;
+        peli.lauta.elamat = 1;
+        peli.lauta.pallo = (LEVEYS / 2.0, KORKEUS + 8.0);
+        peli.lauta.nopeus = (0.0, 300.0);
+        peli.aanijono.clear();
         peli
     }
 
@@ -267,13 +321,13 @@ mod tests {
 
     #[test]
     fn viimeisen_pallon_menetys_paattaa_pelin_ja_paras_sailyy_uudessa() {
-        let mut peli = lennossa();
-        peli.lauta.pisteet = 40;
-        peli.paras = 40;
-        peli.lauta.elamat = 1;
-        peli.lauta.pallo = (LEVEYS / 2.0, KORKEUS + 8.0);
-        peli.lauta.nopeus = (0.0, 300.0);
-        peli.aanijono.clear();
+        let mut peli = paattyva(40);
+        peli.parhaat = (0..3)
+            .map(|_| Tulos {
+                nimi: "A".to_string(),
+                pisteet: 40,
+            })
+            .collect();
         peli.edista(ASKEL_MS);
         assert_eq!(peli.vaihe, Vaihe::Tappio);
         assert!(peli.uusi_tulos);
@@ -283,6 +337,72 @@ mod tests {
         assert_eq!(peli.vaihe, Vaihe::Pelissa);
         assert_eq!(peli.lauta.pisteet, 0);
         assert_eq!(peli.paras, 40);
+    }
+
+    #[test]
+    fn listalle_yltava_tulos_kysyy_nimen_ja_palaa_loppuruutuun() {
+        let mut peli = paattyva(40);
+        peli.edista(ASKEL_MS);
+        assert_eq!(peli.vaihe, Vaihe::Nimi);
+
+        // Laukaisuun painettu välilyönti ei kuittaa tyhjää nimeä, ja K on nimessä kirjain.
+        peli.kasittele(Syote::Ammu);
+        assert_eq!(peli.vaihe, Vaihe::Nimi);
+        peli.kasittele(Syote::Kirjain('K'));
+        peli.kasittele(Syote::VaihdaAanet);
+        assert!(peli.aanet_paalla);
+        peli.uusi_tulos = false;
+        peli.kasittele(Syote::Ammu);
+
+        assert_eq!(peli.vaihe, Vaihe::Tappio);
+        assert!(peli.uusi_tulos);
+        assert_eq!(peli.parhaat[0].nimi, "KM");
+        assert_eq!(peli.parhaat[0].pisteet, 40);
+    }
+
+    #[test]
+    fn esc_ja_sulkeminen_kirjaavat_tuloksen_oletusnimella() {
+        let mut peli = paattyva(40);
+        peli.edista(ASKEL_MS);
+        peli.kasittele(Syote::Peru);
+        assert!(!peli.lopeta);
+        assert_eq!(peli.vaihe, Vaihe::Tappio);
+        assert_eq!(peli.parhaat[0].nimi, "NIMETÖN");
+
+        let mut peli = paattyva(40);
+        peli.edista(ASKEL_MS);
+        peli.vahvista_nimi();
+        assert_eq!(peli.parhaat.len(), 1);
+        peli.vahvista_nimi();
+        assert_eq!(peli.parhaat.len(), 1);
+    }
+
+    #[test]
+    fn nollatulos_ei_paase_listalle() {
+        let mut peli = paattyva(0);
+        peli.edista(ASKEL_MS);
+        assert_eq!(peli.vaihe, Vaihe::Tappio);
+    }
+
+    #[test]
+    fn viimeisen_kentan_voitto_palaa_nimen_jalkeen_voittoon_ja_bonus_nostaa_parasta() {
+        let mut peli = Tiilirikko::new(1);
+        peli.kasittele(Syote::Ammu);
+        peli.lauta = Tiilipeli::new(KENTTIA - 1);
+        peli.kasittele(Syote::Ammu);
+        peli.lauta.tiilet = [[0; SARAKKEITA]; RIVEJA];
+        peli.lauta.tiilet[0][0] = 1;
+        peli.lauta.pallo = (30.0, 80.0);
+        peli.lauta.nopeus = (0.0, -300.0);
+        peli.edista(ASKEL_MS);
+        assert_eq!(peli.vaihe, Vaihe::Nimi);
+        assert!(peli.lauta.pisteet > 1000);
+        assert_eq!(peli.paras, peli.lauta.pisteet);
+        assert!(peli.viesti.contains("Aikabonus"));
+
+        peli.kasittele(Syote::Kirjain('A'));
+        peli.kasittele(Syote::Ammu);
+        assert_eq!(peli.vaihe, Vaihe::Voitto);
     }
 
     #[test]

@@ -1,0 +1,83 @@
+//! Parhaiden tulosten lista ja nimimerkin kirjoitus.
+
+use super::syote::Syote;
+
+pub const PARHAITA: usize = 3;
+pub const NIMEN_PITUUS: usize = 8;
+const OLETUSNIMI: &str = "NIMETÖN";
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Tulos {
+    pub nimi: String,
+    pub pisteet: u32,
+}
+
+/// Tasapisteissä vanhempi tulos säilyttää paikkansa, joten sen ohi ei pääse.
+pub fn mahtuu_parhaisiin(parhaat: &[Tulos], pisteet: u32) -> bool {
+    pisteet > 0 && (parhaat.len() < PARHAITA || parhaat.iter().any(|t| t.pisteet < pisteet))
+}
+
+pub fn lisaa_tulos(parhaat: &mut Vec<Tulos>, tulos: Tulos) {
+    let paikka = parhaat.partition_point(|t| t.pisteet >= tulos.pisteet);
+    parhaat.insert(paikka, tulos);
+    parhaat.truncate(PARHAITA);
+}
+
+/// Ottaa kirjoitetun nimen. Ikkunan sulkeminen ei saa hävittää tulosta, joten tyhjä
+/// nimi korvataan oletuksella.
+pub fn ota_nimi(nimi: &mut String) -> String {
+    if nimi.is_empty() {
+        OLETUSNIMI.to_string()
+    } else {
+        std::mem::take(nimi)
+    }
+}
+
+pub fn muokkaa_nimea(nimi: &mut String, syote: Syote) {
+    let merkki = match syote {
+        Syote::Kirjain(kirjain) => kirjain,
+        // M on äänikytkimen pikanäppäin, mutta nimessä se on kirjain.
+        Syote::VaihdaAanet => 'M',
+        Syote::Numero(numero) => (b'0' + numero) as char,
+        Syote::Pyyhi => {
+            nimi.pop();
+            return;
+        }
+        _ => return,
+    };
+    if nimi.chars().count() < NIMEN_PITUUS {
+        nimi.push(merkki);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parhaat_pysyvat_jarjestyksessa_ja_tasapisteilla_vanhempi_sailyy() {
+        let tulos = |nimi: &str, pisteet| Tulos {
+            nimi: nimi.to_string(),
+            pisteet,
+        };
+        let mut parhaat = Vec::new();
+        assert!(!mahtuu_parhaisiin(&parhaat, 0));
+        for (nimi, pisteet) in [("B", 200), ("C", 100), ("A", 300)] {
+            assert!(mahtuu_parhaisiin(&parhaat, pisteet));
+            lisaa_tulos(&mut parhaat, tulos(nimi, pisteet));
+        }
+        assert!(!mahtuu_parhaisiin(&parhaat, 100));
+        assert!(mahtuu_parhaisiin(&parhaat, 101));
+        lisaa_tulos(&mut parhaat, tulos("D", 200));
+        assert_eq!(parhaat, [tulos("A", 300), tulos("B", 200), tulos("D", 200)]);
+    }
+
+    #[test]
+    fn tyhja_nimi_saa_oletuksen() {
+        let mut nimi = String::new();
+        assert_eq!(ota_nimi(&mut nimi), OLETUSNIMI);
+        muokkaa_nimea(&mut nimi, Syote::Kirjain('A'));
+        assert_eq!(ota_nimi(&mut nimi), "A");
+        assert!(nimi.is_empty());
+    }
+}

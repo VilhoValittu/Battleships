@@ -15,6 +15,10 @@ const KENTTA_L: i32 = tiilirikko::LEVEYS as i32;
 const KENTTA_K: i32 = tiilirikko::KORKEUS as i32;
 const SARAKE_X: i32 = KENTTA_X + KENTTA_L + 30;
 const TILASTON_ASKEL: i32 = 87;
+const PARHAAT_Y: i32 = KENTTA_Y + 4 * TILASTON_ASKEL + 66;
+const PARHAAT_L: i32 = LEVEYS as i32 - 12 - SARAKE_X;
+// Kapeaan sarakkeeseen mahtuu sijoitus, kahdeksan merkin nimi ja viisinumeroiset pisteet.
+const PARHAAT_KOKO: (i32, i32, i32) = (10, 15, 14);
 
 const RIVIN_VARIT: [u32; RIVEJA] = [
     OSUMA, WB_ORANSSI, KELTAINEN, 0x70B050, HUTI, 0x4FA8E0, REUNA, 0x8B3FC0,
@@ -75,7 +79,7 @@ pub fn piirra(peli: &Tiilirikko, kuva: &mut [u32]) {
         kello: peli.kello_ms,
     };
     if peli.vaihe == Vaihe::Alku {
-        p.tiili_alkuruutu();
+        p.tiili_alkuruutu(peli);
     } else {
         p.tiili_nakyma(peli);
     }
@@ -83,15 +87,17 @@ pub fn piirra(peli: &Tiilirikko, kuva: &mut [u32]) {
 }
 
 impl Piirtaja<'_> {
-    fn tiili_alkuruutu(&mut self) {
+    fn tiili_alkuruutu(&mut self, peli: &Tiilirikko) {
         self.maisema("**** TIILIRIKKO ****", &tiilimuuri());
+        self.parhaat_alkuruudulla(&peli.parhaat);
         let mut y = OHJE_Y;
         for osa in [
             "Tervetuloa pelaamaan Tiilirikkoa.",
             "Ohjeet:",
             "Pidä pallo kentällä mailalla ja riko kaikki tiilet.",
             "Mailan laita kääntää palloa jyrkemmin, joten voit tähdätä.",
-            "Kenttiä on viisi, ja palloja on kolme.",
+            "Kenttiä on viisi, palloja kolme.",
+            "Mitä nopeammin läpäiset kentän, sitä enemmän pisteitä.",
         ] {
             for rivi in rivita(osa, 36) {
                 self.teksti(48, y, rivi, REUNA);
@@ -211,6 +217,13 @@ impl Piirtaja<'_> {
             self.k
                 .laatikko(SARAKE_X + i * 27, y + 33, 18, 18, VALKOINEN);
         }
+
+        let y = KENTTA_Y + 4 * TILASTON_ASKEL;
+        let bonus = lauta.aikabonus().to_string();
+        self.vektoriteksti(SARAKE_X, y, "AIKABONUS", TULOS, KELTAINEN, false);
+        self.vektoriteksti(SARAKE_X, y + 30, &bonus, OTSIKKO, VALKOINEN, true);
+
+        self.parhaat_lista(SARAKE_X, PARHAAT_Y, PARHAAT_L, PARHAAT_KOKO, &peli.parhaat);
     }
 
     fn tiili_paneeli(&mut self, peli: &Tiilirikko) {
@@ -241,6 +254,7 @@ impl Piirtaja<'_> {
                     self.nappi(x, NAPPI_Y, teksti, VALKOINEN, WB_SININEN);
                 }
             }
+            Vaihe::Nimi => self.nimikysely(peli.lauta.pisteet, &peli.nimi),
             Vaihe::Alku => {}
         }
     }
@@ -262,9 +276,17 @@ mod tests {
 
     #[test]
     fn tekstit_ja_kentta_mahtuvat_paikoilleen() {
-        for teksti in [OHJE, LAUKAISU, TAUON_OHJE, "Kenttä läpi! Seuraavana 5/5."] {
+        for teksti in [
+            OHJE,
+            LAUKAISU,
+            TAUON_OHJE,
+            "Kenttä läpi! Aikabonus +5000.",
+            "Aikabonus +5000. Pisteet: 99999.",
+        ] {
             assert!(teksti.chars().count() <= RIVILLE_MERKKEJA, "{teksti}");
         }
+        const { assert!((2 + 8 + 1 + 5) * PARHAAT_KOKO.2 <= PARHAAT_L) };
+        const { assert!(PARHAAT_Y + 30 + 3 * 26 < PANEELI_Y) };
         assert!(VOITTO.chars().count() as i32 * TULOS.2 < LEVEYS as i32 - TEKSTI_X);
         const { assert!(KENTTA_Y + KENTTA_K < PANEELI_Y) };
         assert!(SARAKE_X + "PISTEET".len() as i32 * OTSIKKO.2 < LEVEYS as i32);
@@ -288,6 +310,8 @@ mod tests {
         peli.vaihe = Vaihe::Tauko;
         piirra(&peli, &mut kuva);
         peli.vaihe = Vaihe::Voitto;
+        piirra(&peli, &mut kuva);
+        peli.vaihe = Vaihe::Nimi;
         piirra(&peli, &mut kuva);
     }
 }
