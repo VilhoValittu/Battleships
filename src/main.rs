@@ -23,12 +23,16 @@ use kaynnistin::{Kaynnistin, piirto};
 #[cfg(debug_assertions)]
 use klassikot8000::luvut::Lukulauta;
 #[cfg(debug_assertions)]
+use klassikot8000::pasianssi::{self, KUNINGAS, Kortti, Maa};
+#[cfg(debug_assertions)]
 use pelit::laivanupotus::peli::Vaihe;
 #[cfg(debug_assertions)]
 use pelit::luvut::peli as luvut;
 use pelit::luvut::tallennus;
+#[cfg(debug_assertions)]
+use pelit::pasianssi::peli as pasianssi_peli;
 use yhteinen::aanet::{Mikseri, NAYTETAAJUUS};
-use yhteinen::piirto::{KORKEUS, LEVEYS};
+use yhteinen::piirto::{KORKEUS, LEVEYS, RUUDUN_KORKEUS, RUUDUN_LEVEYS};
 use yhteinen::syote::Syote;
 
 const PAIVITYKSIA_SEKUNNISSA: usize = 30;
@@ -118,15 +122,20 @@ fn tallenna(polku: Option<&Path>, kaynnistin: &Kaynnistin) {
 
 fn pelisilmukka(
     mut kaynnistin: Kaynnistin,
+    ruutu: &mut [u32],
     kuva: &mut [u32],
     polku: Option<&Path>,
 ) -> Result<(), minifb::Error> {
+    // Otsikkopalkki ei mahtuisi Full HD -näytölle täyden kuvan kanssa, joten ikkuna on
+    // reunaton ja täyttää ruudun. Ohjelma sulkeutuu valikon Esc-näppäimellä tai Alt+F4:llä.
     let asetukset = WindowOptions {
-        scale: Scale::FitScreen,
+        none: true,
+        scale: Scale::X1,
         ..WindowOptions::default()
     };
     let mut otsikko = kaynnistin.otsikko();
-    let mut ikkuna = Window::new(otsikko, LEVEYS, KORKEUS, asetukset)?;
+    let mut ikkuna = Window::new(otsikko, RUUDUN_LEVEYS, RUUDUN_KORKEUS, asetukset)?;
+    ikkuna.set_position(0, 0);
     ikkuna.set_target_fps(PAIVITYKSIA_SEKUNNISSA);
 
     let mikseri = Arc::new(Mutex::new(Mikseri::new()));
@@ -151,13 +160,16 @@ fn pelisilmukka(
 
         if let Some((x, y)) = ikkuna.get_mouse_pos(MouseMode::Discard) {
             let piste = (x as i32, y as i32);
+            let nakyma = kaynnistin.nakyman_piste(piste.0, piste.1);
             if piste != hiiri {
                 hiiri = piste;
-                kaynnistin.kasittele(Syote::Hiiri(piste.0, piste.1));
+                kaynnistin.kasittele(Syote::Hiiri(nakyma.0, nakyma.1));
             }
             let alhaalla = ikkuna.get_mouse_down(MouseButton::Left);
             if alhaalla && !nappi_alhaalla {
-                kaynnistin.kasittele(Syote::Klikkaus(piste.0, piste.1));
+                kaynnistin.kasittele(Syote::Klikkaus(nakyma.0, nakyma.1));
+            } else if !alhaalla && nappi_alhaalla {
+                kaynnistin.kasittele(Syote::Vapautus(nakyma.0, nakyma.1));
             }
             nappi_alhaalla = alhaalla;
         } else {
@@ -188,8 +200,8 @@ fn pelisilmukka(
         edellinen = nyt;
 
         // Vesi ja tähtäin elävät koko ajan, joten joka päivitys piirretään kokonaan.
-        piirto::piirra(&kaynnistin, kuva);
-        ikkuna.update_with_buffer(kuva, LEVEYS, KORKEUS)?;
+        piirto::piirra(&kaynnistin, ruutu, kuva);
+        ikkuna.update_with_buffer(ruutu, RUUDUN_LEVEYS, RUUDUN_KORKEUS)?;
     }
     // Ikkunan voi sulkea kesken pelin.
     kaynnistin.viimeistele();
@@ -198,6 +210,7 @@ fn pelisilmukka(
 }
 
 fn main() -> ExitCode {
+    let mut ruutu = vec![0u32; RUUDUN_LEVEYS * RUUDUN_KORKEUS];
     let mut kuva = vec![0u32; LEVEYS * KORKEUS];
 
     #[cfg(debug_assertions)]
@@ -245,13 +258,36 @@ fn main() -> ExitCode {
                     }
                 }
             }
+            Some(Kaynnissa::Pasianssi(peli)) => {
+                if let Some(vaikeus) = liput.vaikeus {
+                    let taso = pasianssi::Vaikeus::KAIKKI
+                        .into_iter()
+                        .find(|taso| taso.nimi() == vaikeus.nimi());
+                    peli.vaikeus = taso.unwrap_or(peli.vaikeus);
+                }
+                if liput.nostot.is_some() || liput.voitto {
+                    peli.kasittele(Syote::Ammu);
+                }
+                for _ in 0..liput.nostot.unwrap_or(0) {
+                    peli.kasittele(Syote::Kirjain('N'));
+                }
+                if liput.voitto {
+                    for (pino, &maa) in peli.lauta.tila.perustat.iter_mut().zip(&Maa::KAIKKI) {
+                        *pino = (1..=KUNINGAS).map(|arvo| Kortti { maa, arvo }).collect();
+                    }
+                    peli.lauta.tila.sarakkeet = Default::default();
+                    peli.lauta.tila.pakka.clear();
+                    peli.lauta.tila.jate.clear();
+                    peli.vaihe = pasianssi_peli::Vaihe::Voitto;
+                }
+            }
             None => {}
         }
         kaynnistin.ota_aanet();
         if let Some(polku) = liput.kuvakaappaus {
             kaynnistin.edista(liput.aika_ms);
-            piirto::piirra(&kaynnistin, &mut kuva);
-            return match kehitys::tallenna_png(&polku, &kuva, LEVEYS, KORKEUS) {
+            piirto::piirra(&kaynnistin, &mut ruutu, &mut kuva);
+            return match kehitys::tallenna_png(&polku, &ruutu, RUUDUN_LEVEYS, RUUDUN_KORKEUS) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(virhe) => {
                     eprintln!("{polku}: {virhe}");
@@ -271,7 +307,7 @@ fn main() -> ExitCode {
         (kaynnistin, polku)
     };
 
-    match pelisilmukka(kaynnistin, &mut kuva, polku.as_deref()) {
+    match pelisilmukka(kaynnistin, &mut ruutu, &mut kuva, polku.as_deref()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(virhe) => {
             eprintln!("{virhe}");

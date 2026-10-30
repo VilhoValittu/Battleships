@@ -1,15 +1,15 @@
 //! Käynnistimen näkymä: pelikortit ja ohjeet.
 
 use super::{Kaynnissa, Kaynnistin, PELIT};
-use crate::pelit::{laivanupotus, luvut};
+use crate::pelit::{laivanupotus, luvut, pasianssi};
 use crate::yhteinen::piirto::*;
 use crate::yhteinen::vektori::{self, Kangas};
 
 const KORTTI_X: i32 = 48;
 const KORTTI_L: i32 = LEVEYS as i32 - 2 * KORTTI_X;
 const KORTTI_Y: i32 = 372;
-const KORTTI_K: i32 = 84;
-const KORTTI_ASKEL: i32 = KORTTI_K + 12;
+const KORTTI_K: i32 = 72;
+const KORTTI_ASKEL: i32 = KORTTI_K + 8;
 const KORTTI_SISENNYS: i32 = 18;
 
 pub fn kortti_pisteesta(x: i32, y: i32) -> Option<usize> {
@@ -29,18 +29,25 @@ pub fn kortin_keskipiste(i: usize) -> (i32, i32) {
     )
 }
 
-pub fn piirra(kaynnistin: &Kaynnistin, kuva: &mut [u32]) {
+/// Piirtää esillä olevan näkymän ruudulle. Klassiset näkymät kulkevat välikuvan kautta.
+pub fn piirra(kaynnistin: &Kaynnistin, ruutu: &mut [u32], kuva: &mut [u32]) {
     match &kaynnistin.peli {
-        Some(Kaynnissa::Laivanupotus(peli)) => return laivanupotus::piirto::piirra(peli, kuva),
-        Some(Kaynnissa::Luvut(peli)) => return luvut::piirto::piirra(peli, kuva),
-        None => {}
+        Some(Kaynnissa::Pasianssi(peli)) if peli.vaihe != pasianssi::peli::Vaihe::Alku => {
+            return pasianssi::piirto::piirra(peli, ruutu);
+        }
+        Some(Kaynnissa::Pasianssi(peli)) => pasianssi::piirto::piirra_alku(peli, kuva),
+        Some(Kaynnissa::Laivanupotus(peli)) => laivanupotus::piirto::piirra(peli, kuva),
+        Some(Kaynnissa::Luvut(peli)) => luvut::piirto::piirra(peli, kuva),
+        None => {
+            let mut p = Piirtaja {
+                k: Kangas::new(kuva),
+                kello: kaynnistin.kello_ms,
+            };
+            p.valikko(kaynnistin.valittu);
+            p.aanikytkin(kaynnistin.aanet_paalla);
+        }
     }
-    let mut p = Piirtaja {
-        k: Kangas(kuva),
-        kello: kaynnistin.kello_ms,
-    };
-    p.valikko(kaynnistin.valittu);
-    p.aanikytkin(kaynnistin.aanet_paalla);
+    skaalaa_ruudulle(kuva, ruutu);
 }
 
 impl Piirtaja<'_> {
@@ -63,8 +70,8 @@ impl Piirtaja<'_> {
                 .laatikko(KORTTI_X + KORTTI_L, y + 3, 3, KORTTI_K, MUSTA);
             let x = KORTTI_X + KORTTI_SISENNYS;
             let nimi = format!("{} {}", i + 1, kortti.nimi);
-            self.vektoriteksti(x, y + 15, &nimi, OTSIKKO, nimi_vari, true);
-            self.teksti(x, y + 48, kortti.kuvaus, MUSTA);
+            self.vektoriteksti(x, y + 9, &nimi, OTSIKKO, nimi_vari, true);
+            self.teksti(x, y + 42, kortti.kuvaus, MUSTA);
         }
         let mut y = KORTTI_Y + PELIT.len() as i32 * KORTTI_ASKEL + 12;
         for rivi in [

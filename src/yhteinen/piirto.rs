@@ -6,6 +6,16 @@ use super::{fontti, vektorifontti};
 pub const LEVEYS: usize = 960;
 pub const KORKEUS: usize = 768;
 
+/// Ikkunan todellinen koko. `LEVEYS` ja `KORKEUS` ovat klassisten näkymien kuva, joka
+/// skaalataan ruudun korkuiseksi keskelle; laidat jäävät C64:n reunaväriin.
+pub const RUUDUN_LEVEYS: usize = 1920;
+pub const RUUDUN_KORKEUS: usize = 1080;
+// Suhde 1080 / 768 = 45 / 32.
+const SKAALA_OSOITTAJA: usize = 45;
+const SKAALA_NIMITTAJA: usize = 32;
+const SKAALATTU_LEVEYS: usize = LEVEYS * SKAALA_OSOITTAJA / SKAALA_NIMITTAJA;
+const SKAALATTU_X: usize = (RUUDUN_LEVEYS - SKAALATTU_LEVEYS) / 2;
+
 // Paletti: C64:n siniset ja Amiga Workbench 1.3:n käyttöliittymävärit.
 pub const REUNA: u32 = 0x7C70DA;
 pub const TAUSTA: u32 = 0x352879;
@@ -68,7 +78,7 @@ const LAIVAN_KIERTO: f32 = 0.0006;
 const LAIVAN_KOKO: f32 = 33.0;
 
 // (merkin leveys, merkin korkeus, askel) vektorifontille
-const SUURI: (i32, i32, i32) = (30, 45, 39);
+pub const SUURI: (i32, i32, i32) = (30, 45, 39);
 pub const OTSIKKO: (i32, i32, i32) = (15, 21, 21);
 pub const TULOS: (i32, i32, i32) = (12, 18, 18);
 
@@ -83,6 +93,38 @@ pub fn aanikytkimen_keskipiste() -> (i32, i32) {
 
 pub fn napin_leveys(teksti: &str) -> i32 {
     teksti.chars().count() as i32 * MERKKI + 24
+}
+
+/// Venyttää klassisen kuvan ruudulle. Lähimmän pikselin menetelmä säilyttää
+/// kovat reunat, ja sama rivi kopioidaan laskematta uudelleen.
+pub fn skaalaa_ruudulle(kuva: &[u32], ruutu: &mut [u32]) {
+    let lahde_x: [u16; SKAALATTU_LEVEYS] =
+        std::array::from_fn(|x| (x * SKAALA_NIMITTAJA / SKAALA_OSOITTAJA) as u16);
+    let mut edellinen = None;
+    for y in 0..RUUDUN_KORKEUS {
+        let rivi = y * RUUDUN_LEVEYS;
+        let lahde_y = y * SKAALA_NIMITTAJA / SKAALA_OSOITTAJA;
+        if edellinen == Some(lahde_y) {
+            ruutu.copy_within(rivi - RUUDUN_LEVEYS..rivi, rivi);
+            continue;
+        }
+        edellinen = Some(lahde_y);
+        let kohde = &mut ruutu[rivi..rivi + RUUDUN_LEVEYS];
+        kohde.fill(REUNA);
+        let lahde = &kuva[lahde_y * LEVEYS..(lahde_y + 1) * LEVEYS];
+        for (pikseli, &x) in kohde[SKAALATTU_X..].iter_mut().zip(&lahde_x) {
+            *pikseli = lahde[x as usize];
+        }
+    }
+}
+
+/// Ruudun pikseli klassisen kuvan koordinaateiksi. Laidoilla x jää kuvan ulkopuolelle.
+pub fn ruudulta_kuvaan(x: i32, y: i32) -> (i32, i32) {
+    let (osoittaja, nimittaja) = (SKAALA_OSOITTAJA as i32, SKAALA_NIMITTAJA as i32);
+    (
+        ((x - SKAALATTU_X as i32) * nimittaja).div_euclid(osoittaja),
+        (y * nimittaja).div_euclid(osoittaja),
+    )
 }
 
 /// Rivittää tekstin sanojen välistä. Ei kopioi tekstiä, palauttaa vain viipaleet.
@@ -188,7 +230,7 @@ impl Piirtaja<'_> {
             let osuus = (y - y0) as f32 / (y1 - y0) as f32;
             let vari = sekoita(yla, ala, osuus);
             self.k
-                .laatikko(0, y, LEVEYS as i32, kaistan_k.min(y1 - y), vari);
+                .laatikko(0, y, self.k.leveys as i32, kaistan_k.min(y1 - y), vari);
             y += kaistan_k;
         }
     }
@@ -272,9 +314,11 @@ impl Piirtaja<'_> {
     }
 
     pub fn otsikkopalkki(&mut self, otsikko: &str, nimi: &str) {
-        self.k.laatikko(6, 6, LEVEYS as i32 - 12, 30, VALKOINEN);
+        self.k
+            .laatikko(6, 6, self.k.leveys as i32 - 12, 30, VALKOINEN);
         self.teksti(18, 9, otsikko, WB_SININEN);
-        let nimi_x = AANI_X - 12 - nimi.chars().count() as i32 * MERKKI;
+        let aani_x = self.k.leveys as i32 - 12 - AANI_L;
+        let nimi_x = aani_x - 12 - nimi.chars().count() as i32 * MERKKI;
         self.teksti(nimi_x, 9, nimi, WB_SININEN);
         let raita_x = 36 + otsikko.chars().count() as i32 * MERKKI;
         for y in [9, 15, 21, 27] {
@@ -309,9 +353,10 @@ impl Piirtaja<'_> {
         } else {
             (WB_ORANSSI, AANI_POIS)
         };
-        self.k.laatikko(AANI_X, AANI_Y, AANI_L, AANI_K, tausta);
-        self.k.kehys(AANI_X, AANI_Y, AANI_L, AANI_K, MUSTA);
-        self.teksti(AANI_X + 12, AANI_Y + 3, teksti, MUSTA);
+        let x = self.k.leveys as i32 - 12 - AANI_L;
+        self.k.laatikko(x, AANI_Y, AANI_L, AANI_K, tausta);
+        self.k.kehys(x, AANI_Y, AANI_L, AANI_K, MUSTA);
+        self.teksti(x + 12, AANI_Y + 3, teksti, MUSTA);
     }
 
     pub fn nappi(&mut self, x: i32, y: i32, teksti: &str, tausta: u32, vari: u32) {
@@ -339,5 +384,21 @@ mod tests {
         );
         assert_eq!(rivita("ääääää", 4), ["ääää", "ää"]);
         assert!(rivita("", 4).is_empty());
+    }
+
+    #[test]
+    fn skaalaus_tayttaa_ruudun_ja_hiiri_osuu_samaan_pikseliin() {
+        let kuva: Vec<u32> = (0..LEVEYS * KORKEUS).map(|i| i as u32 + 1).collect();
+        let mut ruutu = vec![0; RUUDUN_LEVEYS * RUUDUN_KORKEUS];
+        skaalaa_ruudulle(&kuva, &mut ruutu);
+        assert_eq!(ruutu[0], REUNA);
+        assert_eq!(ruutu[RUUDUN_LEVEYS * RUUDUN_KORKEUS - 1], REUNA);
+        for (x, y) in [(285, 0), (700, 300), (1634, 1079), (1000, 1079)] {
+            let (kx, ky) = ruudulta_kuvaan(x, y);
+            let pikseli = ruutu[y as usize * RUUDUN_LEVEYS + x as usize];
+            assert_eq!(pikseli, kuva[ky as usize * LEVEYS + kx as usize], "{x},{y}");
+        }
+        assert!(ruudulta_kuvaan(0, 0).0 < 0);
+        assert!(ruudulta_kuvaan(1700, 0).0 >= LEVEYS as i32);
     }
 }

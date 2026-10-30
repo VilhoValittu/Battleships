@@ -9,17 +9,39 @@ const KAMERAN_ETAISYYS: f32 = 16.0;
 const KALLISTUS: f32 = 0.24;
 const VALO: [f32; 3] = [0.41, 0.82, -0.41];
 
-pub struct Kangas<'a>(pub &'a mut [u32]);
+pub struct Kangas<'a> {
+    kuva: &'a mut [u32],
+    pub leveys: usize,
+    pub korkeus: usize,
+}
+
+impl<'a> Kangas<'a> {
+    /// Klassinen 960x768-kuva, johon vanhat näkymät piirtävät.
+    pub fn new(kuva: &'a mut [u32]) -> Self {
+        Self::kokoinen(kuva, LEVEYS, KORKEUS)
+    }
+
+    pub fn kokoinen(kuva: &'a mut [u32], leveys: usize, korkeus: usize) -> Self {
+        Self {
+            kuva,
+            leveys,
+            korkeus,
+        }
+    }
+}
 
 impl Kangas<'_> {
     pub fn laatikko(&mut self, x: i32, y: i32, l: i32, k: i32, vari: u32) {
-        let (a, b) = (x.max(0) as usize, (x + l).clamp(0, LEVEYS as i32) as usize);
+        let (a, b) = (
+            x.max(0) as usize,
+            (x + l).clamp(0, self.leveys as i32) as usize,
+        );
         if a >= b {
             return;
         }
-        for yy in y.max(0)..(y + k).min(KORKEUS as i32) {
-            let rivi = yy as usize * LEVEYS;
-            self.0[rivi + a..rivi + b].fill(vari);
+        for yy in y.max(0)..(y + k).min(self.korkeus as i32) {
+            let rivi = yy as usize * self.leveys;
+            self.kuva[rivi + a..rivi + b].fill(vari);
         }
     }
 
@@ -31,8 +53,8 @@ impl Kangas<'_> {
     }
 
     pub fn piste(&mut self, x: i32, y: i32, vari: u32) {
-        if (0..LEVEYS as i32).contains(&x) && (0..KORKEUS as i32).contains(&y) {
-            self.0[y as usize * LEVEYS + x as usize] = vari;
+        if (0..self.leveys as i32).contains(&x) && (0..self.korkeus as i32).contains(&y) {
+            self.kuva[y as usize * self.leveys + x as usize] = vari;
         }
     }
 
@@ -72,7 +94,7 @@ impl Kangas<'_> {
             .map(|p| p.1)
             .max()
             .unwrap_or(0)
-            .min(KORKEUS as i32 - 1);
+            .min(self.korkeus as i32 - 1);
         for y in ylin..=alin {
             let mut leikkaukset = [0; SUURIN_LEIKKAUS];
             let mut maara = 0;
@@ -267,7 +289,7 @@ mod tests {
     #[test]
     fn viiva_ulottuu_paasta_paahan_ja_kuvan_ulkopuoli_ohitetaan() {
         let mut kuva = tyhja();
-        let mut k = Kangas(&mut kuva);
+        let mut k = Kangas::new(&mut kuva);
         k.viiva((10, 10), (40, 25), 1);
         k.viiva((-50, -50), (LEVEYS as i32 + 50, KORKEUS as i32 + 50), 2);
         assert_eq!(pikseli(&kuva, 10, 10), 1);
@@ -277,7 +299,7 @@ mod tests {
     #[test]
     fn monikulmio_tayttaa_sisaosan_muttei_ulkopuolta() {
         let mut kuva = tyhja();
-        Kangas(&mut kuva).monikulmio(&[(10, 10), (30, 10), (20, 30)], 7);
+        Kangas::new(&mut kuva).monikulmio(&[(10, 10), (30, 10), (20, 30)], 7);
         assert_eq!(pikseli(&kuva, 20, 15), 7);
         assert_eq!(pikseli(&kuva, 11, 25), 0);
     }
@@ -285,7 +307,7 @@ mod tests {
     #[test]
     fn monikulmio_kuvan_reunan_yli_ei_kaada() {
         let mut kuva = tyhja();
-        Kangas(&mut kuva).monikulmio(&[(-20, -20), (LEVEYS as i32 + 20, 0), (0, 2000)], 7);
+        Kangas::new(&mut kuva).monikulmio(&[(-20, -20), (LEVEYS as i32 + 20, 0), (0, 2000)], 7);
         assert_eq!(pikseli(&kuva, 0, 0), 7);
     }
 
@@ -294,7 +316,7 @@ mod tests {
         let malli = taistelulaiva(0x111111, 0x222222, 0x333333);
         for i in 0..32 {
             let mut kuva = tyhja();
-            Kangas(&mut kuva).malli(&malli, i as f32 * 0.2, (480, 225), 33.0, 0xFFFFFF);
+            Kangas::new(&mut kuva).malli(&malli, i as f32 * 0.2, (480, 225), 33.0, 0xFFFFFF);
             assert!(kuva.iter().filter(|&&p| p != 0).count() > 500);
         }
     }

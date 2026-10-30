@@ -107,7 +107,7 @@ pub fn napin_keskipiste(nappi: Nappi) -> (i32, i32) {
 
 pub fn piirra(peli: &Peli, kuva: &mut [u32]) {
     let mut p = Piirtaja {
-        k: Kangas(kuva),
+        k: Kangas::new(kuva),
         kello: peli.kello_ms,
     };
     if peli.vaihe == Vaihe::Alku {

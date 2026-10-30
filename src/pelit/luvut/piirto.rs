@@ -142,7 +142,7 @@ fn lukupino(varit: [u32; 4]) -> Vec<Tahko> {
 
 pub fn piirra(luvut: &Luvut, kuva: &mut [u32]) {
     let mut p = Piirtaja {
-        k: Kangas(kuva),
+        k: Kangas::new(kuva),
         kello: luvut.kello_ms,
     };
     if luvut.vaihe == Vaihe::Alku {

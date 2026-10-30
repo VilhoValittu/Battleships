@@ -21,6 +21,10 @@ pub struct Liput {
     pub liu_ut: Vec<Suunta>,
     /// Tallennustiedosto. Ilman tätä kehitysajo ei lue eikä kirjoita tallennusta.
     pub tallennus: Option<String>,
+    /// Pasianssi: aloittaa pelin ja nostaa pakasta näin monta kertaa.
+    pub nostot: Option<u32>,
+    /// Pasianssi: aloittaa pelin voitettuna, loppujuhlan tarkistukseen.
+    pub voitto: bool,
     /// Kuvakaappauksen hetki viimeisen laukauksen jälkeen, animaatioiden tarkistukseen.
     pub aika_ms: u32,
 }
@@ -33,6 +37,8 @@ impl Liput {
             Some(Laji::Laivanupotus)
         } else if self.lauta.is_some() || !self.liu_ut.is_empty() {
             Some(Laji::Luvut)
+        } else if self.nostot.is_some() || self.voitto {
+            Some(Laji::Pasianssi)
         } else {
             None
         }
@@ -52,6 +58,8 @@ pub fn lue_liput() -> Result<Liput, String> {
         lauta: None,
         liu_ut: Vec::new(),
         tallennus: None,
+        nostot: None,
+        voitto: false,
         aika_ms: OLETUSAIKA_MS,
     };
     let mut args = std::env::args().skip(1);
@@ -66,9 +74,12 @@ pub fn lue_liput() -> Result<Liput, String> {
                 liput.peli = Some(match arvo.as_str() {
                     "laivanupotus" => Laji::Laivanupotus,
                     "2048" => Laji::Luvut,
+                    "pasianssi" => Laji::Pasianssi,
                     _ => return Err(format!("--game: {arvo}")),
                 });
             }
+            "--draws" => liput.nostot = Some(arvo.parse().map_err(|_| "--draws: ei luku")?),
+            "--win" => liput.voitto = arvo == "1",
             "--board" => {
                 let luvut = arvo
                     .split(',')

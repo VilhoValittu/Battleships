@@ -2,3 +2,4 @@
 
 pub mod laivanupotus;
 pub mod luvut;
+pub mod pasianssi;

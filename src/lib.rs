@@ -6,5 +6,7 @@ pub mod arpa;
 pub mod laivanupotus;
 #[path = "pelit/luvut/logiikka.rs"]
 pub mod luvut;
+#[path = "pelit/pasianssi/logiikka.rs"]
+pub mod pasianssi;
 
 pub use arpa::Arpa;

@@ -4,18 +4,21 @@
 pub mod piirto;
 
 use klassikot8000::laivanupotus::Vaikeus;
+use klassikot8000::pasianssi;
 
 use crate::pelit::laivanupotus::peli::Peli;
 use crate::pelit::luvut::peli::Luvut;
 use crate::pelit::luvut::tallennus::Tallennus;
+use crate::pelit::pasianssi::peli::{self as pasianssi_peli, Pasianssi};
 use crate::yhteinen::aanet::Aani;
-use crate::yhteinen::piirto::aanikytkimella;
+use crate::yhteinen::piirto::{aanikytkimella, ruudulta_kuvaan};
 use crate::yhteinen::syote::Syote;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Laji {
     Laivanupotus,
     Luvut,
+    Pasianssi,
 }
 
 pub struct Kortti {
@@ -24,7 +27,7 @@ pub struct Kortti {
     pub kuvaus: &'static str,
 }
 
-pub const PELIT: [Kortti; 2] = [
+pub const PELIT: [Kortti; 3] = [
     Kortti {
         laji: Laji::Laivanupotus,
         nimi: "LAIVANUPOTUS",
@@ -35,11 +38,17 @@ pub const PELIT: [Kortti; 2] = [
         nimi: "2048",
         kuvaus: "Yhdistä luvut ja saavuta 2048.",
     },
+    Kortti {
+        laji: Laji::Pasianssi,
+        nimi: "PASIANSSI",
+        kuvaus: "Klassinen pasianssi, kolme tasoa.",
+    },
 ];
 
 pub enum Kaynnissa {
     Laivanupotus(Box<Peli>),
     Luvut(Box<Luvut>),
+    Pasianssi(Box<Pasianssi>),
 }
 
 /// Pelin valinta ja käynnissä oleva peli. Asetukset säilyvät, kun peli vaihtuu.
@@ -56,6 +65,7 @@ pub struct Kaynnistin {
     /// Tosi, kun `main.rs`:n kuuluu kirjoittaa tallennus tiedostoon.
     pub tallenna: bool,
     vaikeus: Vaikeus,
+    pasianssin_vaikeus: pasianssi::Vaikeus,
     siemen: u64,
 }
 
@@ -71,6 +81,7 @@ impl Kaynnistin {
             tallennus: Tallennus::default(),
             tallenna: false,
             vaikeus: Vaikeus::Normaali,
+            pasianssin_vaikeus: pasianssi::Vaikeus::Normaali,
             siemen,
         }
     }
@@ -79,6 +90,7 @@ impl Kaynnistin {
         match self.peli {
             Some(Kaynnissa::Laivanupotus(_)) => "Laivanupotus",
             Some(Kaynnissa::Luvut(_)) => "2048",
+            Some(Kaynnissa::Pasianssi(_)) => "Pasianssi",
             None => "Pelikone",
         }
     }
@@ -87,6 +99,14 @@ impl Kaynnistin {
     /// pohjassa pidetystä nuolesta siirtosarjan.
     pub fn nuolet_toistuvat(&self) -> bool {
         !matches!(self.peli, Some(Kaynnissa::Luvut(_)))
+    }
+
+    /// Muuttaa ruudun pikselin sen näkymän koordinaateiksi, joka on nyt esillä.
+    pub fn nakyman_piste(&self, x: i32, y: i32) -> (i32, i32) {
+        match &self.peli {
+            Some(Kaynnissa::Pasianssi(peli)) if peli.vaihe != pasianssi_peli::Vaihe::Alku => (x, y),
+            _ => ruudulta_kuvaan(x, y),
+        }
     }
 
     pub fn kaynnista(&mut self, laji: Laji) {
@@ -109,6 +129,12 @@ impl Kaynnistin {
                 }
                 peli.aanet_paalla = self.aanet_paalla;
                 Kaynnissa::Luvut(Box::new(peli))
+            }
+            Laji::Pasianssi => {
+                let mut peli = Pasianssi::new(siemen);
+                peli.vaikeus = self.pasianssin_vaikeus;
+                peli.aanet_paalla = self.aanet_paalla;
+                Kaynnissa::Pasianssi(Box::new(peli))
             }
         });
     }
@@ -141,6 +167,7 @@ impl Kaynnistin {
         match &mut self.peli {
             Some(Kaynnissa::Laivanupotus(peli)) => peli.edista(ms),
             Some(Kaynnissa::Luvut(peli)) => peli.edista(ms),
+            Some(Kaynnissa::Pasianssi(peli)) => peli.edista(ms),
             None => {}
         }
     }
@@ -149,6 +176,7 @@ impl Kaynnistin {
         match &mut self.peli {
             Some(Kaynnissa::Laivanupotus(peli)) => std::mem::take(&mut peli.aanijono),
             Some(Kaynnissa::Luvut(peli)) => std::mem::take(&mut peli.aanijono),
+            Some(Kaynnissa::Pasianssi(peli)) => std::mem::take(&mut peli.aanijono),
             None => Vec::new(),
         }
     }
@@ -177,6 +205,12 @@ impl Kaynnistin {
             Some(Kaynnissa::Luvut(peli)) => {
                 peli.kasittele(syote);
                 self.aanet_paalla = peli.aanet_paalla;
+                peli.lopeta
+            }
+            Some(Kaynnissa::Pasianssi(peli)) => {
+                peli.kasittele(syote);
+                self.aanet_paalla = peli.aanet_paalla;
+                self.pasianssin_vaikeus = peli.vaikeus;
                 peli.lopeta
             }
             None => {
@@ -236,7 +270,9 @@ mod tests {
     use super::*;
     use crate::pelit::laivanupotus::peli::Vaihe;
     use crate::pelit::luvut::peli as luvut;
-    use crate::yhteinen::piirto::{KORKEUS, LEVEYS, aanikytkimen_keskipiste};
+    use crate::yhteinen::piirto::{
+        KORKEUS, LEVEYS, RUUDUN_KORKEUS, RUUDUN_LEVEYS, aanikytkimen_keskipiste,
+    };
     use klassikot8000::laivanupotus::{KOKO, Ruutu};
     use klassikot8000::luvut::Lukulauta;
 
@@ -292,10 +328,11 @@ mod tests {
         assert_eq!(k.valittu, 0);
         k.kasittele(Syote::Nuoli(1, 0));
         k.kasittele(Syote::Nuoli(1, 0));
-        assert_eq!(k.valittu, 1);
+        k.kasittele(Syote::Nuoli(1, 0));
+        assert_eq!(k.valittu, 2);
         k.kasittele(Syote::Numero(0));
         k.kasittele(Syote::Numero(9));
-        assert_eq!(k.valittu, 1);
+        assert_eq!(k.valittu, 2);
 
         let (x, y) = piirto::kortin_keskipiste(0);
         k.kasittele(Syote::Hiiri(x, y));
@@ -303,6 +340,31 @@ mod tests {
         let (x, y) = piirto::kortin_keskipiste(1);
         k.kasittele(Syote::Klikkaus(x, y));
         assert!(matches!(k.peli, Some(Kaynnissa::Luvut(_))));
+        k.kasittele(Syote::Peru);
+
+        let (x, y) = piirto::kortin_keskipiste(2);
+        k.kasittele(Syote::Klikkaus(x, y));
+        assert!(matches!(k.peli, Some(Kaynnissa::Pasianssi(_))));
+        assert_eq!(k.otsikko(), "Pasianssi");
+    }
+
+    #[test]
+    fn pasianssin_taso_sailyy_ja_hiiri_muuntuu_nakyman_mukaan() {
+        let mut k = Kaynnistin::new(1);
+        assert_eq!(k.nakyman_piste(285, 0), (0, 0));
+        k.kaynnista(Laji::Pasianssi);
+        assert_eq!(k.nakyman_piste(285, 0), (0, 0));
+        k.kasittele(Syote::Numero(3));
+        k.kasittele(Syote::Ammu);
+        assert_eq!(k.nakyman_piste(285, 7), (285, 7));
+        k.kasittele(Syote::Peru);
+
+        k.kaynnista(Laji::Pasianssi);
+        k.kasittele(Syote::Ammu);
+        let Some(Kaynnissa::Pasianssi(peli)) = &k.peli else {
+            panic!("pasianssi ei ole käynnissä");
+        };
+        assert_eq!(peli.lauta.vaikeus, pasianssi::Vaikeus::Vaikea);
     }
 
     #[test]
@@ -448,13 +510,16 @@ mod tests {
 
     #[test]
     fn nakymat_piirtyvat_kaatumatta() {
+        let mut ruutu = vec![0; RUUDUN_LEVEYS * RUUDUN_KORKEUS];
         let mut kuva = vec![0; LEVEYS * KORKEUS];
         let mut k = Kaynnistin::new(1);
-        piirto::piirra(&k, &mut kuva);
-        for laji in [Laji::Laivanupotus, Laji::Luvut] {
+        piirto::piirra(&k, &mut ruutu, &mut kuva);
+        for laji in [Laji::Laivanupotus, Laji::Luvut, Laji::Pasianssi] {
             k.kaynnista(laji);
             k.edista(100);
-            piirto::piirra(&k, &mut kuva);
+            piirto::piirra(&k, &mut ruutu, &mut kuva);
+            k.kasittele(Syote::Ammu);
+            piirto::piirra(&k, &mut ruutu, &mut kuva);
         }
     }
 }
