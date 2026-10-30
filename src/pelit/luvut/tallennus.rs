@@ -1,4 +1,4 @@
-//! 2048-pelin tallennus tekstitiedostoon. Rikkinäinen tiedosto ei saa estää pelaamista,
+//! 2048-pelin tila, parhaat tulokset ja ääniasetus tekstitiedostoon. Rikkinäinen tiedosto ei saa estää pelaamista,
 //! joten kelvottomat tiedot jätetään huomiotta. Tiedostoa käsittelee vain `main.rs`.
 
 use std::fs;
@@ -13,6 +13,8 @@ const OTSAKE: &str = "klassikot8000 1";
 // Rajat pitävät muokatun tiedoston luvut sellaisina, ettei pistelasku voi ylivuotaa.
 const SUURIN_LAATTA: u32 = 1 << 20;
 const SUURIN_LUKU: u32 = 1_000_000_000;
+pub const PARHAITA: usize = 3;
+pub const NIMEN_PITUUS: usize = 8;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Kesken {
@@ -22,14 +24,47 @@ pub struct Kesken {
     pub jatkettu: bool,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Tulos {
+    pub nimi: String,
+    pub pisteet: u32,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Tallennus {
     pub paras: u32,
     pub kesken: Option<Kesken>,
+    /// Suurin tulos ensin, enintään `PARHAITA` kappaletta.
+    pub parhaat: Vec<Tulos>,
+    /// Oletus on epätosi, joten vanhassa tallennuksessa äänet ovat päällä.
+    pub hiljaa: bool,
 }
 
 fn luku(teksti: &str) -> Option<u32> {
     teksti.parse().ok().filter(|&arvo| arvo <= SUURIN_LUKU)
+}
+
+/// Tasapisteissä vanhempi tulos säilyttää paikkansa, joten sen ohi ei pääse.
+pub fn mahtuu_parhaisiin(parhaat: &[Tulos], pisteet: u32) -> bool {
+    pisteet > 0 && (parhaat.len() < PARHAITA || parhaat.iter().any(|t| t.pisteet < pisteet))
+}
+
+pub fn lisaa_tulos(parhaat: &mut Vec<Tulos>, tulos: Tulos) {
+    let paikka = parhaat.partition_point(|t| t.pisteet >= tulos.pisteet);
+    parhaat.insert(paikka, tulos);
+    parhaat.truncate(PARHAITA);
+}
+
+fn tulos(teksti: &str) -> Option<Tulos> {
+    let (pisteet, nimi) = teksti.split_once(' ')?;
+    let pituus = nimi.chars().count();
+    let kelpaa = (1..=NIMEN_PITUUS).contains(&pituus)
+        && nimi.chars().all(|m| m.is_uppercase() || m.is_ascii_digit());
+    let pisteet = luku(pisteet).filter(|&p| p > 0)?;
+    kelpaa.then(|| Tulos {
+        nimi: nimi.to_string(),
+        pisteet,
+    })
 }
 
 fn ruudut(teksti: &str) -> Option<Ruudut> {
@@ -46,7 +81,13 @@ fn ruudut(teksti: &str) -> Option<Ruudut> {
 
 impl Tallennus {
     pub fn tekstiksi(&self) -> String {
-        let mut teksti = format!("{OTSAKE}\nparas {}\n", self.paras);
+        let mut teksti = format!(
+            "{OTSAKE}\nparas {}\nhiljaa {}\n",
+            self.paras, self.hiljaa as u8,
+        );
+        for tulos in &self.parhaat {
+            teksti += &format!("top {} {}\n", tulos.pisteet, tulos.nimi);
+        }
         if let Some(kesken) = &self.kesken {
             let luvut: Vec<String> = kesken.ruudut.iter().flatten().map(u32::to_string).collect();
             teksti += &format!(
@@ -66,10 +107,17 @@ impl Tallennus {
             return Self::default();
         }
         let (mut paras, mut lauta, mut pisteet, mut siirrot) = (None, None, None, None);
-        let mut jatkettu = false;
+        let (mut jatkettu, mut hiljaa) = (false, false);
+        let mut parhaat = Vec::new();
         for rivi in rivit {
             match rivi.split_once(' ') {
                 Some(("paras", arvo)) => paras = luku(arvo),
+                Some(("hiljaa", arvo)) => hiljaa = arvo == "1",
+                Some(("top", arvo)) => {
+                    if let Some(tulos) = tulos(arvo) {
+                        lisaa_tulos(&mut parhaat, tulos);
+                    }
+                }
                 Some(("lauta", arvo)) => lauta = ruudut(arvo),
                 Some(("pisteet", arvo)) => pisteet = luku(arvo),
                 Some(("siirrot", arvo)) => siirrot = luku(arvo),
@@ -93,6 +141,8 @@ impl Tallennus {
         Self {
             paras: paras.unwrap_or(0),
             kesken,
+            parhaat,
+            hiljaa,
         }
     }
 }
@@ -132,6 +182,17 @@ mod tests {
         Tallennus {
             paras: 5000,
             kesken: Some(KESKEN),
+            parhaat: vec![
+                Tulos {
+                    nimi: "VÄINÖ".to_string(),
+                    pisteet: 5000,
+                },
+                Tulos {
+                    nimi: "A1".to_string(),
+                    pisteet: 300,
+                },
+            ],
+            hiljaa: true,
         }
     }
 
@@ -142,6 +203,8 @@ mod tests {
         let t = Tallennus {
             paras: 7,
             kesken: None,
+            parhaat: Vec::new(),
+            hiljaa: false,
         };
         assert_eq!(Tallennus::tekstista(&t.tekstiksi()), t);
     }
@@ -150,6 +213,43 @@ mod tests {
     fn vieras_tai_tyhja_tiedosto_antaa_tyhjan_tallennuksen() {
         assert_eq!(Tallennus::tekstista(""), Tallennus::default());
         assert_eq!(Tallennus::tekstista("paras 99\n"), Tallennus::default());
+    }
+
+    #[test]
+    fn parhaat_pysyvat_jarjestyksessa_ja_tasapisteilla_vanhempi_sailyy() {
+        let tulos = |nimi: &str, pisteet| Tulos {
+            nimi: nimi.to_string(),
+            pisteet,
+        };
+        let mut parhaat = Vec::new();
+        assert!(!mahtuu_parhaisiin(&parhaat, 0));
+        for (nimi, pisteet) in [("B", 200), ("C", 100), ("A", 300)] {
+            assert!(mahtuu_parhaisiin(&parhaat, pisteet));
+            lisaa_tulos(&mut parhaat, tulos(nimi, pisteet));
+        }
+        assert!(!mahtuu_parhaisiin(&parhaat, 100));
+        assert!(mahtuu_parhaisiin(&parhaat, 101));
+        lisaa_tulos(&mut parhaat, tulos("D", 200));
+        assert_eq!(parhaat, [tulos("A", 300), tulos("B", 200), tulos("D", 200)]);
+    }
+
+    #[test]
+    fn kelvoton_tulos_hylataan_ja_muokattu_lista_jarjestetaan() {
+        let t = Tallennus::tekstista(
+            "klassikot8000 1\ntop 5 PIENI\ntop 9 ISO\ntop 0 NOLLA\ntop x KISSA\n\
+             top 7 pieni\ntop 7 LIIANPITKA\ntop 7\ntop 7 KAKSI OSAA\n",
+        );
+        let pisteet: Vec<u32> = t.parhaat.iter().map(|t| t.pisteet).collect();
+        assert_eq!(pisteet, [9, 5]);
+        assert_eq!(t.parhaat[0].nimi, "ISO");
+    }
+
+    #[test]
+    fn vanhassa_tallennuksessa_aanet_ovat_paalla() {
+        let t = Tallennus::tekstista("klassikot8000 1\nparas 7\n");
+        assert_eq!(t.paras, 7);
+        assert!(!t.hiljaa);
+        assert!(t.parhaat.is_empty());
     }
 
     #[test]

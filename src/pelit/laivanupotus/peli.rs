@@ -187,7 +187,7 @@ impl Peli {
                 self.ammu(self.kursori);
                 return true;
             }
-            Syote::Peru | Syote::VaihdaAanet => return false,
+            Syote::Peru | Syote::VaihdaAanet | Syote::Pyyhi => return false,
         };
         let muuttui = uusi != self.kursori || self.ammuttu_jo;
         self.kursori = uusi;

@@ -4,10 +4,12 @@ pub enum Syote {
     Hiiri(i32, i32),
     Klikkaus(i32, i32),
     Nuoli(i8, i8),
-    /// Sarakekirjain A-J tai uusinnan K/E.
+    /// Sarakekirjain A-J, uusinnan K/E tai nimimerkin kirjain.
     Kirjain(char),
     /// Rivinäppäin, jossa 0 tarkoittaa riviä 10.
     Numero(u8),
+    /// Nimimerkin viimeisen merkin poisto.
+    Pyyhi,
     Ammu,
     Peru,
     VaihdaAanet,

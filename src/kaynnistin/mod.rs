@@ -51,7 +51,7 @@ pub struct Kaynnistin {
     /// Tosi, kun pelistä poistuttiin: sen viiveellä odottavat äänet eivät saa jäädä soimaan.
     pub hiljenna: bool,
     pub kello_ms: u32,
-    /// 2048:n pysyvä tila. Käynnissä oleva peli siirtyy tänne `paivita_tallennus`-kutsulla.
+    /// 2048:n pysyvä tila, parhaat tulokset ja ääniasetus. Nykytila siirtyy tänne `paivita_tallennus`-kutsulla.
     pub tallennus: Tallennus,
     /// Tosi, kun `main.rs`:n kuuluu kirjoittaa tallennus tiedostoon.
     pub tallenna: bool,
@@ -103,6 +103,7 @@ impl Kaynnistin {
             Laji::Luvut => {
                 let mut peli = Luvut::new(siemen);
                 peli.paras = self.tallennus.paras;
+                peli.parhaat = self.tallennus.parhaat.clone();
                 if let Some(kesken) = self.tallennus.kesken {
                     peli.palauta(kesken);
                 }
@@ -112,13 +113,27 @@ impl Kaynnistin {
         });
     }
 
+    /// Ottaa käyttöön tiedostosta luetun tallennuksen.
+    pub fn lataa(&mut self, tallennus: Tallennus) {
+        self.aanet_paalla = !tallennus.hiljaa;
+        self.tallennus = tallennus;
+    }
+
     pub fn paivita_tallennus(&mut self) {
+        self.tallennus.hiljaa = !self.aanet_paalla;
         if let Some(Kaynnissa::Luvut(peli)) = &self.peli {
-            self.tallennus = Tallennus {
-                paras: peli.paras,
-                kesken: peli.kesken(),
-            };
+            self.tallennus.paras = peli.paras;
+            self.tallennus.parhaat = peli.parhaat.clone();
+            self.tallennus.kesken = peli.kesken();
         }
+    }
+
+    /// Ikkuna suljetaan: nimeä odottava tulos kirjataan, ettei se katoa.
+    pub fn viimeistele(&mut self) {
+        if let Some(Kaynnissa::Luvut(peli)) = &mut self.peli {
+            peli.vahvista_nimi();
+        }
+        self.paivita_tallennus();
     }
 
     pub fn edista(&mut self, ms: u32) {
@@ -139,6 +154,19 @@ impl Kaynnistin {
     }
 
     pub fn kasittele(&mut self, syote: Syote) {
+        let aanet_ennen = self.aanet_paalla;
+        self.kasittele_nakyma(syote);
+        let uusi_tulos = match &mut self.peli {
+            Some(Kaynnissa::Luvut(peli)) => std::mem::take(&mut peli.uusi_tulos),
+            _ => false,
+        };
+        if uusi_tulos || self.aanet_paalla != aanet_ennen {
+            self.paivita_tallennus();
+            self.tallenna = true;
+        }
+    }
+
+    fn kasittele_nakyma(&mut self, syote: Syote) {
         let poistuu = match &mut self.peli {
             Some(Kaynnissa::Laivanupotus(peli)) => {
                 peli.kasittele(syote);
@@ -341,6 +369,59 @@ mod tests {
         uusi.kasittele(Syote::Nuoli(1, 0));
         uusi.paivita_tallennus();
         assert_eq!(uusi.tallennus.kesken.unwrap().siirrot, 2);
+    }
+
+    #[test]
+    fn aanivalinta_tallentuu_heti_ja_palautuu_tiedoston_tilasta() {
+        let mut k = Kaynnistin::new(1);
+        k.kasittele(Syote::VaihdaAanet);
+        assert!(k.tallenna);
+        assert!(k.tallennus.hiljaa);
+
+        // sama kuin ohjelman uudelleenkäynnistys: tila kulkee tekstin kautta
+        let mut uusi = Kaynnistin::new(2);
+        uusi.lataa(Tallennus::tekstista(&k.tallennus.tekstiksi()));
+        assert!(!uusi.aanet_paalla);
+        uusi.kaynnista(Laji::Laivanupotus);
+        assert!(!laivanupotus(&uusi).aanet_paalla);
+
+        // pelin sisällä vaihdettu valinta tallentuu sekin
+        uusi.kasittele(Syote::VaihdaAanet);
+        assert!(uusi.tallenna);
+        assert!(!uusi.tallennus.hiljaa);
+    }
+
+    #[test]
+    fn top3_tallentuu_heti_ja_palautuu_tiedoston_tilasta() {
+        let lukkoon = [
+            [2, 2, 16, 8],
+            [16, 32, 64, 16],
+            [4, 16, 8, 32],
+            [16, 32, 64, 128],
+        ];
+        let mut k = Kaynnistin::new(1);
+        k.kaynnista(Laji::Luvut);
+        k.kasittele(Syote::Ammu);
+        luvut(&mut k).lauta = Lukulauta::ruuduista(lukkoon);
+        k.kasittele(Syote::Nuoli(0, -1));
+        k.kasittele(Syote::Kirjain('Ö'));
+        assert!(!k.tallenna);
+        k.kasittele(Syote::Ammu);
+        assert!(k.tallenna);
+
+        // sama kuin ohjelman uudelleenkäynnistys: tila kulkee tekstin kautta
+        let mut uusi = Kaynnistin::new(2);
+        uusi.lataa(Tallennus::tekstista(&k.tallennus.tekstiksi()));
+        uusi.kaynnista(Laji::Luvut);
+        assert_eq!(luvut(&mut uusi).parhaat[0].nimi, "Ö");
+        assert_eq!(luvut(&mut uusi).parhaat[0].pisteet, 4);
+
+        // ikkunan sulkeminen nimeä kirjoittaessa ei hävitä tulosta
+        uusi.kasittele(Syote::Ammu);
+        luvut(&mut uusi).lauta = Lukulauta::ruuduista(lukkoon);
+        uusi.kasittele(Syote::Nuoli(0, -1));
+        uusi.viimeistele();
+        assert_eq!(uusi.tallennus.parhaat.len(), 2);
     }
 
     #[test]

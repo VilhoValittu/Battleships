@@ -2,7 +2,7 @@ use klassikot8000::Arpa;
 use klassikot8000::luvut::{Lukulauta, Siirto, Suunta, TAVOITE};
 
 use super::piirto;
-use super::tallennus::Kesken;
+use super::tallennus::{Kesken, NIMEN_PITUUS, Tulos, lisaa_tulos, mahtuu_parhaisiin};
 use crate::yhteinen::aanet::Aani;
 use crate::yhteinen::piirto::aanikytkimella;
 use crate::yhteinen::syote::Syote;
@@ -11,6 +11,7 @@ pub const LIUKU_MS: u32 = 110;
 pub const KIPINA_MS: u32 = 450;
 const YHDISTYS_VIIVE_MS: u32 = 60;
 const LOPPU_VIIVE_MS: u32 = 250;
+const OLETUSNIMI: &str = "NIMETÖN";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Vaihe {
@@ -18,6 +19,8 @@ pub enum Vaihe {
     Pelissa,
     Voitto,
     Tappio,
+    /// Tulos pääsi kolmen parhaan joukkoon ja odottaa nimimerkkiä.
+    Nimi,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -31,6 +34,11 @@ pub struct Luvut {
     pub vaihe: Vaihe,
     pub lauta: Lukulauta,
     pub paras: u32,
+    pub parhaat: Vec<Tulos>,
+    /// Kirjoitettavana oleva nimimerkki.
+    pub nimi: String,
+    /// Tosi, kun uusi tulos odottaa tiedostoon kirjoitusta.
+    pub uusi_tulos: bool,
     pub siirtoja: u32,
     pub viesti: String,
     pub ei_liiku: bool,
@@ -46,6 +54,8 @@ pub struct Luvut {
     /// Alkuruudulla odottaa tallennettu peli, jota voi jatkaa.
     pub jatkuu: bool,
     jatkettu: bool,
+    /// Nimimerkin jälkeen alkaa uusi peli eikä näytetä tappiota.
+    uusi_alkaa: bool,
     arpa: Arpa,
 }
 
@@ -56,6 +66,9 @@ impl Luvut {
             vaihe: Vaihe::Alku,
             lauta: Lukulauta::new(&mut arpa),
             paras: 0,
+            parhaat: Vec::new(),
+            nimi: String::new(),
+            uusi_tulos: false,
             siirtoja: 0,
             viesti: String::new(),
             ei_liiku: false,
@@ -67,6 +80,7 @@ impl Luvut {
             kello_ms: 0,
             jatkuu: false,
             jatkettu: false,
+            uusi_alkaa: false,
             arpa,
         }
     }
@@ -86,6 +100,7 @@ impl Luvut {
             Vaihe::Alku => self.jatkuu,
             Vaihe::Pelissa | Vaihe::Voitto => true,
             Vaihe::Tappio => false,
+            Vaihe::Nimi => self.uusi_alkaa,
         };
         tallennetaan.then(|| Kesken {
             ruudut: self.lauta.ruudut(),
@@ -118,7 +133,77 @@ impl Luvut {
         self.jatkettu = false;
     }
 
+    /// Uusi peli hylkää nykyisen, joten hyvä tulos kirjataan ensin listalle.
+    fn hylkaa_ja_aloita(&mut self) {
+        if mahtuu_parhaisiin(&self.parhaat, self.lauta.pisteet) {
+            self.uusi_alkaa = true;
+            self.kysy_nimi();
+        } else {
+            self.aloita_alusta();
+        }
+    }
+
+    fn kysy_nimi(&mut self) {
+        self.nimi.clear();
+        self.vaihe = Vaihe::Nimi;
+    }
+
+    fn paata_peli(&mut self) {
+        if mahtuu_parhaisiin(&self.parhaat, self.lauta.pisteet) {
+            self.kysy_nimi();
+        } else {
+            self.vaihe = Vaihe::Tappio;
+        }
+    }
+
+    /// Kirjaa odottavan tuloksen. Ikkunan sulkeminen ei saa hävittää sitä, joten
+    /// tyhjä nimi korvataan oletuksella.
+    pub fn vahvista_nimi(&mut self) {
+        if self.vaihe != Vaihe::Nimi {
+            return;
+        }
+        let nimi = if self.nimi.is_empty() {
+            OLETUSNIMI.to_string()
+        } else {
+            std::mem::take(&mut self.nimi)
+        };
+        let pisteet = self.lauta.pisteet;
+        lisaa_tulos(&mut self.parhaat, Tulos { nimi, pisteet });
+        self.uusi_tulos = true;
+        if std::mem::take(&mut self.uusi_alkaa) {
+            self.aloita_alusta();
+        } else {
+            self.vaihe = Vaihe::Tappio;
+        }
+    }
+
+    fn kasittele_nimi(&mut self, syote: Syote) {
+        let merkki = match syote {
+            Syote::Kirjain(kirjain) => kirjain,
+            // M on äänikytkimen pikanäppäin, mutta nimessä se on kirjain.
+            Syote::VaihdaAanet => 'M',
+            Syote::Numero(numero) => (b'0' + numero) as char,
+            Syote::Pyyhi => {
+                self.nimi.pop();
+                return;
+            }
+            Syote::Ammu | Syote::Peru => {
+                self.vahvista_nimi();
+                return;
+            }
+            _ => return,
+        };
+        if self.nimi.chars().count() < NIMEN_PITUUS {
+            self.nimi.push(merkki);
+        }
+    }
+
     pub fn kasittele(&mut self, syote: Syote) {
+        // Klikkaus jatkaa eteenpäin, jotta äänikytkin toimii nimeä kirjoittaessakin.
+        if self.vaihe == Vaihe::Nimi && !matches!(syote, Syote::Klikkaus(..)) {
+            self.kasittele_nimi(syote);
+            return;
+        }
         if syote == Syote::Peru {
             self.lopeta = true;
             return;
@@ -131,7 +216,7 @@ impl Luvut {
         match self.vaihe {
             Vaihe::Alku => {
                 if self.jatkuu && syote == Syote::Kirjain('K') {
-                    self.aloita_alusta();
+                    self.hylkaa_ja_aloita();
                 } else if matches!(syote, Syote::Ammu | Syote::Klikkaus(..)) {
                     self.vaihe = Vaihe::Pelissa;
                     self.aanijono.push((Aani::Ovi, 0));
@@ -143,6 +228,7 @@ impl Luvut {
             }
             Vaihe::Pelissa => self.kasittele_pelissa(syote),
             Vaihe::Voitto | Vaihe::Tappio => self.kasittele_loppu(syote),
+            Vaihe::Nimi => {}
         }
     }
 
@@ -174,16 +260,21 @@ impl Luvut {
             _ => return,
         };
         match nappi {
+            Nappi::Uudestaan if self.vaihe == Vaihe::Voitto => {
+                // Voitto on jo juhlittu, jos nimen kirjoitus keskeytyy tallennukseen.
+                self.jatkettu = true;
+                self.hylkaa_ja_aloita();
+            }
             Nappi::Uudestaan => self.aloita_alusta(),
             Nappi::Valikko => self.lopeta = true,
             Nappi::Jatka if self.vaihe == Vaihe::Voitto => {
                 self.jatkettu = true;
                 self.viesti = "Jatketaan! Kuinka pitkälle pääset?".to_string();
-                self.vaihe = if self.lauta.on_siirtoja() {
-                    Vaihe::Pelissa
+                if self.lauta.on_siirtoja() {
+                    self.vaihe = Vaihe::Pelissa;
                 } else {
-                    Vaihe::Tappio
-                };
+                    self.paata_peli();
+                }
             }
             Nappi::Jatka => {}
         }
@@ -213,7 +304,7 @@ impl Luvut {
             self.vaihe = Vaihe::Voitto;
             self.aanijono.push((Aani::Voitto, LOPPU_VIIVE_MS));
         } else if !self.lauta.on_siirtoja() {
-            self.vaihe = Vaihe::Tappio;
+            self.paata_peli();
             self.aanijono.push((Aani::Tappio, LOPPU_VIIVE_MS));
         }
     }
@@ -238,6 +329,13 @@ mod tests {
         [16, 8, 16, 8],
         [8, 16, 8, 16],
         [16, 8, 16, 8],
+    ];
+    // Vasemmalle tuottaa 4 pistettä ja lukitsee laudan, oli uusi luku 2 tai 4.
+    const LUKKOON_PISTEILLA: [[u32; 4]; 4] = [
+        [2, 2, 16, 8],
+        [16, 32, 64, 16],
+        [4, 16, 8, 32],
+        [16, 32, 64, 128],
     ];
 
     #[test]
@@ -273,6 +371,10 @@ mod tests {
         });
         assert!(luvut.kesken().is_some());
         luvut.kasittele(Syote::Kirjain('K'));
+        assert_eq!(luvut.vaihe, Vaihe::Nimi);
+        assert!(luvut.kesken().is_some());
+        luvut.kasittele(Syote::Ammu);
+        assert_eq!(luvut.parhaat[0].pisteet, 500);
         assert_eq!(luvut.vaihe, Vaihe::Alku);
         assert!(!luvut.jatkuu);
         assert_eq!(luvut.lauta.pisteet, 0);
@@ -360,10 +462,71 @@ mod tests {
         let paras = luvut.paras;
         assert!(paras >= 2048);
         luvut.kasittele(Syote::Kirjain('K'));
+        assert_eq!(luvut.vaihe, Vaihe::Nimi);
+        luvut.kasittele(Syote::Ammu);
         assert_eq!(luvut.vaihe, Vaihe::Alku);
         assert_eq!(luvut.lauta.pisteet, 0);
         assert_eq!(luvut.siirtoja, 0);
         assert_eq!(luvut.paras, paras);
+    }
+
+    #[test]
+    fn tappio_kysyy_nimen_ja_kirjaa_tuloksen_kerran() {
+        let mut luvut = pelissa(LUKKOON_PISTEILLA);
+        luvut.kasittele(Syote::Nuoli(0, -1));
+        assert_eq!(luvut.vaihe, Vaihe::Nimi);
+        assert_eq!(luvut.kesken(), None);
+
+        // M on kirjain eikä äänikytkin, ja nimen pituudella on raja
+        luvut.kasittele(Syote::VaihdaAanet);
+        assert!(luvut.aanet_paalla);
+        for kirjain in "ÄXXXXXXXXX".chars() {
+            luvut.kasittele(Syote::Kirjain(kirjain));
+        }
+        assert_eq!(luvut.nimi, "MÄXXXXXX");
+        luvut.kasittele(Syote::Pyyhi);
+        luvut.kasittele(Syote::Numero(7));
+        luvut.kasittele(Syote::Ammu);
+
+        assert_eq!(luvut.vaihe, Vaihe::Tappio);
+        assert!(luvut.uusi_tulos);
+        assert_eq!(luvut.parhaat.len(), 1);
+        assert_eq!(luvut.parhaat[0].nimi, "MÄXXXXX7");
+        assert_eq!(luvut.parhaat[0].pisteet, 4);
+
+        // tappion jälkeinen uusi peli ei kirjaa samaa tulosta toiseen kertaan
+        luvut.kasittele(Syote::Kirjain('K'));
+        assert_eq!(luvut.vaihe, Vaihe::Alku);
+        assert_eq!(luvut.parhaat.len(), 1);
+    }
+
+    #[test]
+    fn listalle_yltamaton_tappio_ei_kysy_nimea() {
+        let mut luvut = pelissa(LUKKOON_PISTEILLA);
+        luvut.parhaat = (0..3)
+            .map(|_| Tulos {
+                nimi: "A".to_string(),
+                pisteet: 4,
+            })
+            .collect();
+        luvut.kasittele(Syote::Nuoli(0, -1));
+        assert_eq!(luvut.vaihe, Vaihe::Tappio);
+    }
+
+    #[test]
+    fn esc_ja_ikkunan_sulkeminen_kirjaavat_tuloksen_oletusnimella() {
+        let mut luvut = pelissa(LUKKOON_PISTEILLA);
+        luvut.kasittele(Syote::Nuoli(0, -1));
+        luvut.kasittele(Syote::Peru);
+        assert!(!luvut.lopeta);
+        assert_eq!(luvut.parhaat[0].nimi, OLETUSNIMI);
+
+        let mut luvut = pelissa(LUKKOON_PISTEILLA);
+        luvut.kasittele(Syote::Nuoli(0, -1));
+        luvut.kasittele(Syote::Kirjain('A'));
+        luvut.vahvista_nimi();
+        assert_eq!(luvut.parhaat[0].nimi, "A");
+        assert_eq!(luvut.vaihe, Vaihe::Tappio);
     }
 
     #[test]

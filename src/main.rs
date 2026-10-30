@@ -61,6 +61,24 @@ fn nappain_syotteeksi(nappain: Key) -> Option<Syote> {
         Key::I => Syote::Kirjain('I'),
         Key::J => Syote::Kirjain('J'),
         Key::K => Syote::Kirjain('K'),
+        Key::L => Syote::Kirjain('L'),
+        Key::N => Syote::Kirjain('N'),
+        Key::O => Syote::Kirjain('O'),
+        Key::P => Syote::Kirjain('P'),
+        Key::Q => Syote::Kirjain('Q'),
+        Key::R => Syote::Kirjain('R'),
+        Key::S => Syote::Kirjain('S'),
+        Key::T => Syote::Kirjain('T'),
+        Key::U => Syote::Kirjain('U'),
+        Key::V => Syote::Kirjain('V'),
+        Key::W => Syote::Kirjain('W'),
+        Key::X => Syote::Kirjain('X'),
+        Key::Y => Syote::Kirjain('Y'),
+        Key::Z => Syote::Kirjain('Z'),
+        // Suomalaisen näppäimistön paikat: minifb lukee näppäimen sijainnin.
+        Key::Semicolon => Syote::Kirjain('Ö'),
+        Key::Apostrophe => Syote::Kirjain('Ä'),
+        Key::Backspace => Syote::Pyyhi,
         Key::Key0 | Key::NumPad0 => Syote::Numero(0),
         Key::Key1 | Key::NumPad1 => Syote::Numero(1),
         Key::Key2 | Key::NumPad2 => Syote::Numero(2),
@@ -174,7 +192,7 @@ fn pelisilmukka(
         ikkuna.update_with_buffer(kuva, LEVEYS, KORKEUS)?;
     }
     // Ikkunan voi sulkea kesken pelin.
-    kaynnistin.paivita_tallennus();
+    kaynnistin.viimeistele();
     tallenna(polku, &kaynnistin);
     Ok(())
 }
@@ -195,7 +213,7 @@ fn main() -> ExitCode {
         // Kehitysajo ei koske pelaajan tallennukseen ilman lippua.
         let polku = liput.tallennus.as_ref().map(PathBuf::from);
         if let Some(polku) = &polku {
-            kaynnistin.tallennus = tallennus::lue_tiedosto(polku);
+            kaynnistin.lataa(tallennus::lue_tiedosto(polku));
         }
         if let Some(laji) = liput.laji() {
             kaynnistin.kaynnista(laji);
@@ -248,7 +266,7 @@ fn main() -> ExitCode {
         let mut kaynnistin = Kaynnistin::new(aikasiemen());
         let polku = tallennus::oletuspolku();
         if let Some(polku) = &polku {
-            kaynnistin.tallennus = tallennus::lue_tiedosto(polku);
+            kaynnistin.lataa(tallennus::lue_tiedosto(polku));
         }
         (kaynnistin, polku)
     };

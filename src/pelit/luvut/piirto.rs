@@ -3,6 +3,7 @@
 use klassikot8000::luvut::{Lukulauta, Paikka, SIVU, Suunta, TAVOITE};
 
 use super::peli::{KIPINA_MS, LIUKU_MS, Luvut, Nappi, Vaihe};
+use super::tallennus::{PARHAITA, Tulos};
 use crate::yhteinen::piirto::*;
 use crate::yhteinen::vektori::{Kangas, Tahko, kuutio};
 
@@ -18,6 +19,11 @@ const TILASTON_ASKEL: i32 = 87;
 const TAVOITE_Y: i32 = RUUDUT_Y + 4 * TILASTON_ASKEL;
 const ASKELIA_TAVOITTEESEEN: i32 = 11;
 const NUOLEN_KOKO: i32 = 15;
+const PARHAAT_Y: i32 = TAVOITE_Y + 66;
+const PARHAAT_L: i32 = LEVEYS as i32 - 12 - SARAKE_X;
+const PARHAAT_RIVI: i32 = 26;
+// Alkuruudulla lista on maiseman vasemmassa laidassa, pyörivän mallin vieressä.
+const ALKU_PARHAAT: (i32, i32, i32, i32) = (36, 204, 318, 126);
 
 const OHJE: &str = "Siirrä: nuolet tai klikkaa lautaa.";
 const EI_LIIKU: &str = "Ei liiku tuohon suuntaan!";
@@ -25,6 +31,8 @@ const UUSI_PELI: &str = "Tallennettu peli: K = uusi peli.";
 const JATKA: &str = "Jatka: välilyönti tai klikkaa.";
 const VOITTO: &str = "****HIHIHIHIII SAIT 2048!****";
 const TAPPIO: &str = "PELI PÄÄTTYI!";
+const NIMI_OTSIKKO: &str = "TOP 3 -TULOS!";
+const NIMI_OHJE: &str = "Kirjoita nimimerkki, Enter = valmis.";
 
 const NAPIT: [(Nappi, &str, i32); 3] = [
     (Nappi::Uudestaan, "K = Uudestaan", NAPPI_X),
@@ -138,7 +146,7 @@ pub fn piirra(luvut: &Luvut, kuva: &mut [u32]) {
         kello: luvut.kello_ms,
     };
     if luvut.vaihe == Vaihe::Alku {
-        p.luvut_alkuruutu(luvut.jatkuu);
+        p.luvut_alkuruutu(luvut);
     } else {
         p.luvut_nakyma(luvut);
     }
@@ -146,9 +154,14 @@ pub fn piirra(luvut: &Luvut, kuva: &mut [u32]) {
 }
 
 impl Piirtaja<'_> {
-    fn luvut_alkuruutu(&mut self, jatkuu: bool) {
+    fn luvut_alkuruutu(&mut self, luvut: &Luvut) {
+        let jatkuu = luvut.jatkuu;
         let varit = [2, 8, 64, 2048].map(|arvo| laatan_varit(arvo).0);
         self.maisema("**** 2048 ****", &lukupino(varit));
+        let (x, y, l, k) = ALKU_PARHAAT;
+        self.k.laatikko(x, y, l, k, TAUSTA_TUMMA);
+        self.k.kehys(x, y, l, k, REUNA);
+        self.parhaat_lista(x + 12, y + 9, l - 24, &luvut.parhaat);
         let mut y = OHJE_Y;
         for osa in [
             "Tervetuloa pelaamaan 2048-peliä.",
@@ -362,6 +375,25 @@ impl Piirtaja<'_> {
             };
             self.k.laatikko(x, y, PALKIN_PALA - 3, korkeus, vari);
         }
+        self.parhaat_lista(SARAKE_X, PARHAAT_Y, PARHAAT_L, &luvut.parhaat);
+    }
+
+    /// Sijoitus ja nimi vasemmalla, pisteet oikeassa laidassa. Tyhjä paikka näkyy viivana.
+    fn parhaat_lista(&mut self, x: i32, y: i32, leveys: i32, parhaat: &[Tulos]) {
+        self.teksti(x, y, "TOP 3", KELTAINEN);
+        for i in 0..PARHAITA {
+            let rivi_y = y + 30 + i as i32 * PARHAAT_RIVI;
+            let tulos = parhaat.get(i);
+            let nimi = tulos.map_or("-", |t| t.nimi.as_str());
+            let vasen = format!("{} {nimi}", i + 1);
+            self.vektoriteksti(x, rivi_y, &vasen, TULOS, VALKOINEN, false);
+            if let Some(tulos) = tulos {
+                let pisteet = tulos.pisteet.to_string();
+                let pituus = pisteet.chars().count() as i32 * TULOS.2;
+                let oikea = x + leveys - pituus;
+                self.vektoriteksti(oikea, rivi_y, &pisteet, TULOS, KELTAINEN, false);
+            }
+        }
     }
 
     fn luku_paneeli(&mut self, luvut: &Luvut) {
@@ -387,6 +419,18 @@ impl Piirtaja<'_> {
                 self.vektoriteksti(TEKSTI_X, otsikko_y, TAPPIO, TULOS, KELTAINEN, true);
                 for (_, teksti, x) in &NAPIT[..2] {
                     self.nappi(*x, NAPPI_Y, teksti, VALKOINEN, WB_SININEN);
+                }
+            }
+            Vaihe::Nimi => {
+                let otsikko = format!("{NIMI_OTSIKKO} {}", luvut.lauta.pisteet);
+                let ohje_y = PANEELI_RIVI_Y + 2 * RIVIN_KORKEUS;
+                self.vektoriteksti(TEKSTI_X, ohje_y - 21, &otsikko, TULOS, KELTAINEN, true);
+                self.teksti(TEKSTI_X, ohje_y + 6, NIMI_OHJE, HUTI);
+                let kentta = format!("> {}", luvut.nimi);
+                self.teksti(TEKSTI_X, alarivi, &kentta, VALKOINEN);
+                if self.vilkku() {
+                    let x = TEKSTI_X + kentta.chars().count() as i32 * MERKKI;
+                    self.k.laatikko(x, alarivi, MERKKI, MERKKI, REUNA);
                 }
             }
             Vaihe::Alku => {}
@@ -427,6 +471,7 @@ mod tests {
             );
         }
         assert!(OHJE.chars().count() <= RIVILLE_MERKKEJA);
+        assert!(NIMI_OHJE.chars().count() <= RIVILLE_MERKKEJA);
         assert_eq!(JATKA.chars().count(), 30);
         assert!(UUSI_PELI.chars().count() <= 36);
         assert!(VOITTO.chars().count() as i32 * TULOS.2 < LEVEYS as i32 - TEKSTI_X);
@@ -449,5 +494,7 @@ mod tests {
                 piirra(&luvut, &mut kuva);
             }
         }
+        luvut.vaihe = Vaihe::Nimi;
+        piirra(&luvut, &mut kuva);
     }
 }
