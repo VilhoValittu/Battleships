@@ -19,6 +19,7 @@ use tinyaudio::{OutputDevice, OutputDeviceParameters, run_output_device};
 
 #[cfg(debug_assertions)]
 use kaynnistin::Kaynnissa;
+use kaynnistin::netti::Netti;
 use kaynnistin::{Kaynnistin, piirto};
 #[cfg(debug_assertions)]
 use klassikot8000::luvut::Lukulauta;
@@ -134,11 +135,25 @@ fn tallenna(polku: Option<&Path>, kaynnistin: &Kaynnistin) {
     }
 }
 
+/// Välittää pyynnöt verkkosäikeelle ja ottaa sen vastaukset. Ilman verkkoa pyynnöt vain unohtuvat.
+fn vaihda_netin_kanssa(kaynnistin: &mut Kaynnistin, netti: Option<&Netti>) {
+    let pyynnot = take(&mut kaynnistin.pyynnot);
+    if let Some(netti) = netti {
+        for pyynto in pyynnot {
+            netti.laheta(pyynto);
+        }
+        while let Ok(vastaus) = netti.vastaukset.try_recv() {
+            kaynnistin.vastaanota(vastaus);
+        }
+    }
+}
+
 fn pelisilmukka(
     mut kaynnistin: Kaynnistin,
     ruutu: &mut [u32],
     kuva: &mut [u32],
     polku: Option<&Path>,
+    netti: Option<Netti>,
 ) -> Result<(), minifb::Error> {
     let asetukset = WindowOptions {
         resize: true,
@@ -215,6 +230,8 @@ fn pelisilmukka(
             }
         }
 
+        vaihda_netin_kanssa(&mut kaynnistin, netti.as_ref());
+
         if take(&mut kaynnistin.tallenna) {
             tallenna(polku, &kaynnistin);
         }
@@ -239,6 +256,8 @@ fn pelisilmukka(
     // Ikkunan voi sulkea kesken pelin.
     kaynnistin.viimeistele();
     tallenna(polku, &kaynnistin);
+    // Lähetys ei välttämättä ehdi perille, mutta tulos on jonossa seuraavaa käynnistystä varten.
+    vaihda_netin_kanssa(&mut kaynnistin, netti.as_ref());
     Ok(())
 }
 
@@ -247,7 +266,7 @@ fn main() -> ExitCode {
     let mut kuva = vec![0u32; LEVEYS * KORKEUS];
 
     #[cfg(debug_assertions)]
-    let (kaynnistin, polku) = {
+    let (kaynnistin, polku, netti) = {
         let liput = match kehitys::lue_liput() {
             Ok(liput) => liput,
             Err(virhe) => {
@@ -362,19 +381,25 @@ fn main() -> ExitCode {
                 }
             };
         }
-        (kaynnistin, polku)
+        // Kehitysajo ei koske oikeaan nettilistaan ilman lippua.
+        let netti = liput.netti.as_deref().and_then(Netti::kaynnista);
+        (kaynnistin, polku, netti)
     };
     #[cfg(not(debug_assertions))]
-    let (kaynnistin, polku) = {
+    let (kaynnistin, polku, netti) = {
         let mut kaynnistin = Kaynnistin::new(aikasiemen());
         let polku = tallennus::oletuspolku();
         if let Some(polku) = &polku {
             kaynnistin.lataa(tallennus::lue_tiedosto(polku));
         }
-        (kaynnistin, polku)
+        (
+            kaynnistin,
+            polku,
+            Netti::kaynnista(kaynnistin::netti::OSOITE),
+        )
     };
 
-    match pelisilmukka(kaynnistin, &mut ruutu, &mut kuva, polku.as_deref()) {
+    match pelisilmukka(kaynnistin, &mut ruutu, &mut kuva, polku.as_deref(), netti) {
         Ok(()) => ExitCode::SUCCESS,
         Err(virhe) => {
             eprintln!("{virhe}");

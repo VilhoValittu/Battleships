@@ -34,6 +34,10 @@ pub struct Tiilirikko {
     pub lauta: Tiilipeli,
     pub paras: u32,
     pub parhaat: Vec<Tulos>,
+    /// Nettilista. `None`, kunnes palvelin on vastannut.
+    pub netti_parhaat: Option<Vec<Tulos>>,
+    /// Kirjattu tulos, joka odottaa lähetystä nettilistalle.
+    pub lahetys: Option<Tulos>,
     /// Kirjoitettavana oleva nimimerkki.
     pub nimi: String,
     /// Tosi, kun päättyneen pelin ennätys odottaa tiedostoon kirjoitusta.
@@ -61,6 +65,8 @@ impl Tiilirikko {
             lauta: Tiilipeli::new(0),
             paras: 0,
             parhaat: Vec::new(),
+            netti_parhaat: None,
+            lahetys: None,
             nimi: String::new(),
             uusi_tulos: false,
             viesti: String::new(),
@@ -74,6 +80,11 @@ impl Tiilirikko {
             loppu: Vaihe::Tappio,
             arpa: Arpa::new(siemen),
         }
+    }
+
+    /// Esillä oleva lista: nettilista, tai oma lista, jos verkkoon ei ole saatu yhteyttä.
+    pub fn nakyva_lista(&self) -> &[Tulos] {
+        self.netti_parhaat.as_deref().unwrap_or(&self.parhaat)
     }
 
     pub fn edista(&mut self, ms: u32) {
@@ -129,7 +140,7 @@ impl Tiilirikko {
 
     fn lopeta_peli(&mut self, vaihe: Vaihe) {
         self.loppu = vaihe;
-        self.vaihe = if mahtuu_parhaisiin(&self.parhaat, self.lauta.pisteet) {
+        self.vaihe = if mahtuu_parhaisiin(self.nakyva_lista(), self.lauta.pisteet) {
             self.nimi.clear();
             Vaihe::Nimi
         } else {
@@ -147,7 +158,12 @@ impl Tiilirikko {
         }
         let nimi = ota_nimi(&mut self.nimi);
         let pisteet = self.lauta.pisteet;
-        lisaa_tulos(&mut self.parhaat, Tulos { nimi, pisteet });
+        let tulos = Tulos { nimi, pisteet };
+        lisaa_tulos(&mut self.parhaat, tulos.clone());
+        if let Some(lista) = &mut self.netti_parhaat {
+            lisaa_tulos(lista, tulos.clone());
+        }
+        self.lahetys = Some(tulos);
         self.uusi_tulos = true;
         self.vaihe = self.loppu;
     }
@@ -375,6 +391,46 @@ mod tests {
         assert_eq!(peli.parhaat.len(), 1);
         peli.vahvista_nimi();
         assert_eq!(peli.parhaat.len(), 1);
+    }
+
+    #[test]
+    fn nettilista_ratkaisee_nimen_kysymisen_kun_se_on_tiedossa() {
+        let taysi = |pisteet| {
+            (0..3)
+                .map(|_| Tulos {
+                    nimi: "A".to_string(),
+                    pisteet,
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let mut peli = paattyva(40);
+        peli.netti_parhaat = Some(taysi(1000));
+        peli.edista(ASKEL_MS);
+        assert_eq!(peli.vaihe, Vaihe::Tappio);
+        assert_eq!(peli.lahetys, None);
+
+        let mut peli = paattyva(40);
+        peli.parhaat = taysi(1000);
+        peli.netti_parhaat = Some(taysi(10));
+        peli.edista(ASKEL_MS);
+        assert_eq!(peli.vaihe, Vaihe::Nimi);
+        peli.kasittele(Syote::Kirjain('B'));
+        peli.kasittele(Syote::Ammu);
+        let lista = peli.netti_parhaat.as_ref().unwrap();
+        assert_eq!(lista[0].nimi, "B");
+        assert_eq!(peli.lahetys.as_ref().unwrap().pisteet, 40);
+    }
+
+    #[test]
+    fn ilman_verkkoa_tulos_kirjataan_omalle_listalle_ja_lahetettavaksi() {
+        let mut peli = paattyva(40);
+        peli.edista(ASKEL_MS);
+        peli.kasittele(Syote::Kirjain('B'));
+        peli.kasittele(Syote::Ammu);
+        assert_eq!(peli.nakyva_lista()[0].nimi, "B");
+        assert_eq!(peli.netti_parhaat, None);
+        assert_eq!(peli.lahetys.as_ref().unwrap().nimi, "B");
     }
 
     #[test]

@@ -1,11 +1,13 @@
 //! Pelin valinta ja käynnissä olevan pelin hallinta. Uusi peli lisätään tänne
 //! korttina (`PELIT`) ja `Kaynnissa`-muunnelmana.
 
+pub mod netti;
 pub mod piirto;
 
 use klassikot8000::laivanupotus::Vaikeus;
 use klassikot8000::pasianssi;
 
+use self::netti::{Pyynto, Vastaus};
 use crate::pelit::laivanupotus::peli::Peli;
 use crate::pelit::luvut::peli::Luvut;
 use crate::pelit::luvut::tallennus::Tallennus;
@@ -14,6 +16,7 @@ use crate::pelit::tiilirikko::peli::Tiilirikko;
 use crate::yhteinen::aanet::Aani;
 use crate::yhteinen::piirto::{aanikytkimella, ruudulta_kuvaan};
 use crate::yhteinen::syote::Syote;
+use crate::yhteinen::tulokset::{Tulos, lisaa_tulos};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Laji {
@@ -72,6 +75,10 @@ pub struct Kaynnistin {
     pub tallennus: Tallennus,
     /// Tosi, kun `main.rs`:n kuuluu kirjoittaa tallennus tiedostoon.
     pub tallenna: bool,
+    /// Pyynnöt, jotka `main.rs` välittää verkkosäikeelle.
+    pub pyynnot: Vec<Pyynto>,
+    /// Tiilirikon nettilista, kun palvelin on vastannut.
+    netti_parhaat: Option<Vec<Tulos>>,
     vaikeus: Vaikeus,
     pasianssin_vaikeus: pasianssi::Vaikeus,
     siemen: u64,
@@ -88,6 +95,8 @@ impl Kaynnistin {
             kello_ms: 0,
             tallennus: Tallennus::default(),
             tallenna: false,
+            pyynnot: Vec::new(),
+            netti_parhaat: None,
             vaikeus: Vaikeus::Normaali,
             pasianssin_vaikeus: pasianssi::Vaikeus::Normaali,
             siemen,
@@ -168,7 +177,9 @@ impl Kaynnistin {
                 let mut peli = Tiilirikko::new(siemen);
                 peli.paras = self.tallennus.tiilirikko;
                 peli.parhaat = self.tallennus.tiilirikon_parhaat.clone();
+                peli.netti_parhaat = self.netti_parhaat.clone();
                 peli.aanet_paalla = self.aanet_paalla;
+                self.pyynnot.push(Pyynto::Hae);
                 Kaynnissa::Tiilirikko(Box::new(peli))
             }
         });
@@ -177,12 +188,31 @@ impl Kaynnistin {
     /// Ottaa käyttöön tiedostosta luetun tallennuksen.
     pub fn lataa(&mut self, tallennus: Tallennus) {
         self.aanet_paalla = !tallennus.hiljaa;
+        // Edellisellä kerralla lähettämättä jääneet tulokset yritetään uudelleen.
+        let jono = tallennus.tiilirikon_jono.iter().cloned();
+        self.pyynnot.extend(jono.map(Pyynto::Laheta));
         self.tallennus = tallennus;
+    }
+
+    /// Ottaa verkkosäikeen vastauksen. Lähetetty tulos poistuu jonosta.
+    pub fn vastaanota(&mut self, vastaus: Vastaus) {
+        match vastaus {
+            Vastaus::Lista(lista) => {
+                if let Some(Kaynnissa::Tiilirikko(peli)) = &mut self.peli {
+                    peli.netti_parhaat = Some(lista.clone());
+                }
+                self.netti_parhaat = Some(lista);
+            }
+            Vastaus::Lahetetty(tulos) => {
+                self.tallennus.tiilirikon_jono.retain(|t| *t != tulos);
+                self.tallenna = true;
+            }
+        }
     }
 
     pub fn paivita_tallennus(&mut self) {
         self.tallennus.hiljaa = !self.aanet_paalla;
-        match &self.peli {
+        match &mut self.peli {
             Some(Kaynnissa::Luvut(peli)) => {
                 self.tallennus.paras = peli.paras;
                 self.tallennus.parhaat = peli.parhaat.clone();
@@ -191,6 +221,12 @@ impl Kaynnistin {
             Some(Kaynnissa::Tiilirikko(peli)) => {
                 self.tallennus.tiilirikko = peli.paras;
                 self.tallennus.tiilirikon_parhaat = peli.parhaat.clone();
+                self.netti_parhaat = peli.netti_parhaat.clone();
+                // Jono kirjataan tiedostoon, jottei tulos katoa, vaikka lähetys epäonnistuisi.
+                if let Some(tulos) = peli.lahetys.take() {
+                    lisaa_tulos(&mut self.tallennus.tiilirikon_jono, tulos.clone());
+                    self.pyynnot.push(Pyynto::Laheta(tulos));
+                }
             }
             _ => {}
         }
@@ -477,6 +513,46 @@ mod tests {
         paattyva(&mut k);
         k.viimeistele();
         assert_eq!(k.tallennus.tiilirikon_parhaat[0].nimi, "NIMETÖN");
+    }
+
+    #[test]
+    fn nettitulos_jonottaa_tiedostossa_kunnes_lahetys_on_kuitattu() {
+        let mut k = Kaynnistin::new(1);
+        k.kaynnista(Laji::Tiilirikko);
+        assert_eq!(std::mem::take(&mut k.pyynnot), [Pyynto::Hae]);
+        k.vastaanota(Vastaus::Lista(Vec::new()));
+        k.kasittele(Syote::Ammu);
+        k.kasittele(Syote::Ammu);
+        let Some(Kaynnissa::Tiilirikko(peli)) = &mut k.peli else {
+            panic!("tiilirikko ei ole käynnissä");
+        };
+        assert_eq!(peli.netti_parhaat, Some(Vec::new()));
+        peli.lauta.pisteet = 70;
+        peli.lauta.elamat = 1;
+        peli.lauta.pallo = (300.0, 600.0);
+        peli.lauta.nopeus = (0.0, 300.0);
+        k.edista(5);
+        k.kasittele(Syote::Kirjain('A'));
+        k.kasittele(Syote::Ammu);
+
+        let tulos = Tulos {
+            nimi: "A".to_string(),
+            pisteet: 70,
+        };
+        assert_eq!(
+            std::mem::take(&mut k.pyynnot),
+            [Pyynto::Laheta(tulos.clone())]
+        );
+        assert_eq!(k.tallennus.tiilirikon_jono.len(), 1);
+
+        // lähetys ei ehtinyt perille: seuraava käynnistys yrittää uudelleen
+        let mut uusi = Kaynnistin::new(2);
+        uusi.lataa(Tallennus::tekstista(&k.tallennus.tekstiksi()));
+        assert_eq!(uusi.pyynnot, [Pyynto::Laheta(tulos.clone())]);
+
+        uusi.vastaanota(Vastaus::Lahetetty(tulos));
+        assert!(uusi.tallenna);
+        assert!(uusi.tallennus.tiilirikon_jono.is_empty());
     }
 
     #[test]

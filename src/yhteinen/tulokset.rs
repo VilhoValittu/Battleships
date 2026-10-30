@@ -5,11 +5,37 @@ use super::syote::Syote;
 pub const PARHAITA: usize = 3;
 pub const NIMEN_PITUUS: usize = 8;
 const OLETUSNIMI: &str = "NIMETÖN";
+// Raja pitää muokatun tiedoston tai vieraan vastauksen luvut sellaisina, ettei mikään voi ylivuotaa.
+const SUURIN_PISTEMAARA: u32 = 1_000_000_000;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tulos {
     pub nimi: String,
     pub pisteet: u32,
+}
+
+/// Lukee rivin muodossa "pisteet NIMI". Tallennustiedosto ja nettilista käyttävät samaa muotoa.
+pub fn tulos_tekstista(teksti: &str) -> Option<Tulos> {
+    let (pisteet, nimi) = teksti.split_once(' ')?;
+    let pituus = nimi.chars().count();
+    let kelpaa = (1..=NIMEN_PITUUS).contains(&pituus)
+        && nimi.chars().all(|m| m.is_uppercase() || m.is_ascii_digit());
+    let pisteet = pisteet
+        .parse()
+        .ok()
+        .filter(|&p| p > 0 && p <= SUURIN_PISTEMAARA)?;
+    kelpaa.then(|| Tulos {
+        nimi: nimi.to_string(),
+        pisteet,
+    })
+}
+
+pub fn lista_tekstista(teksti: &str) -> Vec<Tulos> {
+    let mut lista = Vec::new();
+    for tulos in teksti.lines().filter_map(tulos_tekstista) {
+        lisaa_tulos(&mut lista, tulos);
+    }
+    lista
 }
 
 /// Tasapisteissä vanhempi tulos säilyttää paikkansa, joten sen ohi ei pääse.
@@ -70,6 +96,14 @@ mod tests {
         assert!(mahtuu_parhaisiin(&parhaat, 101));
         lisaa_tulos(&mut parhaat, tulos("D", 200));
         assert_eq!(parhaat, [tulos("A", 300), tulos("B", 200), tulos("D", 200)]);
+    }
+
+    #[test]
+    fn lista_luetaan_tekstista_ja_kelvottomat_rivit_ohitetaan() {
+        let lista = lista_tekstista("5 PIENI\n9 VÄINÖ\n0 NOLLA\nkissa\n7 pieni\n2000000000 ISO\n");
+        let pisteet: Vec<u32> = lista.iter().map(|t| t.pisteet).collect();
+        assert_eq!(pisteet, [9, 5]);
+        assert_eq!(lista[0].nimi, "VÄINÖ");
     }
 
     #[test]

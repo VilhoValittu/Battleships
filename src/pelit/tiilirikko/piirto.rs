@@ -86,10 +86,19 @@ pub fn piirra(peli: &Tiilirikko, kuva: &mut [u32]) {
     p.aanikytkin(peli.aanet_paalla);
 }
 
+fn tiili_listan_otsikko(peli: &Tiilirikko) -> &'static str {
+    if peli.netti_parhaat.is_some() {
+        // Sivupalkkiin mahtuu yhdeksän merkkiä.
+        "NETTI TOP"
+    } else {
+        PARHAAT_OTSIKKO
+    }
+}
+
 impl Piirtaja<'_> {
     fn tiili_alkuruutu(&mut self, peli: &Tiilirikko) {
         self.maisema("**** TIILIRIKKO ****", &tiilimuuri());
-        self.parhaat_alkuruudulla(&peli.parhaat);
+        self.parhaat_alkuruudulla(tiili_listan_otsikko(peli), peli.nakyva_lista());
         let mut y = OHJE_Y;
         for osa in [
             "Tervetuloa pelaamaan Tiilirikkoa.",
@@ -223,7 +232,14 @@ impl Piirtaja<'_> {
         self.vektoriteksti(SARAKE_X, y, "AIKABONUS", TULOS, KELTAINEN, false);
         self.vektoriteksti(SARAKE_X, y + 30, &bonus, OTSIKKO, VALKOINEN, true);
 
-        self.parhaat_lista(SARAKE_X, PARHAAT_Y, PARHAAT_L, PARHAAT_KOKO, &peli.parhaat);
+        self.parhaat_lista(
+            SARAKE_X,
+            PARHAAT_Y,
+            PARHAAT_L,
+            PARHAAT_KOKO,
+            tiili_listan_otsikko(peli),
+            peli.nakyva_lista(),
+        );
     }
 
     fn tiili_paneeli(&mut self, peli: &Tiilirikko) {

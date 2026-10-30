@@ -21,6 +21,8 @@ pub struct Liput {
     pub liu_ut: Vec<Suunta>,
     /// Tallennustiedosto. Ilman tätä kehitysajo ei lue eikä kirjoita tallennusta.
     pub tallennus: Option<String>,
+    /// Nettilistan osoite. Ilman tätä kehitysajo ei ota yhteyttä verkkoon.
+    pub netti: Option<String>,
     /// Pasianssi: aloittaa pelin ja nostaa pakasta näin monta kertaa.
     pub nostot: Option<u32>,
     /// Pasianssi: aloittaa pelin voitettuna, loppujuhlan tarkistukseen.
@@ -64,6 +66,7 @@ pub fn lue_liput() -> Result<Liput, String> {
         lauta: None,
         liu_ut: Vec::new(),
         tallennus: None,
+        netti: None,
         nostot: None,
         voitto: false,
         jumissa: false,
@@ -77,6 +80,7 @@ pub fn lue_liput() -> Result<Liput, String> {
             "--seed" => liput.siemen = Some(arvo.parse().map_err(|_| "--seed: ei luku")?),
             "--screenshot" => liput.kuvakaappaus = Some(arvo),
             "--save" => liput.tallennus = Some(arvo),
+            "--net" => liput.netti = Some(arvo),
             "--time" => liput.aika_ms = arvo.parse().map_err(|_| "--time: ei luku")?,
             "--game" => {
                 liput.peli = Some(match arvo.as_str() {

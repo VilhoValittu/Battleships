@@ -4,6 +4,7 @@ use super::tulokset::{PARHAITA, Tulos};
 use super::vektori::{self, Kangas, kehapiste, varjosta};
 use super::{fontti, vektorifontti};
 
+pub const PARHAAT_OTSIKKO: &str = "TOP 3";
 pub const LEVEYS: usize = 960;
 pub const KORKEUS: usize = 768;
 
@@ -419,9 +420,10 @@ impl Piirtaja<'_> {
         y: i32,
         leveys: i32,
         koko: (i32, i32, i32),
+        otsikko: &str,
         parhaat: &[Tulos],
     ) {
-        self.teksti(x, y, "TOP 3", KELTAINEN);
+        self.teksti(x, y, otsikko, KELTAINEN);
         for i in 0..PARHAITA {
             let rivi_y = y + 30 + i as i32 * PARHAAT_RIVI;
             let tulos = parhaat.get(i);
@@ -437,11 +439,11 @@ impl Piirtaja<'_> {
         }
     }
 
-    pub fn parhaat_alkuruudulla(&mut self, parhaat: &[Tulos]) {
+    pub fn parhaat_alkuruudulla(&mut self, otsikko: &str, parhaat: &[Tulos]) {
         let (x, y, l, k) = ALKU_PARHAAT;
         self.k.laatikko(x, y, l, k, TAUSTA_TUMMA);
         self.k.kehys(x, y, l, k, REUNA);
-        self.parhaat_lista(x + 12, y + 9, l - 24, TULOS, parhaat);
+        self.parhaat_lista(x + 12, y + 9, l - 24, TULOS, otsikko, parhaat);
     }
 
     /// Paneelin sisältö, kun tulos pääsi listalle ja odottaa nimimerkkiä.

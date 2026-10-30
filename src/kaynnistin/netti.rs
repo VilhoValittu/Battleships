@@ -1,0 +1,211 @@
+//! Nettilistan pyynnöt omassa säikeessään, jottei hidas yhteys nyki peliä. Epäonnistunut
+//! pyyntö ei näy pelaajalle: lista pysyy ennallaan ja tulos jää jonoon seuraavaa käynnistystä varten.
+
+use std::sync::mpsc::{Receiver, Sender, channel};
+use std::thread;
+use std::time::Duration;
+
+use ureq::Agent;
+use ureq::tls::{TlsConfig, TlsProvider};
+
+use crate::yhteinen::tulokset::{Tulos, lista_tekstista};
+
+#[cfg(not(debug_assertions))]
+pub const OSOITE: &str = "https://klassikot8000-tulokset.palvelin.workers.dev";
+const PELI: &str = "tiilirikko";
+const AIKARAJA: Duration = Duration::from_secs(8);
+const KELVOTON_PYYNTO: u16 = 400;
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Pyynto {
+    Hae,
+    Laheta(Tulos),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Vastaus {
+    Lista(Vec<Tulos>),
+    /// Tulos on käsitelty, eikä sitä tarvitse lähettää uudelleen.
+    Lahetetty(Tulos),
+}
+
+pub struct Netti {
+    pyynnot: Sender<Pyynto>,
+    pub vastaukset: Receiver<Vastaus>,
+}
+
+impl Netti {
+    /// Säikeen luonnin epäonnistuminen tarkoittaa vain, että peliä pelataan ilman nettilistaa.
+    pub fn kaynnista(osoite: &str) -> Option<Self> {
+        let (pyynnot, saapuvat) = channel();
+        let (lahtevat, vastaukset) = channel();
+        let osoite = osoite.to_string();
+        thread::Builder::new()
+            .spawn(move || aja(&osoite, saapuvat, lahtevat))
+            .ok()?;
+        Some(Self {
+            pyynnot,
+            vastaukset,
+        })
+    }
+
+    pub fn laheta(&self, pyynto: Pyynto) {
+        // Säie elää yhtä kauan kuin peli, joten virhe voi tulla vain lopetuksessa.
+        let _ = self.pyynnot.send(pyynto);
+    }
+}
+
+fn aja(osoite: &str, saapuvat: Receiver<Pyynto>, lahtevat: Sender<Vastaus>) {
+    let agentti: Agent = Agent::config_builder()
+        .timeout_global(Some(AIKARAJA))
+        .tls_config(
+            TlsConfig::builder()
+                .provider(TlsProvider::NativeTls)
+                .build(),
+        )
+        .build()
+        .into();
+    for pyynto in saapuvat {
+        let vastaukset = kasittele(&agentti, osoite, pyynto);
+        for vastaus in vastaukset {
+            if lahtevat.send(vastaus).is_err() {
+                return;
+            }
+        }
+    }
+}
+
+fn kasittele(agentti: &Agent, osoite: &str, pyynto: Pyynto) -> Vec<Vastaus> {
+    match pyynto {
+        Pyynto::Hae => {
+            let vastaus = agentti.get(format!("{osoite}/top3?peli={PELI}")).call();
+            lue_lista(vastaus).map(Vastaus::Lista).into_iter().collect()
+        }
+        Pyynto::Laheta(tulos) => {
+            let vastaus = agentti
+                .post(format!("{osoite}/tulos?peli={PELI}"))
+                .content_type("text/plain; charset=utf-8")
+                .send(format!("{} {}", tulos.pisteet, tulos.nimi));
+            match vastaus {
+                // Palvelin hylkää tämän joka kerta, joten uudelleenyritys olisi turha.
+                Err(ureq::Error::StatusCode(KELVOTON_PYYNTO)) => vec![Vastaus::Lahetetty(tulos)],
+                vastaus => match lue_lista(vastaus) {
+                    Some(lista) => vec![Vastaus::Lista(lista), Vastaus::Lahetetty(tulos)],
+                    None => Vec::new(),
+                },
+            }
+        }
+    }
+}
+
+fn lue_lista(vastaus: Result<ureq::http::Response<ureq::Body>, ureq::Error>) -> Option<Vec<Tulos>> {
+    let teksti = vastaus.ok()?.body_mut().read_to_string().ok()?;
+    Some(lista_tekstista(&teksti))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::{BufRead, BufReader, Read, Write};
+    use std::net::TcpListener;
+
+    /// Paikallinen palvelin, joka antaa vastaukset järjestyksessä ja palauttaa saamansa pyynnöt.
+    fn palvelin(vastaukset: Vec<String>) -> (String, thread::JoinHandle<Vec<String>>) {
+        let kuuntelija = TcpListener::bind("127.0.0.1:0").unwrap();
+        let osoite = format!("http://{}", kuuntelija.local_addr().unwrap());
+        let saie = thread::spawn(move || {
+            let mut pyynnot = Vec::new();
+            for vastaus in vastaukset {
+                let (mut yhteys, _) = kuuntelija.accept().unwrap();
+                let mut lukija = BufReader::new(yhteys.try_clone().unwrap());
+                let mut alku = String::new();
+                lukija.read_line(&mut alku).unwrap();
+                let mut pituus = 0;
+                loop {
+                    let mut rivi = String::new();
+                    lukija.read_line(&mut rivi).unwrap();
+                    if rivi.trim().is_empty() {
+                        break;
+                    }
+                    if let Some(arvo) = rivi.to_lowercase().strip_prefix("content-length:") {
+                        pituus = arvo.trim().parse().unwrap();
+                    }
+                }
+                let mut runko = vec![0; pituus];
+                lukija.read_exact(&mut runko).unwrap();
+                pyynnot.push(format!(
+                    "{} {}",
+                    alku.trim(),
+                    String::from_utf8(runko).unwrap()
+                ));
+                write!(yhteys, "{vastaus}").unwrap();
+            }
+            pyynnot
+        });
+        (osoite, saie)
+    }
+
+    fn http(status: &str, runko: &str) -> String {
+        format!(
+            "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{runko}",
+            runko.len()
+        )
+    }
+
+    fn tulos(nimi: &str, pisteet: u32) -> Tulos {
+        Tulos {
+            nimi: nimi.to_string(),
+            pisteet,
+        }
+    }
+
+    #[test]
+    fn haku_ja_lahetys_kulkevat_ja_hylatty_tulos_kuitataan() {
+        let lista = http("200 OK", "120 VÄINÖ\n50 B\n");
+        let hylatty = http("400 Bad Request", "kelvoton tulos\n");
+        let (osoite, saie) = palvelin(vec![lista.clone(), lista, hylatty]);
+        let netti = Netti::kaynnista(&osoite).unwrap();
+        let odotettu = vec![tulos("VÄINÖ", 120), tulos("B", 50)];
+
+        netti.laheta(Pyynto::Hae);
+        assert_eq!(
+            netti.vastaukset.recv().unwrap(),
+            Vastaus::Lista(odotettu.clone())
+        );
+
+        netti.laheta(Pyynto::Laheta(tulos("VÄINÖ", 120)));
+        assert_eq!(netti.vastaukset.recv().unwrap(), Vastaus::Lista(odotettu));
+        assert_eq!(
+            netti.vastaukset.recv().unwrap(),
+            Vastaus::Lahetetty(tulos("VÄINÖ", 120))
+        );
+
+        netti.laheta(Pyynto::Laheta(tulos("X", 1)));
+        assert_eq!(
+            netti.vastaukset.recv().unwrap(),
+            Vastaus::Lahetetty(tulos("X", 1))
+        );
+
+        let pyynnot = saie.join().unwrap();
+        assert!(pyynnot[0].starts_with("GET /top3?peli=tiilirikko "));
+        assert!(pyynnot[1].starts_with("POST /tulos?peli=tiilirikko "));
+        assert!(pyynnot[1].ends_with(" 120 VÄINÖ"));
+    }
+
+    #[test]
+    fn palvelinvirhe_ei_kuittaa_tulosta_lahetetyksi() {
+        let (osoite, saie) = palvelin(vec![http("500 Oops", "")]);
+        let agentti = Agent::new_with_defaults();
+        assert!(kasittele(&agentti, &osoite, Pyynto::Laheta(tulos("A", 1))).is_empty());
+        saie.join().unwrap();
+    }
+
+    #[test]
+    fn yhteysvirhe_ei_tuota_vastausta() {
+        let kuuntelija = TcpListener::bind("127.0.0.1:0").unwrap();
+        let osoite = format!("http://{}", kuuntelija.local_addr().unwrap());
+        drop(kuuntelija);
+        let agentti = Agent::new_with_defaults();
+        assert!(kasittele(&agentti, &osoite, Pyynto::Hae).is_empty());
+    }
+}

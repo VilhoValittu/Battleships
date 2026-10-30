@@ -9,7 +9,7 @@ use std::path::PathBuf;
 
 use klassikot8000::luvut::{Lukulauta, Ruudut, SIVU};
 
-use crate::yhteinen::tulokset::{NIMEN_PITUUS, Tulos, lisaa_tulos};
+use crate::yhteinen::tulokset::{Tulos, lisaa_tulos, tulos_tekstista};
 
 const OTSAKE: &str = "klassikot8000 1";
 // Rajat pitävät muokatun tiedoston luvut sellaisina, ettei pistelasku voi ylivuotaa.
@@ -36,22 +36,12 @@ pub struct Tallennus {
     pub tiilirikko: u32,
     /// Tiilirikon top 3, järjestys kuten `parhaat`.
     pub tiilirikon_parhaat: Vec<Tulos>,
+    /// Tiilirikon tulokset, jotka eivät ole vielä päässeet nettilistalle.
+    pub tiilirikon_jono: Vec<Tulos>,
 }
 
 fn luku(teksti: &str) -> Option<u32> {
     teksti.parse().ok().filter(|&arvo| arvo <= SUURIN_LUKU)
-}
-
-fn tulos(teksti: &str) -> Option<Tulos> {
-    let (pisteet, nimi) = teksti.split_once(' ')?;
-    let pituus = nimi.chars().count();
-    let kelpaa = (1..=NIMEN_PITUUS).contains(&pituus)
-        && nimi.chars().all(|m| m.is_uppercase() || m.is_ascii_digit());
-    let pisteet = luku(pisteet).filter(|&p| p > 0)?;
-    kelpaa.then(|| Tulos {
-        nimi: nimi.to_string(),
-        pisteet,
-    })
 }
 
 fn ruudut(teksti: &str) -> Option<Ruudut> {
@@ -78,6 +68,9 @@ impl Tallennus {
         for tulos in &self.tiilirikon_parhaat {
             teksti += &format!("tiilitop {} {}\n", tulos.pisteet, tulos.nimi);
         }
+        for tulos in &self.tiilirikon_jono {
+            teksti += &format!("tiilijono {} {}\n", tulos.pisteet, tulos.nimi);
+        }
         if let Some(kesken) = &self.kesken {
             let luvut: Vec<String> = kesken.ruudut.iter().flatten().map(u32::to_string).collect();
             teksti += &format!(
@@ -99,6 +92,7 @@ impl Tallennus {
         let (mut paras, mut lauta, mut pisteet, mut siirrot) = (None, None, None, None);
         let (mut jatkettu, mut hiljaa) = (false, false);
         let (mut parhaat, mut tiilirikon_parhaat) = (Vec::new(), Vec::new());
+        let mut tiilirikon_jono = Vec::new();
         let mut tiilirikko = None;
         for rivi in rivit {
             match rivi.split_once(' ') {
@@ -106,13 +100,18 @@ impl Tallennus {
                 Some(("hiljaa", arvo)) => hiljaa = arvo == "1",
                 Some(("tiilirikko", arvo)) => tiilirikko = luku(arvo),
                 Some(("top", arvo)) => {
-                    if let Some(tulos) = tulos(arvo) {
+                    if let Some(tulos) = tulos_tekstista(arvo) {
                         lisaa_tulos(&mut parhaat, tulos);
                     }
                 }
                 Some(("tiilitop", arvo)) => {
-                    if let Some(tulos) = tulos(arvo) {
+                    if let Some(tulos) = tulos_tekstista(arvo) {
                         lisaa_tulos(&mut tiilirikon_parhaat, tulos);
+                    }
+                }
+                Some(("tiilijono", arvo)) => {
+                    if let Some(tulos) = tulos_tekstista(arvo) {
+                        lisaa_tulos(&mut tiilirikon_jono, tulos);
                     }
                 }
                 Some(("lauta", arvo)) => lauta = ruudut(arvo),
@@ -142,6 +141,7 @@ impl Tallennus {
             hiljaa,
             tiilirikko: tiilirikko.unwrap_or(0),
             tiilirikon_parhaat,
+            tiilirikon_jono,
         }
     }
 }
@@ -197,6 +197,10 @@ mod tests {
                 nimi: "TIILI".to_string(),
                 pisteet: 1250,
             }],
+            tiilirikon_jono: vec![Tulos {
+                nimi: "NIMETÖN".to_string(),
+                pisteet: 900,
+            }],
         }
     }
 
@@ -211,6 +215,7 @@ mod tests {
             hiljaa: false,
             tiilirikko: 0,
             tiilirikon_parhaat: Vec::new(),
+            tiilirikon_jono: Vec::new(),
         };
         assert_eq!(Tallennus::tekstista(&t.tekstiksi()), t);
     }

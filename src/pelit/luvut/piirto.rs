@@ -152,7 +152,7 @@ impl Piirtaja<'_> {
         let jatkuu = luvut.jatkuu;
         let varit = [2, 8, 64, 2048].map(|arvo| laatan_varit(arvo).0);
         self.maisema("**** 2048 ****", &lukupino(varit));
-        self.parhaat_alkuruudulla(&luvut.parhaat);
+        self.parhaat_alkuruudulla(PARHAAT_OTSIKKO, &luvut.parhaat);
         let mut y = OHJE_Y;
         for osa in [
             "Tervetuloa pelaamaan 2048-peliä.",
@@ -366,7 +366,14 @@ impl Piirtaja<'_> {
             };
             self.k.laatikko(x, y, PALKIN_PALA - 3, korkeus, vari);
         }
-        self.parhaat_lista(SARAKE_X, PARHAAT_Y, PARHAAT_L, TULOS, &luvut.parhaat);
+        self.parhaat_lista(
+            SARAKE_X,
+            PARHAAT_Y,
+            PARHAAT_L,
+            TULOS,
+            PARHAAT_OTSIKKO,
+            &luvut.parhaat,
+        );
     }
 
     fn luku_paneeli(&mut self, luvut: &Luvut) {
