@@ -3,7 +3,7 @@
 
 use std::f32::consts::TAU;
 
-use laivanupotus::Arpa;
+use klassikot8000::Arpa;
 
 /// Sama karkea näytetaajuus ja 8 bitin tarkkuus kuin Doomin omissa äänissä.
 pub const NAYTETAAJUUS: usize = 11025;
@@ -25,9 +25,13 @@ pub enum Aani {
     Ahkaisy,
     Voitto,
     Tappio,
+    /// 2048: luvut tömähtävät reunaan.
+    Liuku,
+    /// 2048: kaksi lukua yhdistyy.
+    Yhdistys,
 }
 
-const AANIA: usize = 9;
+const AANIA: usize = 11;
 
 struct Soitto {
     aani: Aani,
@@ -56,6 +60,8 @@ impl Mikseri {
                 ahkaisy(&mut arpa),
                 voitto(&mut arpa),
                 tappio(&mut arpa),
+                liuku(&mut arpa),
+                yhdistys(),
             ],
             soivat: Vec::new(),
             paalla: true,
@@ -269,6 +275,23 @@ fn tappio(arpa: &mut Arpa) -> Vec<i8> {
     sekoita(&soinnut, &huuto, NAYTETAAJUUS * 3 / 10)
 }
 
+fn liuku(arpa: &mut Arpa) -> Vec<i8> {
+    let mut suodin = 0.0;
+    rakenna(0.09, |t| {
+        suodin += (kohina(arpa) - suodin) * 0.3;
+        let isku = (TAU * 90.0 * t).sin();
+        (suodin + isku * 0.7) * 0.6 * (-t * 40.0).exp()
+    })
+}
+
+fn yhdistys() -> Vec<i8> {
+    let mut vaihe = 0.0;
+    rakenna(0.18, |t| {
+        vaihe += (220.0 + 2200.0 * t) / NAYTETAAJUUS as f32;
+        kantti(vaihe) * 0.5 * (t * 80.0).min(1.0) * (1.0 - t / 0.18)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -291,6 +314,8 @@ mod tests {
             Aani::Ahkaisy,
             Aani::Voitto,
             Aani::Tappio,
+            Aani::Liuku,
+            Aani::Yhdistys,
         ] {
             let mut mikseri = Mikseri::new();
             mikseri.soita(aani, 0);

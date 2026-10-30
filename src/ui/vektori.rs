@@ -252,6 +252,17 @@ pub fn taistelulaiva(runko: u32, kansi: u32, torni: u32) -> Vec<Tahko> {
     tahkot
 }
 
+/// 2048-pelin alkuruudun malli: neljä laattaa kasvavina pinoina. Mitat kuin laivalla.
+pub fn lukupino(varit: [u32; 4]) -> Vec<Tahko> {
+    let mut tahkot = Vec::new();
+    for (i, vari) in varit.into_iter().enumerate() {
+        let x = -4.6 + i as f32 * 2.4;
+        let korkeus = 0.8 + i as f32 * 0.8;
+        kuutio([x, x + 2.0], [0.0, korkeus], [-1.0, 1.0], vari, &mut tahkot);
+    }
+    tahkot
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

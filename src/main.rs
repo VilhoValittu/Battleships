@@ -5,6 +5,9 @@ mod kehitys;
 mod ui;
 
 use std::mem::{ManuallyDrop, take};
+use std::path::Path;
+#[cfg(debug_assertions)]
+use std::path::PathBuf;
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
@@ -12,12 +15,19 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use minifb::{Key, KeyRepeat, MouseButton, MouseMode, Scale, Window, WindowOptions};
 use tinyaudio::{OutputDevice, OutputDeviceParameters, run_output_device};
 
+#[cfg(debug_assertions)]
+use klassikot8000::lukulauta::Lukulauta;
 use ui::aanet::{Mikseri, NAYTETAAJUUS};
+#[cfg(debug_assertions)]
+use ui::kaynnistin::Kaynnissa;
 use ui::kaynnistin::Kaynnistin;
+#[cfg(debug_assertions)]
+use ui::luvut;
 use ui::peli::Syote;
 #[cfg(debug_assertions)]
 use ui::peli::Vaihe;
 use ui::piirto::{self, KORKEUS, LEVEYS};
+use ui::tallennus;
 
 const PAIVITYKSIA_SEKUNNISSA: usize = 30;
 // Noin 36 ms: kytkin hiljentää äänet heti, mutta puskuri ei tyhjene kesken.
@@ -77,7 +87,20 @@ fn avaa_aanilaite(mikseri: Arc<Mutex<Mikseri>>) -> Option<OutputDevice> {
     .ok()
 }
 
-fn pelisilmukka(mut kaynnistin: Kaynnistin, kuva: &mut [u32]) -> Result<(), minifb::Error> {
+/// Epäonnistunut tallennus ei saa kaataa peliä.
+fn tallenna(polku: Option<&Path>, kaynnistin: &Kaynnistin) {
+    if let Some(polku) = polku
+        && let Err(virhe) = tallennus::kirjoita_tiedosto(polku, &kaynnistin.tallennus)
+    {
+        eprintln!("{}: {virhe}", polku.display());
+    }
+}
+
+fn pelisilmukka(
+    mut kaynnistin: Kaynnistin,
+    kuva: &mut [u32],
+    polku: Option<&Path>,
+) -> Result<(), minifb::Error> {
     let asetukset = WindowOptions {
         scale: Scale::FitScreen,
         ..WindowOptions::default()
@@ -99,7 +122,7 @@ fn pelisilmukka(mut kaynnistin: Kaynnistin, kuva: &mut [u32]) -> Result<(), mini
         for nappain in ikkuna.get_keys_pressed(KeyRepeat::Yes) {
             if let Some(syote) = nappain_syotteeksi(nappain) {
                 // toisto vain nuolille, ettei pohjassa pidetty välilyönti ammu sarjaa
-                let toistuva = matches!(syote, Syote::Nuoli(..));
+                let toistuva = matches!(syote, Syote::Nuoli(..)) && kaynnistin.nuolet_toistuvat();
                 if toistuva || ikkuna.is_key_pressed(nappain, KeyRepeat::No) {
                     kaynnistin.kasittele(syote);
                 }
@@ -131,6 +154,10 @@ fn pelisilmukka(mut kaynnistin: Kaynnistin, kuva: &mut [u32]) -> Result<(), mini
             }
         }
 
+        if take(&mut kaynnistin.tallenna) {
+            tallenna(polku, &kaynnistin);
+        }
+
         if kaynnistin.otsikko() != otsikko {
             otsikko = kaynnistin.otsikko();
             ikkuna.set_title(otsikko);
@@ -144,6 +171,9 @@ fn pelisilmukka(mut kaynnistin: Kaynnistin, kuva: &mut [u32]) -> Result<(), mini
         piirto::piirra_kaynnistin(&kaynnistin, kuva);
         ikkuna.update_with_buffer(kuva, LEVEYS, KORKEUS)?;
     }
+    // Ikkunan voi sulkea kesken pelin.
+    kaynnistin.paivita_tallennus();
+    tallenna(polku, &kaynnistin);
     Ok(())
 }
 
@@ -151,7 +181,7 @@ fn main() -> ExitCode {
     let mut kuva = vec![0u32; LEVEYS * KORKEUS];
 
     #[cfg(debug_assertions)]
-    let kaynnistin = {
+    let (kaynnistin, polku) = {
         let liput = match kehitys::lue_liput() {
             Ok(liput) => liput,
             Err(virhe) => {
@@ -160,21 +190,42 @@ fn main() -> ExitCode {
             }
         };
         let mut kaynnistin = Kaynnistin::new(liput.siemen.unwrap_or_else(aikasiemen));
-        if liput.suoraan_peliin || liput.vaikeus.is_some() || !liput.siirrot.is_empty() {
-            kaynnistin.kaynnista();
+        // Kehitysajo ei koske pelaajan tallennukseen ilman lippua.
+        let polku = liput.tallennus.as_ref().map(PathBuf::from);
+        if let Some(polku) = &polku {
+            kaynnistin.tallennus = tallennus::lue_tiedosto(polku);
         }
-        if let Some(peli) = &mut kaynnistin.peli {
-            if let Some(vaikeus) = liput.vaikeus {
-                peli.vaikeus = vaikeus;
-            }
-            if !liput.siirrot.is_empty() {
-                peli.kasittele(Syote::Ammu);
-            }
-            for ruutu in liput.siirrot {
-                if peli.vaihe == Vaihe::Ammunta {
-                    peli.ammu(ruutu);
+        if let Some(laji) = liput.laji() {
+            kaynnistin.kaynnista(laji);
+        }
+        match &mut kaynnistin.peli {
+            Some(Kaynnissa::Laivanupotus(peli)) => {
+                if let Some(vaikeus) = liput.vaikeus {
+                    peli.vaikeus = vaikeus;
+                }
+                if !liput.siirrot.is_empty() {
+                    peli.kasittele(Syote::Ammu);
+                }
+                for ruutu in liput.siirrot {
+                    if peli.vaihe == Vaihe::Ammunta {
+                        peli.ammu(ruutu);
+                    }
                 }
             }
+            Some(Kaynnissa::Luvut(peli)) => {
+                if liput.lauta.is_some() || !liput.liu_ut.is_empty() {
+                    peli.kasittele(Syote::Ammu);
+                }
+                if let Some(ruudut) = liput.lauta {
+                    peli.lauta = Lukulauta::ruuduista(ruudut);
+                }
+                for suunta in liput.liu_ut {
+                    if peli.vaihe == luvut::Vaihe::Pelissa {
+                        peli.siirra(suunta);
+                    }
+                }
+            }
+            None => {}
         }
         kaynnistin.ota_aanet();
         if let Some(polku) = liput.kuvakaappaus {
@@ -188,12 +239,19 @@ fn main() -> ExitCode {
                 }
             };
         }
-        kaynnistin
+        (kaynnistin, polku)
     };
     #[cfg(not(debug_assertions))]
-    let kaynnistin = Kaynnistin::new(aikasiemen());
+    let (kaynnistin, polku) = {
+        let mut kaynnistin = Kaynnistin::new(aikasiemen());
+        let polku = tallennus::oletuspolku();
+        if let Some(polku) = &polku {
+            kaynnistin.tallennus = tallennus::lue_tiedosto(polku);
+        }
+        (kaynnistin, polku)
+    };
 
-    match pelisilmukka(kaynnistin, &mut kuva) {
+    match pelisilmukka(kaynnistin, &mut kuva, polku.as_deref()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(virhe) => {
             eprintln!("{virhe}");

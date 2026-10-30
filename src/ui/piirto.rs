@@ -1,8 +1,10 @@
 use std::f32::consts::{PI, TAU};
 
-use laivanupotus::{KOKO, Laiva, Laivasto, Laukaustulos, Ruutu, SARAKKEET, Vaikeus};
+use klassikot8000::{KOKO, Laiva, Laivasto, Laukaustulos, Ruutu, SARAKKEET, Vaikeus};
 
-use super::kaynnistin::{Kaynnistin, PELIT};
+pub mod luvut;
+
+use super::kaynnistin::{Kaynnissa, Kaynnistin, PELIT};
 use super::peli::{Peli, TULOS_VIIVE_MS, Tehoste, Vaihe};
 use super::vektori::{self, Kangas, kehapiste, varjosta};
 use super::{fontti, vektorifontti};
@@ -248,9 +250,10 @@ fn sekoita(a: u32, b: u32, osuus: f32) -> u32 {
 }
 
 pub fn piirra_kaynnistin(kaynnistin: &Kaynnistin, kuva: &mut [u32]) {
-    if let Some(peli) = &kaynnistin.peli {
-        piirra(peli, kuva);
-        return;
+    match &kaynnistin.peli {
+        Some(Kaynnissa::Laivanupotus(peli)) => return piirra(peli, kuva),
+        Some(Kaynnissa::Luvut(peli)) => return luvut::piirra(peli, kuva),
+        None => {}
     }
     let mut p = Piirtaja {
         k: Kangas(kuva),
@@ -343,15 +346,16 @@ impl Piirtaja<'_> {
     }
 
     fn valikko(&mut self, valittu: usize) {
-        self.maisema("**** PELIKONE ****");
+        self.maisema(
+            "**** PELIKONE ****",
+            &vektori::taistelulaiva(RUNKO, KANSI, TORNI),
+        );
         for (i, kortti) in PELIT.iter().enumerate() {
             let y = KORTTI_Y + i as i32 * KORTTI_ASKEL;
-            let (tausta, nimi_vari, kuvaus_vari) = if i == valittu {
-                (WB_ORANSSI, MUSTA, MUSTA)
-            } else if kortti.valmis {
-                (VALKOINEN, WB_SININEN, MUSTA)
+            let (tausta, nimi_vari) = if i == valittu {
+                (WB_ORANSSI, MUSTA)
             } else {
-                (TAUSTA_TUMMA, REUNA, REUNA)
+                (VALKOINEN, WB_SININEN)
             };
             self.k.laatikko(KORTTI_X, y, KORTTI_L, KORTTI_K, tausta);
             self.k
@@ -361,7 +365,7 @@ impl Piirtaja<'_> {
             let x = KORTTI_X + KORTTI_SISENNYS;
             let nimi = format!("{} {}", i + 1, kortti.nimi);
             self.vektoriteksti(x, y + 15, &nimi, OTSIKKO, nimi_vari, true);
-            self.teksti(x, y + 48, kortti.kuvaus, kuvaus_vari);
+            self.teksti(x, y + 48, kortti.kuvaus, MUSTA);
         }
         let mut y = KORTTI_Y + PELIT.len() as i32 * KORTTI_ASKEL + 12;
         for rivi in [
@@ -379,7 +383,10 @@ impl Piirtaja<'_> {
     }
 
     fn alkuruutu(&mut self, vaikeus: Vaikeus) {
-        self.maisema("**** LAIVANUPOTUS ****");
+        self.maisema(
+            "**** LAIVANUPOTUS ****",
+            &vektori::taistelulaiva(RUNKO, KANSI, TORNI),
+        );
 
         let mut y = OHJE_Y;
         for osa in [
@@ -413,15 +420,14 @@ impl Piirtaja<'_> {
     }
 
     /// Alkuruudun ja käynnistimen yhteinen tausta: maisema, otsikko ja C64:n reuna.
-    fn maisema(&mut self, otsikko: &str) {
+    fn maisema(&mut self, otsikko: &str, malli: &[vektori::Tahko]) {
         self.liuku(0, HORISONTTI_Y, TAIVAS_YLA, TAIVAS_ALA);
         self.tahdet();
         self.liuku(HORISONTTI_Y, MAISEMA_ALA_Y, MERI_YLA, MERI_ALA);
         self.meriruudukko();
         let keinunta = (self.kello as f32 * 0.002).sin() * 3.0;
-        let malli = vektori::taistelulaiva(RUNKO, KANSI, TORNI);
         self.k.malli(
-            &malli,
+            malli,
             self.kello as f32 * LAIVAN_KIERTO,
             (LEVEYS as i32 / 2, HORISONTTI_Y + 33 + keinunta as i32),
             LAIVAN_KOKO,
@@ -507,7 +513,7 @@ impl Piirtaja<'_> {
         let (l, k) = (LEVEYS as i32, KORKEUS as i32);
         self.k.kehys(0, 0, l, k, REUNA);
         self.k.kehys(1, 1, l - 2, k - 2, REUNA);
-        self.otsikkopalkki(peli.vaikeus);
+        self.otsikkopalkki("Laivanupotus", peli.vaikeus.nimi());
 
         self.vektoriteksti(
             VASTUSTAJA_X,
@@ -563,14 +569,15 @@ impl Piirtaja<'_> {
         }
     }
 
-    fn otsikkopalkki(&mut self, vaikeus: Vaikeus) {
+    fn otsikkopalkki(&mut self, otsikko: &str, nimi: &str) {
         self.k.laatikko(6, 6, LEVEYS as i32 - 12, 30, VALKOINEN);
-        self.teksti(18, 9, "Laivanupotus", WB_SININEN);
-        let nimi = vaikeus.nimi();
+        self.teksti(18, 9, otsikko, WB_SININEN);
         let nimi_x = AANI_X - 12 - nimi.chars().count() as i32 * MERKKI;
         self.teksti(nimi_x, 9, nimi, WB_SININEN);
+        let raita_x = 36 + otsikko.chars().count() as i32 * MERKKI;
         for y in [9, 15, 21, 27] {
-            self.k.laatikko(324, y, nimi_x - 336, 3, WB_SININEN);
+            self.k
+                .laatikko(raita_x, y, nimi_x - 12 - raita_x, 3, WB_SININEN);
         }
     }
 

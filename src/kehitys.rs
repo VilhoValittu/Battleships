@@ -3,15 +3,39 @@
 use std::fs::File;
 use std::io::{self, Write};
 
+use klassikot8000::lukulauta::{Ruudut, SIVU, Suunta};
+
+use crate::ui::kaynnistin::Laji;
+
 pub struct Liput {
     pub siemen: Option<u64>,
     pub kuvakaappaus: Option<String>,
-    pub siirrot: Vec<laivanupotus::Ruutu>,
-    pub vaikeus: Option<laivanupotus::Vaikeus>,
-    /// Ohittaa käynnistimen. `--level` ja `--moves` tekevät saman.
-    pub suoraan_peliin: bool,
+    pub siirrot: Vec<klassikot8000::Ruutu>,
+    pub vaikeus: Option<klassikot8000::Vaikeus>,
+    /// Ohittaa käynnistimen. Kunkin pelin omat liput tekevät saman.
+    peli: Option<Laji>,
+    /// 2048: luvut laudalla riveittäin, kuvakaappausta varten.
+    pub lauta: Option<Ruudut>,
+    /// 2048: siirrot kirjaimina U, D, L ja R.
+    pub liu_ut: Vec<Suunta>,
+    /// Tallennustiedosto. Ilman tätä kehitysajo ei lue eikä kirjoita tallennusta.
+    pub tallennus: Option<String>,
     /// Kuvakaappauksen hetki viimeisen laukauksen jälkeen, animaatioiden tarkistukseen.
     pub aika_ms: u32,
+}
+
+impl Liput {
+    pub fn laji(&self) -> Option<Laji> {
+        if self.peli.is_some() {
+            self.peli
+        } else if self.vaikeus.is_some() || !self.siirrot.is_empty() {
+            Some(Laji::Laivanupotus)
+        } else if self.lauta.is_some() || !self.liu_ut.is_empty() {
+            Some(Laji::Luvut)
+        } else {
+            None
+        }
+    }
 }
 
 // Riittää siihen, että kaikki tehosteet ovat päättyneet.
@@ -23,7 +47,10 @@ pub fn lue_liput() -> Result<Liput, String> {
         kuvakaappaus: None,
         siirrot: Vec::new(),
         vaikeus: None,
-        suoraan_peliin: false,
+        peli: None,
+        lauta: None,
+        liu_ut: Vec::new(),
+        tallennus: None,
         aika_ms: OLETUSAIKA_MS,
     };
     let mut args = std::env::args().skip(1);
@@ -32,10 +59,43 @@ pub fn lue_liput() -> Result<Liput, String> {
         match lippu.as_str() {
             "--seed" => liput.siemen = Some(arvo.parse().map_err(|_| "--seed: ei luku")?),
             "--screenshot" => liput.kuvakaappaus = Some(arvo),
+            "--save" => liput.tallennus = Some(arvo),
             "--time" => liput.aika_ms = arvo.parse().map_err(|_| "--time: ei luku")?,
-            "--game" if arvo == "laivanupotus" => liput.suoraan_peliin = true,
+            "--game" => {
+                liput.peli = Some(match arvo.as_str() {
+                    "laivanupotus" => Laji::Laivanupotus,
+                    "2048" => Laji::Luvut,
+                    _ => return Err(format!("--game: {arvo}")),
+                });
+            }
+            "--board" => {
+                let luvut = arvo
+                    .split(',')
+                    .map(|osa| osa.parse::<u32>())
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|_| format!("--board: {arvo}"))?;
+                if luvut.len() != SIVU * SIVU {
+                    return Err(format!("--board: tarvitaan {} lukua", SIVU * SIVU));
+                }
+                let mut ruudut = [[0; SIVU]; SIVU];
+                for (i, luku) in luvut.into_iter().enumerate() {
+                    ruudut[i / SIVU][i % SIVU] = luku;
+                }
+                liput.lauta = Some(ruudut);
+            }
+            "--slides" => {
+                for kirjain in arvo.chars() {
+                    liput.liu_ut.push(match kirjain {
+                        'U' => Suunta::Ylos,
+                        'D' => Suunta::Alas,
+                        'L' => Suunta::Vasen,
+                        'R' => Suunta::Oikea,
+                        _ => return Err(format!("--slides: {kirjain}")),
+                    });
+                }
+            }
             "--level" => {
-                let taso = laivanupotus::Vaikeus::KAIKKI
+                let taso = klassikot8000::Vaikeus::KAIKKI
                     .into_iter()
                     .find(|taso| taso.nimi().eq_ignore_ascii_case(&arvo));
                 liput.vaikeus = Some(taso.ok_or(format!("--level: {arvo}"))?);

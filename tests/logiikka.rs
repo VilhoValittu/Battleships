@@ -1,4 +1,4 @@
-use laivanupotus::{
+use klassikot8000::{
     Arpa, KOKO, LAIVAT, Laivasto, Laukaustulos, Ruudut, Ruutu, Vaikeus, vastustaja,
 };
 

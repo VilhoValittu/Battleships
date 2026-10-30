@@ -132,12 +132,24 @@ pub fn kuvio(merkki: char) -> Kuvio {
             (0, 3),
         ]],
         '7' => &[&[(0, 0), (4, 0), (1, 6)]],
-        '8' => &[
-            O,
-            &[(0, 2), (1, 3), (3, 3), (4, 2)],
-            &[(0, 4), (1, 3)],
-            &[(3, 3), (4, 4)],
-        ],
+        '8' => &[&[
+            (1, 3),
+            (0, 2),
+            (0, 1),
+            (1, 0),
+            (3, 0),
+            (4, 1),
+            (4, 2),
+            (3, 3),
+            (1, 3),
+            (0, 4),
+            (0, 5),
+            (1, 6),
+            (3, 6),
+            (4, 5),
+            (4, 4),
+            (3, 3),
+        ]],
         '9' => &[&[
             (1, 6),
             (3, 6),
@@ -162,7 +174,7 @@ mod tests {
 
     #[test]
     fn otsikoiden_merkit_on_piirretty_ruudukkoon() {
-        let tekstit = "PELIKONE LAIVANUPOTUS VASTUSTAJAN OMA VOITIT HÄVISIT HIHIHIHIII PELIN ÖÄ * ! 0123456789";
+        let tekstit = "PISTEET PARAS SUURIN SIIRROT SAIT PÄÄTTYI PELIKONE LAIVANUPOTUS VASTUSTAJAN OMA VOITIT HÄVISIT HIHIHIHIII PELIN ÖÄ * ! 0123456789";
         for merkki in tekstit.chars().filter(|&m| m != ' ') {
             let kuvio = kuvio(merkki);
             assert!(!kuvio.is_empty(), "{merkki}");

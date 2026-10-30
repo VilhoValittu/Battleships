@@ -1,4 +1,4 @@
-# Rakentaa julkaisuversion ja paketoi sen tiedostoon dist\laivanupotus-<versio>-windows-x64.zip
+# Rakentaa julkaisuversion ja paketoi sen tiedostoon dist\klassikot8000-<versio>-windows-x64.zip
 # Ajo: powershell -ExecutionPolicy Bypass -File paketoi.ps1
 # Pidetty ASCII-merkeissa, koska PowerShell 5.1 lukee BOM-merkittoman tiedoston vaarin.
 
@@ -12,8 +12,8 @@ if ($LASTEXITCODE -ne 0) {
     Write-Error 'Kaannos ei onnistunut, pakettia ei tehty.'
 }
 
-$exe = 'target\release\laivanupotus.exe'
-$paketti = "dist\laivanupotus-$versio-windows-x64.zip"
+$exe = 'target\release\klassikot8000.exe'
+$paketti = "dist\klassikot8000-$versio-windows-x64.zip"
 
 New-Item -ItemType Directory -Force dist | Out-Null
 Compress-Archive -Path $exe -DestinationPath $paketti -CompressionLevel Optimal -Force

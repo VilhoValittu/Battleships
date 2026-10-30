@@ -1,4 +1,4 @@
-use laivanupotus::{Arpa, KOKO, Laivasto, Laukaustulos, Ruutu, SARAKKEET, Vaikeus, vastustaja};
+use klassikot8000::{Arpa, KOKO, Laivasto, Laukaustulos, Ruutu, SARAKKEET, Vaikeus, vastustaja};
 
 use super::aanet::Aani;
 use super::piirto;

@@ -1,7 +1,8 @@
-//! Laivanupotuksen pelilogiikka ilman ikkunaa, piirtoa tai syötettä.
+//! Pelien logiikka ilman ikkunaa, piirtoa tai syötettä.
 
 pub mod arpa;
 pub mod laivasto;
+pub mod lukulauta;
 pub mod ruutu;
 pub mod vastustaja;
 

@@ -301,7 +301,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "laivanupotus"
+name = "klassikot8000"
 version = "0.2.0"
 dependencies = [
  "minifb",
