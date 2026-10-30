@@ -1,22 +1,10 @@
-//! Pelien logiikka ilman ikkunaa, piirtoa tai syötettä.
+//! Pelien logiikka ilman ikkunaa, piirtoa tai syötettä. Kukin logiikka asuu oman
+//! pelinsä kansiossa, muu osa kansiosta kuuluu ohjelmaan (`main.rs`).
 
 pub mod arpa;
-pub mod laivasto;
-pub mod lukulauta;
-pub mod ruutu;
-pub mod vastustaja;
+#[path = "pelit/laivanupotus/logiikka/mod.rs"]
+pub mod laivanupotus;
+#[path = "pelit/luvut/logiikka.rs"]
+pub mod luvut;
 
 pub use arpa::Arpa;
-pub use laivasto::{Laiva, Laivasto, Laukaustulos};
-pub use ruutu::{Ruudut, Ruutu};
-pub use vastustaja::Vaikeus;
-
-pub const KOKO: usize = 10;
-pub const SARAKKEET: &str = "ABCDEFGHIJ";
-pub const LAIVAT: [(&str, usize); 5] = [
-    ("Lentotukialus", 5),
-    ("Taistelulaiva", 4),
-    ("Hävittäjä", 3),
-    ("Sukellusvene", 3),
-    ("Partioalus", 2),
-];

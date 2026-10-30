@@ -194,7 +194,7 @@ fn tahko4(a: [f32; 3], b: [f32; 3], c: [f32; 3], d: [f32; 3], vari: u32) -> Tahk
 }
 
 /// Laatikon kyljet ja katto, pohjaa ei koskaan näy.
-fn kuutio(x: [f32; 2], y: [f32; 2], z: [f32; 2], vari: u32, tahkot: &mut Vec<Tahko>) {
+pub fn kuutio(x: [f32; 2], y: [f32; 2], z: [f32; 2], vari: u32, tahkot: &mut Vec<Tahko>) {
     let p = |i: usize, j: usize, k: usize| [x[i], y[j], z[k]];
     tahkot.push(tahko4(p(0, 1, 0), p(1, 1, 0), p(1, 1, 1), p(0, 1, 1), vari));
     tahkot.push(tahko4(p(0, 0, 0), p(1, 0, 0), p(1, 1, 0), p(0, 1, 0), vari));
@@ -248,17 +248,6 @@ pub fn taistelulaiva(runko: u32, kansi: u32, torni: u32) -> Vec<Tahko> {
             [x - 1.7, x - 0.4]
         };
         kuutio(putki_x, [0.85, 0.97], [-0.06, 0.06], kansi, &mut tahkot);
-    }
-    tahkot
-}
-
-/// 2048-pelin alkuruudun malli: neljä laattaa kasvavina pinoina. Mitat kuin laivalla.
-pub fn lukupino(varit: [u32; 4]) -> Vec<Tahko> {
-    let mut tahkot = Vec::new();
-    for (i, vari) in varit.into_iter().enumerate() {
-        let x = -4.6 + i as f32 * 2.4;
-        let korkeus = 0.8 + i as f32 * 0.8;
-        kuutio([x, x + 2.0], [0.0, korkeus], [-1.0, 1.0], vari, &mut tahkot);
     }
     tahkot
 }

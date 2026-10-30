@@ -1,4 +1,5 @@
-use crate::{Arpa, KOKO, Ruudut, Ruutu};
+use super::{KOKO, Ruudut, Ruutu};
+use crate::Arpa;
 
 const SUUNNAT: [(isize, isize); 4] = [(0, 1), (1, 0), (0, -1), (-1, 0)];
 

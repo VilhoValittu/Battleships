@@ -1,7 +1,12 @@
-use klassikot8000::{Arpa, KOKO, Laivasto, Laukaustulos, Ruutu, SARAKKEET, Vaikeus, vastustaja};
+use klassikot8000::Arpa;
+use klassikot8000::laivanupotus::{
+    KOKO, Laivasto, Laukaustulos, Ruutu, SARAKKEET, Vaikeus, vastustaja,
+};
 
-use super::aanet::Aani;
 use super::piirto;
+use crate::yhteinen::aanet::Aani;
+use crate::yhteinen::piirto::aanikytkimella;
+use crate::yhteinen::syote::Syote;
 
 // Kierroksen äänet tulevat peräkkäin, jotta laukaus ja sen seuraus erottuvat.
 pub const TULOS_VIIVE_MS: u32 = 220;
@@ -31,21 +36,6 @@ pub enum Vaihe {
     Ammunta,
     Voitto,
     Tappio,
-}
-
-/// Ikkunakirjastosta riippumaton syöte. Hiiren koordinaatit ovat kuvapuskurin pikseleitä.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Syote {
-    Hiiri(i32, i32),
-    Klikkaus(i32, i32),
-    Nuoli(i8, i8),
-    /// Sarakekirjain A-J tai uusinnan K/E.
-    Kirjain(char),
-    /// Rivinäppäin, jossa 0 tarkoittaa riviä 10.
-    Numero(u8),
-    Ammu,
-    Peru,
-    VaihdaAanet,
 }
 
 pub struct Peli {
@@ -125,7 +115,7 @@ impl Peli {
             self.lopeta = true;
             return false;
         }
-        let kytkimella = matches!(syote, Syote::Klikkaus(x, y) if piirto::aanikytkimella(x, y));
+        let kytkimella = matches!(syote, Syote::Klikkaus(x, y) if aanikytkimella(x, y));
         if syote == Syote::VaihdaAanet || kytkimella {
             self.aanet_paalla = !self.aanet_paalla;
             return true;
@@ -292,6 +282,7 @@ fn tulos_teksti(ampuja: &str, ruutu: Ruutu, tulos: Laukaustulos) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::yhteinen::piirto::aanikytkimen_keskipiste;
 
     fn pelissa(siemen: u64) -> Peli {
         let mut peli = Peli::new(siemen);
@@ -409,7 +400,7 @@ mod tests {
         assert!(peli.aanet_paalla);
         assert!(peli.kasittele(Syote::VaihdaAanet));
         assert!(!peli.aanet_paalla);
-        let (x, y) = piirto::aanikytkimen_keskipiste();
+        let (x, y) = aanikytkimen_keskipiste();
         assert!(peli.kasittele(Syote::Klikkaus(x, y)));
         assert!(peli.aanet_paalla);
         assert_eq!(peli.vastustaja.ammutut().maara(), 0);
@@ -418,7 +409,7 @@ mod tests {
     #[test]
     fn kytkimen_klikkaus_ei_aloita_pelia_ja_valinta_sailyy_uusinnassa() {
         let mut peli = Peli::new(1);
-        let (x, y) = piirto::aanikytkimen_keskipiste();
+        let (x, y) = aanikytkimen_keskipiste();
         peli.kasittele(Syote::Klikkaus(x, y));
         assert_eq!(peli.vaihe, Vaihe::Alku);
         assert!(!peli.aanet_paalla);

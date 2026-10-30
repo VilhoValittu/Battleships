@@ -1,8 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod kaynnistin;
 #[cfg(debug_assertions)]
 mod kehitys;
-mod ui;
+mod pelit;
+mod yhteinen;
 
 use std::mem::{ManuallyDrop, take};
 use std::path::Path;
@@ -16,18 +18,18 @@ use minifb::{Key, KeyRepeat, MouseButton, MouseMode, Scale, Window, WindowOption
 use tinyaudio::{OutputDevice, OutputDeviceParameters, run_output_device};
 
 #[cfg(debug_assertions)]
-use klassikot8000::lukulauta::Lukulauta;
-use ui::aanet::{Mikseri, NAYTETAAJUUS};
+use kaynnistin::Kaynnissa;
+use kaynnistin::{Kaynnistin, piirto};
 #[cfg(debug_assertions)]
-use ui::kaynnistin::Kaynnissa;
-use ui::kaynnistin::Kaynnistin;
+use klassikot8000::luvut::Lukulauta;
 #[cfg(debug_assertions)]
-use ui::luvut;
-use ui::peli::Syote;
+use pelit::laivanupotus::peli::Vaihe;
 #[cfg(debug_assertions)]
-use ui::peli::Vaihe;
-use ui::piirto::{self, KORKEUS, LEVEYS};
-use ui::tallennus;
+use pelit::luvut::peli as luvut;
+use pelit::luvut::tallennus;
+use yhteinen::aanet::{Mikseri, NAYTETAAJUUS};
+use yhteinen::piirto::{KORKEUS, LEVEYS};
+use yhteinen::syote::Syote;
 
 const PAIVITYKSIA_SEKUNNISSA: usize = 30;
 // Noin 36 ms: kytkin hiljentää äänet heti, mutta puskuri ei tyhjene kesken.
@@ -168,7 +170,7 @@ fn pelisilmukka(
         edellinen = nyt;
 
         // Vesi ja tähtäin elävät koko ajan, joten joka päivitys piirretään kokonaan.
-        piirto::piirra_kaynnistin(&kaynnistin, kuva);
+        piirto::piirra(&kaynnistin, kuva);
         ikkuna.update_with_buffer(kuva, LEVEYS, KORKEUS)?;
     }
     // Ikkunan voi sulkea kesken pelin.
@@ -230,7 +232,7 @@ fn main() -> ExitCode {
         kaynnistin.ota_aanet();
         if let Some(polku) = liput.kuvakaappaus {
             kaynnistin.edista(liput.aika_ms);
-            piirto::piirra_kaynnistin(&kaynnistin, &mut kuva);
+            piirto::piirra(&kaynnistin, &mut kuva);
             return match kehitys::tallenna_png(&polku, &kuva, LEVEYS, KORKEUS) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(virhe) => {

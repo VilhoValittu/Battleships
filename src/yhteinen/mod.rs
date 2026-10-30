@@ -1,0 +1,9 @@
+//! Kaikkien näkymien käyttämät palat: syöte, äänet, fontit ja piirtotyökalut.
+//! Ikkunakirjasto näkyy vain tiedostossa `main.rs`.
+
+pub mod aanet;
+pub mod fontti;
+pub mod piirto;
+pub mod syote;
+pub mod vektori;
+pub mod vektorifontti;

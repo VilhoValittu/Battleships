@@ -1,5 +1,6 @@
-use crate::vastustaja::Tiedot;
-use crate::{Arpa, KOKO, LAIVAT, Ruudut, Ruutu};
+use super::vastustaja::Tiedot;
+use super::{KOKO, LAIVAT, Ruudut, Ruutu};
+use crate::Arpa;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Laukaustulos {

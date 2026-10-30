@@ -1,10 +1,16 @@
-use klassikot8000::Vaikeus;
+//! Pelin valinta ja käynnissä olevan pelin hallinta. Uusi peli lisätään tänne
+//! korttina (`PELIT`) ja `Kaynnissa`-muunnelmana.
 
-use super::aanet::Aani;
-use super::luvut::Luvut;
-use super::peli::{Peli, Syote};
-use super::piirto;
-use super::tallennus::Tallennus;
+pub mod piirto;
+
+use klassikot8000::laivanupotus::Vaikeus;
+
+use crate::pelit::laivanupotus::peli::Peli;
+use crate::pelit::luvut::peli::Luvut;
+use crate::pelit::luvut::tallennus::Tallennus;
+use crate::yhteinen::aanet::Aani;
+use crate::yhteinen::piirto::aanikytkimella;
+use crate::yhteinen::syote::Syote;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Laji {
@@ -159,7 +165,7 @@ impl Kaynnistin {
     }
 
     fn kasittele_valikko(&mut self, syote: Syote) {
-        let kytkimella = matches!(syote, Syote::Klikkaus(x, y) if piirto::aanikytkimella(x, y));
+        let kytkimella = matches!(syote, Syote::Klikkaus(x, y) if aanikytkimella(x, y));
         if syote == Syote::VaihdaAanet || kytkimella {
             self.aanet_paalla = !self.aanet_paalla;
             return;
@@ -200,10 +206,11 @@ impl Kaynnistin {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ui::luvut;
-    use crate::ui::peli::Vaihe;
-    use klassikot8000::lukulauta::Lukulauta;
-    use klassikot8000::{KOKO, Ruutu};
+    use crate::pelit::laivanupotus::peli::Vaihe;
+    use crate::pelit::luvut::peli as luvut;
+    use crate::yhteinen::piirto::{KORKEUS, LEVEYS, aanikytkimen_keskipiste};
+    use klassikot8000::laivanupotus::{KOKO, Ruutu};
+    use klassikot8000::luvut::Lukulauta;
 
     fn laivaruudut(peli: &Peli) -> Vec<bool> {
         (0..KOKO * KOKO)
@@ -273,7 +280,7 @@ mod tests {
     #[test]
     fn asetukset_sailyvat_kun_peli_vaihtuu_ja_laivasto_ei_toistu() {
         let mut k = Kaynnistin::new(1);
-        let (x, y) = piirto::aanikytkimen_keskipiste();
+        let (x, y) = aanikytkimen_keskipiste();
         k.kasittele(Syote::Klikkaus(x, y));
         assert!(!k.aanet_paalla);
         assert!(k.peli.is_none());
@@ -360,13 +367,13 @@ mod tests {
 
     #[test]
     fn nakymat_piirtyvat_kaatumatta() {
-        let mut kuva = vec![0; piirto::LEVEYS * piirto::KORKEUS];
+        let mut kuva = vec![0; LEVEYS * KORKEUS];
         let mut k = Kaynnistin::new(1);
-        piirto::piirra_kaynnistin(&k, &mut kuva);
+        piirto::piirra(&k, &mut kuva);
         for laji in [Laji::Laivanupotus, Laji::Luvut] {
             k.kaynnista(laji);
             k.edista(100);
-            piirto::piirra_kaynnistin(&k, &mut kuva);
+            piirto::piirra(&k, &mut kuva);
         }
     }
 }

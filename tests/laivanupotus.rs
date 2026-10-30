@@ -1,5 +1,6 @@
-use klassikot8000::{
-    Arpa, KOKO, LAIVAT, Laivasto, Laukaustulos, Ruudut, Ruutu, Vaikeus, vastustaja,
+use klassikot8000::Arpa;
+use klassikot8000::laivanupotus::{
+    KOKO, LAIVAT, Laivasto, Laukaustulos, Ruudut, Ruutu, Vaikeus, vastustaja,
 };
 
 fn kaikki_ruudut() -> impl Iterator<Item = Ruutu> {

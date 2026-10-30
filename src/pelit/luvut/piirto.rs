@@ -1,9 +1,10 @@
-//! 2048-pelin näkymät. Käyttää emomoduulin värejä ja piirtotyökaluja.
+//! 2048-pelin näkymät.
 
-use klassikot8000::lukulauta::{Lukulauta, Paikka, SIVU, Suunta, TAVOITE};
+use klassikot8000::luvut::{Lukulauta, Paikka, SIVU, Suunta, TAVOITE};
 
-use super::super::luvut::{KIPINA_MS, LIUKU_MS, Luvut, Nappi, Vaihe};
-use super::*;
+use super::peli::{KIPINA_MS, LIUKU_MS, Luvut, Nappi, Vaihe};
+use crate::yhteinen::piirto::*;
+use crate::yhteinen::vektori::{Kangas, Tahko, kuutio};
 
 const POMPAHDUS_MS: u32 = 140;
 
@@ -120,6 +121,17 @@ fn tuplauksia(arvo: u32) -> i32 {
     arvo.max(1).trailing_zeros() as i32
 }
 
+/// Alkuruudun malli: neljä laattaa kasvavina pinoina. Mitat kuin laivalla.
+fn lukupino(varit: [u32; 4]) -> Vec<Tahko> {
+    let mut tahkot = Vec::new();
+    for (i, vari) in varit.into_iter().enumerate() {
+        let x = -4.6 + i as f32 * 2.4;
+        let korkeus = 0.8 + i as f32 * 0.8;
+        kuutio([x, x + 2.0], [0.0, korkeus], [-1.0, 1.0], vari, &mut tahkot);
+    }
+    tahkot
+}
+
 pub fn piirra(luvut: &Luvut, kuva: &mut [u32]) {
     let mut p = Piirtaja {
         k: Kangas(kuva),
@@ -136,7 +148,7 @@ pub fn piirra(luvut: &Luvut, kuva: &mut [u32]) {
 impl Piirtaja<'_> {
     fn luvut_alkuruutu(&mut self, jatkuu: bool) {
         let varit = [2, 8, 64, 2048].map(|arvo| laatan_varit(arvo).0);
-        self.maisema("**** 2048 ****", &vektori::lukupino(varit));
+        self.maisema("**** 2048 ****", &lukupino(varit));
         let mut y = OHJE_Y;
         for osa in [
             "Tervetuloa pelaamaan 2048-peliä.",
@@ -163,7 +175,7 @@ impl Piirtaja<'_> {
         if jatkuu {
             self.teksti(48, y, UUSI_PELI, KELTAINEN);
         }
-        y = TASO_Y + NAPPI_K + 6;
+        y = ALOITUS_Y;
         let aloitus = if jatkuu {
             JATKA
         } else {

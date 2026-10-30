@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::FromStr;
 
-use crate::{KOKO, SARAKKEET};
+use super::{KOKO, SARAKKEET};
 
 /// Laudan ruutu, rivi ja sarake alkavat nollasta.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

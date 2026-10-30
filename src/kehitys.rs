@@ -3,15 +3,16 @@
 use std::fs::File;
 use std::io::{self, Write};
 
-use klassikot8000::lukulauta::{Ruudut, SIVU, Suunta};
+use klassikot8000::laivanupotus::{Ruutu, Vaikeus};
+use klassikot8000::luvut::{Ruudut, SIVU, Suunta};
 
-use crate::ui::kaynnistin::Laji;
+use crate::kaynnistin::Laji;
 
 pub struct Liput {
     pub siemen: Option<u64>,
     pub kuvakaappaus: Option<String>,
-    pub siirrot: Vec<klassikot8000::Ruutu>,
-    pub vaikeus: Option<klassikot8000::Vaikeus>,
+    pub siirrot: Vec<Ruutu>,
+    pub vaikeus: Option<Vaikeus>,
     /// Ohittaa käynnistimen. Kunkin pelin omat liput tekevät saman.
     peli: Option<Laji>,
     /// 2048: luvut laudalla riveittäin, kuvakaappausta varten.
@@ -95,7 +96,7 @@ pub fn lue_liput() -> Result<Liput, String> {
                 }
             }
             "--level" => {
-                let taso = klassikot8000::Vaikeus::KAIKKI
+                let taso = Vaikeus::KAIKKI
                     .into_iter()
                     .find(|taso| taso.nimi().eq_ignore_ascii_case(&arvo));
                 liput.vaikeus = Some(taso.ok_or(format!("--level: {arvo}"))?);

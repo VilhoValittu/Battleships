@@ -1,10 +1,11 @@
 use klassikot8000::Arpa;
-use klassikot8000::lukulauta::{Lukulauta, Siirto, Suunta, TAVOITE};
+use klassikot8000::luvut::{Lukulauta, Siirto, Suunta, TAVOITE};
 
-use super::aanet::Aani;
-use super::peli::Syote;
 use super::piirto;
 use super::tallennus::Kesken;
+use crate::yhteinen::aanet::Aani;
+use crate::yhteinen::piirto::aanikytkimella;
+use crate::yhteinen::syote::Syote;
 
 pub const LIUKU_MS: u32 = 110;
 pub const KIPINA_MS: u32 = 450;
@@ -122,7 +123,7 @@ impl Luvut {
             self.lopeta = true;
             return;
         }
-        let kytkimella = matches!(syote, Syote::Klikkaus(x, y) if piirto::aanikytkimella(x, y));
+        let kytkimella = matches!(syote, Syote::Klikkaus(x, y) if aanikytkimella(x, y));
         if syote == Syote::VaihdaAanet || kytkimella {
             self.aanet_paalla = !self.aanet_paalla;
             return;
@@ -151,9 +152,9 @@ impl Luvut {
             Syote::Nuoli(1, _) => self.siirra(Suunta::Alas),
             Syote::Nuoli(_, -1) => self.siirra(Suunta::Vasen),
             Syote::Nuoli(_, 1) => self.siirra(Suunta::Oikea),
-            Syote::Hiiri(x, y) => self.hiiren_suunta = piirto::luvut::suunta_pisteesta(x, y),
+            Syote::Hiiri(x, y) => self.hiiren_suunta = piirto::suunta_pisteesta(x, y),
             Syote::Klikkaus(x, y) => {
-                if let Some(suunta) = piirto::luvut::suunta_pisteesta(x, y) {
+                if let Some(suunta) = piirto::suunta_pisteesta(x, y) {
                     self.siirra(suunta);
                 }
             }
@@ -166,7 +167,7 @@ impl Luvut {
             Syote::Kirjain('K') => Nappi::Uudestaan,
             Syote::Kirjain('E') => Nappi::Valikko,
             Syote::Kirjain('J') => Nappi::Jatka,
-            Syote::Klikkaus(x, y) => match piirto::luvut::nappi_pisteesta(x, y) {
+            Syote::Klikkaus(x, y) => match piirto::nappi_pisteesta(x, y) {
                 Some(nappi) => nappi,
                 None => return,
             },
@@ -369,13 +370,13 @@ mod tests {
     fn napit_toimivat_hiirella() {
         let mut luvut = pelissa(LAHES_VOITTO);
         luvut.kasittele(Syote::Nuoli(0, -1));
-        let (x, y) = piirto::luvut::napin_keskipiste(Nappi::Jatka);
+        let (x, y) = piirto::napin_keskipiste(Nappi::Jatka);
         luvut.kasittele(Syote::Klikkaus(x, y));
         assert_eq!(luvut.vaihe, Vaihe::Pelissa);
 
         let mut luvut = pelissa(LAHES_VOITTO);
         luvut.kasittele(Syote::Nuoli(0, -1));
-        let (x, y) = piirto::luvut::napin_keskipiste(Nappi::Valikko);
+        let (x, y) = piirto::napin_keskipiste(Nappi::Valikko);
         luvut.kasittele(Syote::Klikkaus(x, y));
         assert!(luvut.lopeta);
     }
@@ -383,7 +384,7 @@ mod tests {
     #[test]
     fn hiiri_nayttaa_suunnan_ja_klikkaus_siirtaa_sinne() {
         let mut luvut = pelissa([[0, 0, 0, 0], [0, 8, 0, 0], [0; 4], [0; 4]]);
-        let (x, y) = piirto::luvut::laudan_reuna(Suunta::Oikea);
+        let (x, y) = piirto::laudan_reuna(Suunta::Oikea);
         luvut.kasittele(Syote::Hiiri(x, y));
         assert_eq!(luvut.hiiren_suunta, Some(Suunta::Oikea));
         luvut.kasittele(Syote::Klikkaus(x, y));

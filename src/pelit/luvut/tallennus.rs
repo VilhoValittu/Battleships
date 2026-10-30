@@ -7,7 +7,7 @@ use std::path::Path;
 #[cfg(not(debug_assertions))]
 use std::path::PathBuf;
 
-use klassikot8000::lukulauta::{Lukulauta, Ruudut, SIVU};
+use klassikot8000::luvut::{Lukulauta, Ruudut, SIVU};
 
 const OTSAKE: &str = "klassikot8000 1";
 // Rajat pitävät muokatun tiedoston luvut sellaisina, ettei pistelasku voi ylivuotaa.

@@ -1,5 +1,5 @@
 use klassikot8000::Arpa;
-use klassikot8000::lukulauta::{Lukulauta, SIVU, Suunta};
+use klassikot8000::luvut::{Lukulauta, SIVU, Suunta};
 
 const SUUNNAT: [Suunta; 4] = [Suunta::Ylos, Suunta::Alas, Suunta::Vasen, Suunta::Oikea];
 
