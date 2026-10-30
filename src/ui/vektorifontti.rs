@@ -162,8 +162,7 @@ mod tests {
 
     #[test]
     fn otsikoiden_merkit_on_piirretty_ruudukkoon() {
-        let tekstit =
-            "LAIVANUPOTUS VASTUSTAJAN OMA VOITIT HÄVISIT HIHIHIHIII PELIN ÖÄ * ! 0123456789";
+        let tekstit = "PELIKONE LAIVANUPOTUS VASTUSTAJAN OMA VOITIT HÄVISIT HIHIHIHIII PELIN ÖÄ * ! 0123456789";
         for merkki in tekstit.chars().filter(|&m| m != ' ') {
             let kuvio = kuvio(merkki);
             assert!(!kuvio.is_empty(), "{merkki}");

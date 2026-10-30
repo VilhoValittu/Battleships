@@ -13,12 +13,12 @@ use minifb::{Key, KeyRepeat, MouseButton, MouseMode, Scale, Window, WindowOption
 use tinyaudio::{OutputDevice, OutputDeviceParameters, run_output_device};
 
 use ui::aanet::{Mikseri, NAYTETAAJUUS};
+use ui::kaynnistin::Kaynnistin;
+use ui::peli::Syote;
 #[cfg(debug_assertions)]
 use ui::peli::Vaihe;
-use ui::peli::{Peli, Syote};
 use ui::piirto::{self, KORKEUS, LEVEYS};
 
-const OTSIKKO: &str = "Laivanupotus";
 const PAIVITYKSIA_SEKUNNISSA: usize = 30;
 // Noin 36 ms: kytkin hiljentää äänet heti, mutta puskuri ei tyhjene kesken.
 const AANIPUSKURI: usize = 400;
@@ -77,12 +77,13 @@ fn avaa_aanilaite(mikseri: Arc<Mutex<Mikseri>>) -> Option<OutputDevice> {
     .ok()
 }
 
-fn pelisilmukka(mut peli: Peli, kuva: &mut [u32]) -> Result<(), minifb::Error> {
+fn pelisilmukka(mut kaynnistin: Kaynnistin, kuva: &mut [u32]) -> Result<(), minifb::Error> {
     let asetukset = WindowOptions {
         scale: Scale::FitScreen,
         ..WindowOptions::default()
     };
-    let mut ikkuna = Window::new(OTSIKKO, LEVEYS, KORKEUS, asetukset)?;
+    let mut otsikko = kaynnistin.otsikko();
+    let mut ikkuna = Window::new(otsikko, LEVEYS, KORKEUS, asetukset)?;
     ikkuna.set_target_fps(PAIVITYKSIA_SEKUNNISSA);
 
     let mikseri = Arc::new(Mutex::new(Mikseri::new()));
@@ -94,13 +95,13 @@ fn pelisilmukka(mut peli: Peli, kuva: &mut [u32]) -> Result<(), minifb::Error> {
     let mut hiiri = (-1, -1);
     let mut nappi_alhaalla = false;
 
-    while ikkuna.is_open() && !peli.lopeta {
+    while ikkuna.is_open() && !kaynnistin.lopeta {
         for nappain in ikkuna.get_keys_pressed(KeyRepeat::Yes) {
             if let Some(syote) = nappain_syotteeksi(nappain) {
                 // toisto vain nuolille, ettei pohjassa pidetty välilyönti ammu sarjaa
                 let toistuva = matches!(syote, Syote::Nuoli(..));
                 if toistuva || ikkuna.is_key_pressed(nappain, KeyRepeat::No) {
-                    peli.kasittele(syote);
+                    kaynnistin.kasittele(syote);
                 }
             }
         }
@@ -109,11 +110,11 @@ fn pelisilmukka(mut peli: Peli, kuva: &mut [u32]) -> Result<(), minifb::Error> {
             let piste = (x as i32, y as i32);
             if piste != hiiri {
                 hiiri = piste;
-                peli.kasittele(Syote::Hiiri(piste.0, piste.1));
+                kaynnistin.kasittele(Syote::Hiiri(piste.0, piste.1));
             }
             let alhaalla = ikkuna.get_mouse_down(MouseButton::Left);
             if alhaalla && !nappi_alhaalla {
-                peli.kasittele(Syote::Klikkaus(piste.0, piste.1));
+                kaynnistin.kasittele(Syote::Klikkaus(piste.0, piste.1));
             }
             nappi_alhaalla = alhaalla;
         } else {
@@ -121,18 +122,26 @@ fn pelisilmukka(mut peli: Peli, kuva: &mut [u32]) -> Result<(), minifb::Error> {
         }
 
         if let Ok(mut mikseri) = mikseri.lock() {
-            mikseri.aseta_paalle(peli.aanet_paalla);
-            for (aani, viive_ms) in take(&mut peli.aanijono) {
+            if take(&mut kaynnistin.hiljenna) {
+                mikseri.aseta_paalle(false);
+            }
+            mikseri.aseta_paalle(kaynnistin.aanet_paalla);
+            for (aani, viive_ms) in kaynnistin.ota_aanet() {
                 mikseri.soita(aani, viive_ms);
             }
         }
 
+        if kaynnistin.otsikko() != otsikko {
+            otsikko = kaynnistin.otsikko();
+            ikkuna.set_title(otsikko);
+        }
+
         let nyt = Instant::now();
-        peli.edista(nyt.duration_since(edellinen).as_millis() as u32);
+        kaynnistin.edista(nyt.duration_since(edellinen).as_millis() as u32);
         edellinen = nyt;
 
         // Vesi ja tähtäin elävät koko ajan, joten joka päivitys piirretään kokonaan.
-        piirto::piirra(&peli, kuva);
+        piirto::piirra_kaynnistin(&kaynnistin, kuva);
         ikkuna.update_with_buffer(kuva, LEVEYS, KORKEUS)?;
     }
     Ok(())
@@ -142,7 +151,7 @@ fn main() -> ExitCode {
     let mut kuva = vec![0u32; LEVEYS * KORKEUS];
 
     #[cfg(debug_assertions)]
-    let peli = {
+    let kaynnistin = {
         let liput = match kehitys::lue_liput() {
             Ok(liput) => liput,
             Err(virhe) => {
@@ -150,22 +159,27 @@ fn main() -> ExitCode {
                 return ExitCode::FAILURE;
             }
         };
-        let mut peli = Peli::new(liput.siemen.unwrap_or_else(aikasiemen));
-        if let Some(vaikeus) = liput.vaikeus {
-            peli.vaikeus = vaikeus;
+        let mut kaynnistin = Kaynnistin::new(liput.siemen.unwrap_or_else(aikasiemen));
+        if liput.suoraan_peliin || liput.vaikeus.is_some() || !liput.siirrot.is_empty() {
+            kaynnistin.kaynnista();
         }
-        if !liput.siirrot.is_empty() {
-            peli.kasittele(Syote::Ammu);
-        }
-        for ruutu in liput.siirrot {
-            if peli.vaihe == Vaihe::Ammunta {
-                peli.ammu(ruutu);
+        if let Some(peli) = &mut kaynnistin.peli {
+            if let Some(vaikeus) = liput.vaikeus {
+                peli.vaikeus = vaikeus;
+            }
+            if !liput.siirrot.is_empty() {
+                peli.kasittele(Syote::Ammu);
+            }
+            for ruutu in liput.siirrot {
+                if peli.vaihe == Vaihe::Ammunta {
+                    peli.ammu(ruutu);
+                }
             }
         }
-        peli.aanijono.clear();
+        kaynnistin.ota_aanet();
         if let Some(polku) = liput.kuvakaappaus {
-            peli.edista(liput.aika_ms);
-            piirto::piirra(&peli, &mut kuva);
+            kaynnistin.edista(liput.aika_ms);
+            piirto::piirra_kaynnistin(&kaynnistin, &mut kuva);
             return match kehitys::tallenna_png(&polku, &kuva, LEVEYS, KORKEUS) {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(virhe) => {
@@ -174,12 +188,12 @@ fn main() -> ExitCode {
                 }
             };
         }
-        peli
+        kaynnistin
     };
     #[cfg(not(debug_assertions))]
-    let peli = Peli::new(aikasiemen());
+    let kaynnistin = Kaynnistin::new(aikasiemen());
 
-    match pelisilmukka(peli, &mut kuva) {
+    match pelisilmukka(kaynnistin, &mut kuva) {
         Ok(()) => ExitCode::SUCCESS,
         Err(virhe) => {
             eprintln!("{virhe}");

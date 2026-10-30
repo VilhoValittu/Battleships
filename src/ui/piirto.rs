@@ -2,6 +2,7 @@ use std::f32::consts::{PI, TAU};
 
 use laivanupotus::{KOKO, Laiva, Laivasto, Laukaustulos, Ruutu, SARAKKEET, Vaikeus};
 
+use super::kaynnistin::{Kaynnistin, PELIT};
 use super::peli::{Peli, TULOS_VIIVE_MS, Tehoste, Vaihe};
 use super::vektori::{self, Kangas, kehapiste, varjosta};
 use super::{fontti, vektorifontti};
@@ -96,8 +97,33 @@ pub enum Nappi {
 
 const NAPIT: [(Nappi, &str, i32); 2] = [
     (Nappi::Uudestaan, "K = Uudestaan", NAPPI_X),
-    (Nappi::Lopeta, "E = Lopeta", NAPPI_X + 13 * MERKKI + 48),
+    (Nappi::Lopeta, "E = Valikko", NAPPI_X + 13 * MERKKI + 48),
 ];
+
+// Käynnistimen pelikortit
+const KORTTI_X: i32 = 48;
+const KORTTI_L: i32 = LEVEYS as i32 - 2 * KORTTI_X;
+const KORTTI_Y: i32 = 372;
+const KORTTI_K: i32 = 84;
+const KORTTI_ASKEL: i32 = KORTTI_K + 12;
+const KORTTI_SISENNYS: i32 = 18;
+
+pub fn kortti_pisteesta(x: i32, y: i32) -> Option<usize> {
+    if !(KORTTI_X..KORTTI_X + KORTTI_L).contains(&x) {
+        return None;
+    }
+    let i = (y - KORTTI_Y).div_euclid(KORTTI_ASKEL);
+    let sisalla = (y - KORTTI_Y).rem_euclid(KORTTI_ASKEL) < KORTTI_K;
+    (sisalla && (0..PELIT.len() as i32).contains(&i)).then_some(i as usize)
+}
+
+#[cfg(test)]
+pub fn kortin_keskipiste(i: usize) -> (i32, i32) {
+    (
+        KORTTI_X + KORTTI_L / 2,
+        KORTTI_Y + i as i32 * KORTTI_ASKEL + KORTTI_K / 2,
+    )
+}
 
 const TASO_OTSIKKO: &str = "Taso:";
 const TASO_Y: i32 = 672;
@@ -221,6 +247,19 @@ fn sekoita(a: u32, b: u32, osuus: f32) -> u32 {
     kanava(16) | kanava(8) | kanava(0)
 }
 
+pub fn piirra_kaynnistin(kaynnistin: &Kaynnistin, kuva: &mut [u32]) {
+    if let Some(peli) = &kaynnistin.peli {
+        piirra(peli, kuva);
+        return;
+    }
+    let mut p = Piirtaja {
+        k: Kangas(kuva),
+        kello: kaynnistin.kello_ms,
+    };
+    p.valikko(kaynnistin.valittu);
+    p.aanikytkin(kaynnistin.aanet_paalla);
+}
+
 pub fn piirra(peli: &Peli, kuva: &mut [u32]) {
     let mut p = Piirtaja {
         k: Kangas(kuva),
@@ -303,7 +342,78 @@ impl Piirtaja<'_> {
         }
     }
 
+    fn valikko(&mut self, valittu: usize) {
+        self.maisema("**** PELIKONE ****");
+        for (i, kortti) in PELIT.iter().enumerate() {
+            let y = KORTTI_Y + i as i32 * KORTTI_ASKEL;
+            let (tausta, nimi_vari, kuvaus_vari) = if i == valittu {
+                (WB_ORANSSI, MUSTA, MUSTA)
+            } else if kortti.valmis {
+                (VALKOINEN, WB_SININEN, MUSTA)
+            } else {
+                (TAUSTA_TUMMA, REUNA, REUNA)
+            };
+            self.k.laatikko(KORTTI_X, y, KORTTI_L, KORTTI_K, tausta);
+            self.k
+                .laatikko(KORTTI_X + 3, y + KORTTI_K, KORTTI_L, 3, MUSTA);
+            self.k
+                .laatikko(KORTTI_X + KORTTI_L, y + 3, 3, KORTTI_K, MUSTA);
+            let x = KORTTI_X + KORTTI_SISENNYS;
+            let nimi = format!("{} {}", i + 1, kortti.nimi);
+            self.vektoriteksti(x, y + 15, &nimi, OTSIKKO, nimi_vari, true);
+            self.teksti(x, y + 48, kortti.kuvaus, kuvaus_vari);
+        }
+        let mut y = KORTTI_Y + PELIT.len() as i32 * KORTTI_ASKEL + 12;
+        for rivi in [
+            "Nuolet, numero tai hiiri: valitse.",
+            "Välilyönti tai klikkaus: pelaa.",
+            "M: äänet päälle tai pois.",
+            "Esc: lopeta.",
+        ] {
+            self.teksti(KORTTI_X, y, rivi, VALKOINEN);
+            y += RIVIN_KORKEUS;
+        }
+        if self.vilkku() {
+            self.k.laatikko(KORTTI_X, y, MERKKI, MERKKI, REUNA);
+        }
+    }
+
     fn alkuruutu(&mut self, vaikeus: Vaikeus) {
+        self.maisema("**** LAIVANUPOTUS ****");
+
+        let mut y = OHJE_Y;
+        for osa in [
+            "Tervetuloa pelaamaan laivanupotusta.",
+            "Ohjeet:",
+            "Kummallakin on 10x10 ruudukossa 5 laivaa (pituudet 5, 4, 3, 3 ja 2).",
+            "Ammutte vuorotellen. Voittaja on se, joka upottaa ensin vastustajan kaikki laivat.",
+        ] {
+            for rivi in rivita(osa, 36) {
+                self.teksti(48, y, rivi, REUNA);
+                y += RIVIN_KORKEUS;
+            }
+        }
+        y += RIVIN_KORKEUS / 2;
+        for rivi in [
+            "Hiiri: osoita ja klikkaa ruutua.",
+            "Nuolet, A-J ja 1-0: valitse ruutu.",
+            "Välilyönti tai Enter: ammu.",
+            "M: äänet päälle tai pois.",
+            "Esc: takaisin valikkoon.",
+        ] {
+            self.teksti(48, y, rivi, VALKOINEN);
+            y += RIVIN_KORKEUS;
+        }
+        self.tasovalinta(vaikeus);
+        y = TASO_Y + NAPPI_K + 6;
+        self.teksti(48, y, "Paina välilyöntiä tai klikkaa.", REUNA);
+        if self.vilkku() {
+            self.k.laatikko(48 + 30 * MERKKI, y, MERKKI, MERKKI, REUNA);
+        }
+    }
+
+    /// Alkuruudun ja käynnistimen yhteinen tausta: maisema, otsikko ja C64:n reuna.
+    fn maisema(&mut self, otsikko: &str) {
         self.liuku(0, HORISONTTI_Y, TAIVAS_YLA, TAIVAS_ALA);
         self.tahdet();
         self.liuku(HORISONTTI_Y, MAISEMA_ALA_Y, MERI_YLA, MERI_ALA);
@@ -317,7 +427,7 @@ impl Piirtaja<'_> {
             LAIVAN_KOKO,
             LAIVA_REUNA,
         );
-        self.alkuruudun_otsikko();
+        self.maiseman_otsikko(otsikko);
 
         // C64:n leveä reuna rajaa maiseman ja tekstin
         let (l, k) = (LEVEYS as i32, KORKEUS as i32);
@@ -341,36 +451,6 @@ impl Piirtaja<'_> {
             2,
             REUNA,
         );
-
-        let mut y = OHJE_Y;
-        for osa in [
-            "Tervetuloa pelaamaan laivanupotusta.",
-            "Ohjeet:",
-            "Kummallakin on 10x10 ruudukossa 5 laivaa (pituudet 5, 4, 3, 3 ja 2).",
-            "Ammutte vuorotellen. Voittaja on se, joka upottaa ensin vastustajan kaikki laivat.",
-        ] {
-            for rivi in rivita(osa, 36) {
-                self.teksti(48, y, rivi, REUNA);
-                y += RIVIN_KORKEUS;
-            }
-        }
-        y += RIVIN_KORKEUS / 2;
-        for rivi in [
-            "Hiiri: osoita ja klikkaa ruutua.",
-            "Nuolet, A-J ja 1-0: valitse ruutu.",
-            "Välilyönti tai Enter: ammu.",
-            "M: äänet päälle tai pois.",
-            "Esc: lopeta.",
-        ] {
-            self.teksti(48, y, rivi, VALKOINEN);
-            y += RIVIN_KORKEUS;
-        }
-        self.tasovalinta(vaikeus);
-        y = TASO_Y + NAPPI_K + 6;
-        self.teksti(48, y, "Paina välilyöntiä tai klikkaa.", REUNA);
-        if self.vilkku() {
-            self.k.laatikko(48 + 30 * MERKKI, y, MERKKI, MERKKI, REUNA);
-        }
     }
 
     fn tasovalinta(&mut self, valittu: Vaikeus) {
@@ -416,8 +496,7 @@ impl Piirtaja<'_> {
         }
     }
 
-    fn alkuruudun_otsikko(&mut self) {
-        let teksti = "**** LAIVANUPOTUS ****";
+    fn maiseman_otsikko(&mut self, teksti: &str) {
         let x = (LEVEYS as i32 - teksti.chars().count() as i32 * SUURI.2) / 2;
         self.vektoriteksti(x + 3, 48, teksti, SUURI, TAUSTA, true);
         self.vektoriteksti(x, 45, teksti, SUURI, KELTAINEN, true);
@@ -804,6 +883,19 @@ mod tests {
                 assert_eq!(ruutu_pisteesta(x, y), Some(ruutu));
             }
         }
+    }
+
+    #[test]
+    fn jokainen_kortti_loytyy_ja_valit_eivat_ole_kohteita() {
+        for i in 0..PELIT.len() {
+            let (x, y) = kortin_keskipiste(i);
+            assert_eq!(kortti_pisteesta(x, y), Some(i));
+        }
+        assert_eq!(kortti_pisteesta(KORTTI_X, KORTTI_Y + KORTTI_K), None);
+        assert_eq!(kortti_pisteesta(KORTTI_X, KORTTI_Y - 1), None);
+        assert_eq!(kortti_pisteesta(KORTTI_X - 1, KORTTI_Y), None);
+        let alin = KORTTI_Y + PELIT.len() as i32 * KORTTI_ASKEL;
+        assert_eq!(kortti_pisteesta(KORTTI_X, alin), None);
     }
 
     #[test]

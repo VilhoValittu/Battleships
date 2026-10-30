@@ -57,6 +57,7 @@ pub struct Peli {
     /// Edellisen kierroksen tulokset: ensin pelaajan, sitten vastustajan laukaus.
     pub viestit: [String; 2],
     pub ammuttu_jo: bool,
+    /// Pyyntö palata käynnistimeen.
     pub lopeta: bool,
     pub aanet_paalla: bool,
     /// Soitettavat äänet ja niiden viiveet millisekunteina. `main.rs` tyhjentää jonon.
