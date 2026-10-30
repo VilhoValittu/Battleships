@@ -181,38 +181,76 @@ fn lahdevali(i: usize, kohde: usize, lahde: usize) -> (usize, usize) {
     (alku, ((i + 1) * lahde / kohde).max(alku + 1))
 }
 
-/// Skaalaa ruudun ikkunan kokoiseksi. Pienennys laskee keskiarvon, jotta ohuet viivat
-/// säilyvät; Windowsin oma venytys hävittäisi ne. Sama rivi kopioidaan laskematta uudelleen.
-pub fn sovita_ikkunaan(ruutu: &[u32], ikkuna: &mut [u32], ikkuna_l: usize, sovitus: Sovitus) {
-    ikkuna.fill(REUNA);
-    let sarakkeet: Vec<(usize, usize)> = (0..sovitus.l)
-        .map(|x| lahdevali(x, sovitus.l, RUUDUN_LEVEYS))
-        .collect();
-    let mut edellinen = None;
-    for y in 0..sovitus.k {
-        let alku = (sovitus.y + y) * ikkuna_l + sovitus.x;
-        let rivit = lahdevali(y, sovitus.k, RUUDUN_KORKEUS);
-        if edellinen == Some(rivit) {
-            ikkuna.copy_within(alku - ikkuna_l..alku - ikkuna_l + sovitus.l, alku);
-            continue;
+/// Ikkunan kokoinen kuva. Muistaa edellisen ruudun, koska suurin osa riveistä säilyy
+/// ruudusta toiseen ja keskiarvojen laskeminen on piirron kallein vaihe.
+#[derive(Default)]
+pub struct Ikkunakuva {
+    pub pikselit: Vec<u32>,
+    edellinen: Vec<u32>,
+    muuttuneet: Vec<bool>,
+    sarakkeet: Vec<(usize, usize)>,
+    koko: Option<(usize, usize, Sovitus)>,
+}
+
+impl Ikkunakuva {
+    /// Skaalaa ruudun ikkunan kokoiseksi. Pienennys laskee keskiarvon, jotta ohuet viivat
+    /// säilyvät; Windowsin oma venytys hävittäisi ne. Vain muuttuneet rivit lasketaan, ja
+    /// sama rivi kopioidaan laskematta uudelleen.
+    pub fn sovita(&mut self, ruutu: &[u32], ikkuna_l: usize, ikkuna_k: usize, sovitus: Sovitus) {
+        let koko = Some((ikkuna_l, ikkuna_k, sovitus));
+        let kaikki = self.koko != koko;
+        if kaikki {
+            self.koko = koko;
+            self.pikselit.clear();
+            self.pikselit.resize(ikkuna_l * ikkuna_k, REUNA);
+            self.sarakkeet = (0..sovitus.l)
+                .map(|x| lahdevali(x, sovitus.l, RUUDUN_LEVEYS))
+                .collect();
+            self.edellinen.clear();
+            self.edellinen.extend_from_slice(ruutu);
         }
-        edellinen = Some(rivit);
-        let kohde = &mut ikkuna[alku..alku + sovitus.l];
-        for (pikseli, &(x0, x1)) in kohde.iter_mut().zip(&sarakkeet) {
-            let maara = ((x1 - x0) * (rivit.1 - rivit.0)) as u32;
-            if maara == 1 {
-                *pikseli = ruutu[rivit.0 * RUUDUN_LEVEYS + x0];
+        self.muuttuneet.clear();
+        for (uusi, vanha) in ruutu
+            .chunks_exact(RUUDUN_LEVEYS)
+            .zip(self.edellinen.chunks_exact_mut(RUUDUN_LEVEYS))
+        {
+            let muuttunut = uusi != &*vanha;
+            if muuttunut {
+                vanha.copy_from_slice(uusi);
+            }
+            self.muuttuneet.push(muuttunut);
+        }
+
+        let ikkuna = &mut self.pikselit;
+        let mut edellinen = None;
+        for y in 0..sovitus.k {
+            let rivit = lahdevali(y, sovitus.k, RUUDUN_KORKEUS);
+            if !kaikki && !self.muuttuneet[rivit.0..rivit.1].contains(&true) {
                 continue;
             }
-            let (mut r, mut g, mut b) = (0, 0, 0);
-            for rivi in rivit.0..rivit.1 {
-                for &vari in &ruutu[rivi * RUUDUN_LEVEYS + x0..rivi * RUUDUN_LEVEYS + x1] {
-                    r += (vari >> 16) & 0xFF;
-                    g += (vari >> 8) & 0xFF;
-                    b += vari & 0xFF;
-                }
+            let alku = (sovitus.y + y) * ikkuna_l + sovitus.x;
+            if edellinen == Some(rivit) {
+                ikkuna.copy_within(alku - ikkuna_l..alku - ikkuna_l + sovitus.l, alku);
+                continue;
             }
-            *pikseli = (r / maara) << 16 | (g / maara) << 8 | (b / maara);
+            edellinen = Some(rivit);
+            let kohde = &mut ikkuna[alku..alku + sovitus.l];
+            for (pikseli, &(x0, x1)) in kohde.iter_mut().zip(&self.sarakkeet) {
+                let maara = ((x1 - x0) * (rivit.1 - rivit.0)) as u32;
+                if maara == 1 {
+                    *pikseli = ruutu[rivit.0 * RUUDUN_LEVEYS + x0];
+                    continue;
+                }
+                let (mut r, mut g, mut b) = (0, 0, 0);
+                for rivi in rivit.0..rivit.1 {
+                    for &vari in &ruutu[rivi * RUUDUN_LEVEYS + x0..rivi * RUUDUN_LEVEYS + x1] {
+                        r += (vari >> 16) & 0xFF;
+                        g += (vari >> 8) & 0xFF;
+                        b += vari & 0xFF;
+                    }
+                }
+                *pikseli = (r / maara) << 16 | (g / maara) << 8 | (b / maara);
+            }
         }
     }
 }
@@ -589,8 +627,9 @@ mod tests {
         let (l, k) = (960, 700);
         let sovitus = Sovitus::new(l, k);
         assert_eq!(sovitus.k, 540);
-        let mut ikkuna = vec![0; l * k];
-        sovita_ikkunaan(&ruutu, &mut ikkuna, l, sovitus);
+        let mut kuva = Ikkunakuva::default();
+        kuva.sovita(&ruutu, l, k, sovitus);
+        let ikkuna = &kuva.pikselit;
         assert_eq!(ikkuna[0], REUNA);
         assert_eq!(ikkuna[l * k - 1], REUNA);
         let rivi = &ikkuna[sovitus.y * l..(sovitus.y + 1) * l];
@@ -598,9 +637,28 @@ mod tests {
         assert_eq!(rivi[479], 0);
 
         // sama koko on suora kopio
-        let mut ikkuna = vec![0; RUUDUN_LEVEYS * RUUDUN_KORKEUS];
         let sama = Sovitus::new(RUUDUN_LEVEYS, RUUDUN_KORKEUS);
-        sovita_ikkunaan(&ruutu, &mut ikkuna, RUUDUN_LEVEYS, sama);
-        assert_eq!(ikkuna, ruutu);
+        kuva.sovita(&ruutu, RUUDUN_LEVEYS, RUUDUN_KORKEUS, sama);
+        assert_eq!(kuva.pikselit, ruutu);
+    }
+
+    #[test]
+    fn muuttuneiden_rivien_sovitus_vastaa_kokonaan_laskettua() {
+        let mut ruutu: Vec<u32> = (0..RUUDUN_LEVEYS * RUUDUN_KORKEUS)
+            .map(|i| (i as u32).wrapping_mul(0x9E37_79B1) & 0xFFFFFF)
+            .collect();
+        let mut kuva = Ikkunakuva::default();
+        // pienennys, palkit, suurennus ja takaisin ensimmäiseen kokoon
+        for (l, k) in [(1760, 990), (960, 700), (2400, 1200), (1760, 990)] {
+            let sovitus = Sovitus::new(l, k);
+            kuva.sovita(&ruutu, l, k, sovitus);
+            for (x, y) in [(0, 0), (1919, 1079), (700, 500), (701, 501)] {
+                ruutu[y * RUUDUN_LEVEYS + x] ^= 0x00FF00;
+                kuva.sovita(&ruutu, l, k, sovitus);
+                let mut uusi = Ikkunakuva::default();
+                uusi.sovita(&ruutu, l, k, sovitus);
+                assert!(kuva.pikselit == uusi.pikselit, "{l}x{k} ({x}, {y})");
+            }
+        }
     }
 }

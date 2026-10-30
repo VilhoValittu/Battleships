@@ -35,7 +35,7 @@ use pelit::luvut::tallennus;
 #[cfg(debug_assertions)]
 use pelit::pasianssi::peli as pasianssi_peli;
 use yhteinen::aanet::{Mikseri, NAYTETAAJUUS};
-use yhteinen::piirto::{KORKEUS, LEVEYS, RUUDUN_KORKEUS, RUUDUN_LEVEYS, Sovitus, sovita_ikkunaan};
+use yhteinen::piirto::{Ikkunakuva, KORKEUS, LEVEYS, RUUDUN_KORKEUS, RUUDUN_LEVEYS, Sovitus};
 use yhteinen::syote::Syote;
 
 const PAIVITYKSIA_SEKUNNISSA: usize = 30;
@@ -165,7 +165,7 @@ fn pelisilmukka(
     // Oletuspaikassa ikkuna voisi jatkua ruudun yli, ja sulkemisnappi jäisi piiloon.
     ikkuna.set_position(0, 0);
     ikkuna.set_target_fps(paivitystaajuus(&kaynnistin));
-    let mut ikkunakuva = Vec::new();
+    let mut ikkunakuva = Ikkunakuva::default();
 
     let mikseri = Arc::new(Mutex::new(Mikseri::new()));
     // Laitetta ei suljeta itse: tinyaudion Drop voi kaataa pelin lopetuksessa, ja
@@ -249,9 +249,8 @@ fn pelisilmukka(
 
         // Vesi ja tähtäin elävät koko ajan, joten joka päivitys piirretään kokonaan.
         piirto::piirra(&kaynnistin, ruutu, kuva);
-        ikkunakuva.resize(ikkuna_l * ikkuna_k, 0);
-        sovita_ikkunaan(ruutu, &mut ikkunakuva, ikkuna_l, sovitus);
-        ikkuna.update_with_buffer(&ikkunakuva, ikkuna_l, ikkuna_k)?;
+        ikkunakuva.sovita(ruutu, ikkuna_l, ikkuna_k, sovitus);
+        ikkuna.update_with_buffer(&ikkunakuva.pikselit, ikkuna_l, ikkuna_k)?;
     }
     // Ikkunan voi sulkea kesken pelin.
     kaynnistin.viimeistele();
