@@ -34,7 +34,7 @@ const NAPPI_ASKEL: i32 = NAPPI_K + 12;
 
 const SIVU_OHJEET: [&str; 6] = [
     "Hiiri: vedä, klikkaa.",
-    "Tuplaklik: perustalle.",
+    "Tuplaklik: vie ylös.",
     "Nuolet + väli: siirrä.",
     "N: nosta pakasta.",
     "M: äänet päälle/pois.",
@@ -44,7 +44,7 @@ const SIVU_OHJEET: [&str; 6] = [
 const NAPIT: [(Nappi, &str); 4] = [
     (Nappi::Uusi, "K = Uusi peli"),
     (Nappi::Peruuta, "U = Peruuta"),
-    (Nappi::Keraa, "A = Kerää"),
+    (Nappi::Keraa, "A = Vie ylös"),
     (Nappi::Valikko, "E = Valikko"),
 ];
 
@@ -160,13 +160,15 @@ pub fn vedetyn_keskipiste(x: i32, y: i32) -> (i32, i32) {
 }
 
 pub fn nappi_pisteesta(x: i32, y: i32) -> Option<Nappi> {
-    let (nappi_x, nappi_l) = (SIVU_TEKSTI_X, napin_leveys(NAPIT[0].1));
-    if !(nappi_x..nappi_x + nappi_l).contains(&x) {
-        return None;
-    }
     let i = (y - NAPIT_Y).div_euclid(NAPPI_ASKEL);
     let sisalla = (y - NAPIT_Y).rem_euclid(NAPPI_ASKEL) < NAPPI_K;
-    (sisalla && (0..NAPIT.len() as i32).contains(&i)).then(|| NAPIT[i as usize].0)
+    if !sisalla || !(0..NAPIT.len() as i32).contains(&i) {
+        return None;
+    }
+    let (nappi, teksti) = NAPIT[i as usize];
+    (SIVU_TEKSTI_X..SIVU_TEKSTI_X + napin_leveys(teksti))
+        .contains(&x)
+        .then_some(nappi)
 }
 
 pub fn vaikeus_pisteesta(x: i32, y: i32) -> Option<Vaikeus> {
@@ -327,7 +329,7 @@ impl Piirtaja<'_> {
         let mut y = OHJE_Y;
         for osa in [
             "Tervetuloa pelaamaan pasianssia.",
-            "Kokoa kortit maittain perustoille ässästä kuninkaaseen.",
+            "Kokoa kortit maittain ylärivin pinoihin ässästä kuninkaaseen.",
             "Sarakkeissa kortit laskevat vuorotellen punaisina ja mustina.",
         ] {
             for rivi in rivita(osa, 36) {
@@ -339,7 +341,7 @@ impl Piirtaja<'_> {
         for rivi in [
             "Hiiri: vedä, klikkaa, tuplaklikkaa.",
             "Nuolet + välilyönti: siirrä.",
-            "N: nosta, U: peru, A: kerää.",
+            "N: nosta, U: peru, A: vie ylös.",
             "M: äänet. Esc: takaisin valikkoon.",
         ] {
             self.teksti(48, y, rivi, VALKOINEN);
@@ -778,6 +780,13 @@ mod tests {
             assert_eq!(nappi_pisteesta(x, y), Some(nappi));
         }
         assert_eq!(nappi_pisteesta(SIVU_TEKSTI_X, NAPIT_Y - 1), None);
+        // Osuma-alue seuraa kunkin napin omaa leveyttä.
+        for (i, (nappi, teksti)) in NAPIT.into_iter().enumerate() {
+            let y = NAPIT_Y + i as i32 * NAPPI_ASKEL;
+            let reuna = SIVU_TEKSTI_X + napin_leveys(teksti);
+            assert_eq!(nappi_pisteesta(reuna - 1, y), Some(nappi));
+            assert_eq!(nappi_pisteesta(reuna, y), None);
+        }
     }
 
     #[test]
