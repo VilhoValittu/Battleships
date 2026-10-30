@@ -22,6 +22,10 @@ use kaynnistin::Kaynnissa;
 use kaynnistin::netti::Netti;
 use kaynnistin::{Kaynnistin, piirto};
 #[cfg(debug_assertions)]
+use klassikot8000::Arpa;
+#[cfg(debug_assertions)]
+use klassikot8000::asteroidit::Avaruus;
+#[cfg(debug_assertions)]
 use klassikot8000::luvut::Lukulauta;
 #[cfg(debug_assertions)]
 use klassikot8000::pasianssi::{self, KUNINGAS, Kortti, Maa};
@@ -215,6 +219,7 @@ fn pelisilmukka(
         kaynnistin.aseta_ohjaus(
             ikkuna.is_key_down(Key::Left),
             ikkuna.is_key_down(Key::Right),
+            ikkuna.is_key_down(Key::Up),
         );
         if !ikkuna.is_active() {
             kaynnistin.keskeyta();
@@ -363,6 +368,16 @@ fn main() -> ExitCode {
                     for _ in 0..liput.aika_ms / 16 {
                         peli.edista(16);
                         peli.kasittele(Syote::Ammu);
+                    }
+                }
+            }
+            Some(Kaynnissa::Asteroidit(peli)) => {
+                if let Some(aalto) = liput.aalto {
+                    peli.kasittele(Syote::Ammu);
+                    peli.lauta = Avaruus::new(aalto, &mut Arpa::new(liput.siemen.unwrap_or(1)));
+                    // Aikahyppy on rajattu, joten kuvakaappauksen hetki ajetaan pieninä askelina.
+                    for _ in 0..liput.aika_ms / 16 {
+                        peli.edista(16);
                     }
                 }
             }

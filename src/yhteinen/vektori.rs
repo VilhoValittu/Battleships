@@ -207,7 +207,7 @@ pub struct Tahko {
     vari: u32,
 }
 
-fn tahko4(a: [f32; 3], b: [f32; 3], c: [f32; 3], d: [f32; 3], vari: u32) -> Tahko {
+pub fn tahko4(a: [f32; 3], b: [f32; 3], c: [f32; 3], d: [f32; 3], vari: u32) -> Tahko {
     Tahko {
         pisteet: [a, b, c, d, d],
         maara: 4,

@@ -19,6 +19,7 @@ const KELVOTON_PYYNTO: u16 = 400;
 pub enum Nettipeli {
     Luvut,
     Tiilirikko,
+    Asteroidit,
 }
 
 impl Nettipeli {
@@ -27,6 +28,7 @@ impl Nettipeli {
         match self {
             Nettipeli::Luvut => "luvut",
             Nettipeli::Tiilirikko => "tiilirikko",
+            Nettipeli::Asteroidit => "asteroidit",
         }
     }
 }

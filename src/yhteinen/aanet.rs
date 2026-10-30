@@ -33,9 +33,17 @@ pub enum Aani {
     Pomppu,
     /// Tiilirikko: pallo osuu tiileen.
     Tiili,
+    /// Asteroidit: laukaus.
+    Ammus,
+    /// Asteroidit: kivi hajoaa.
+    Kivi,
+    /// Asteroidit: aluksen moottori.
+    Moottori,
+    /// Asteroidit: lentävän lautasen ulina.
+    Lautanen,
 }
 
-const AANIA: usize = 13;
+const AANIA: usize = 17;
 
 struct Soitto {
     aani: Aani,
@@ -68,6 +76,10 @@ impl Mikseri {
                 yhdistys(),
                 pomppu(),
                 tiili(),
+                ammus(),
+                kivi(&mut arpa),
+                moottori(&mut arpa),
+                lautanen(),
             ],
             soivat: Vec::new(),
             paalla: true,
@@ -306,6 +318,34 @@ fn tiili() -> Vec<i8> {
     rakenna(0.07, |t| kantti(880.0 * t) * 0.35 * (1.0 - t / 0.07))
 }
 
+fn ammus() -> Vec<i8> {
+    let mut vaihe = 0.0;
+    rakenna(0.12, |t| {
+        vaihe += (1400.0 - 8000.0 * t) / NAYTETAAJUUS as f32;
+        kantti(vaihe) * 0.3 * (1.0 - t / 0.12)
+    })
+}
+
+fn kivi(arpa: &mut Arpa) -> Vec<i8> {
+    jyrina(arpa, 0.2, 16.0)
+}
+
+fn moottori(arpa: &mut Arpa) -> Vec<i8> {
+    let mut suodin = 0.0;
+    rakenna(0.14, |_| {
+        suodin += (kohina(arpa) - suodin) * 0.12;
+        suodin * 0.9
+    })
+}
+
+fn lautanen() -> Vec<i8> {
+    let mut vaihe = 0.0;
+    rakenna(0.3, |t| {
+        vaihe += (620.0 + 160.0 * kantti(t * 13.0)) / NAYTETAAJUUS as f32;
+        kantti(vaihe) * 0.12
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -332,6 +372,10 @@ mod tests {
             Aani::Yhdistys,
             Aani::Pomppu,
             Aani::Tiili,
+            Aani::Ammus,
+            Aani::Kivi,
+            Aani::Moottori,
+            Aani::Lautanen,
         ] {
             let mut mikseri = Mikseri::new();
             mikseri.soita(aani, 0);

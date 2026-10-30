@@ -2,6 +2,8 @@
 //! pelinsä kansiossa, muu osa kansiosta kuuluu ohjelmaan (`main.rs`).
 
 pub mod arpa;
+#[path = "pelit/asteroidit/logiikka.rs"]
+pub mod asteroidit;
 #[path = "pelit/laivanupotus/logiikka/mod.rs"]
 pub mod laivanupotus;
 #[path = "pelit/luvut/logiikka.rs"]

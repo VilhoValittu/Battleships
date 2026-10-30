@@ -8,6 +8,7 @@ use klassikot8000::laivanupotus::Vaikeus;
 use klassikot8000::pasianssi;
 
 use self::netti::{Nettipeli, Pyynto, Vastaus};
+use crate::pelit::asteroidit::peli::Asteroidit;
 use crate::pelit::laivanupotus::peli::Peli;
 use crate::pelit::luvut::peli::Luvut;
 use crate::pelit::luvut::tallennus::Tallennus;
@@ -24,6 +25,7 @@ pub enum Laji {
     Luvut,
     Pasianssi,
     Tiilirikko,
+    Asteroidit,
 }
 
 pub struct Kortti {
@@ -32,7 +34,7 @@ pub struct Kortti {
     pub kuvaus: &'static str,
 }
 
-pub const PELIT: [Kortti; 4] = [
+pub const PELIT: [Kortti; 5] = [
     Kortti {
         laji: Laji::Laivanupotus,
         nimi: "LAIVANUPOTUS",
@@ -53,6 +55,11 @@ pub const PELIT: [Kortti; 4] = [
         nimi: "TIILIRIKKO",
         kuvaus: "Riko tiilet, pidä pallo kentällä.",
     },
+    Kortti {
+        laji: Laji::Asteroidit,
+        nimi: "ASTEROIDIT",
+        kuvaus: "Ammu kivet ennen kuin ne osuvat.",
+    },
 ];
 
 pub enum Kaynnissa {
@@ -60,6 +67,7 @@ pub enum Kaynnissa {
     Luvut(Box<Luvut>),
     Pasianssi(Box<Pasianssi>),
     Tiilirikko(Box<Tiilirikko>),
+    Asteroidit(Box<Asteroidit>),
 }
 
 /// Pelin valinta ja käynnissä oleva peli. Asetukset säilyvät, kun peli vaihtuu.
@@ -80,6 +88,7 @@ pub struct Kaynnistin {
     /// Nettilistat, kun palvelin on vastannut.
     netti_luvut: Option<Vec<Tulos>>,
     netti_tiilirikko: Option<Vec<Tulos>>,
+    netti_asteroidit: Option<Vec<Tulos>>,
     vaikeus: Vaikeus,
     pasianssin_vaikeus: pasianssi::Vaikeus,
     siemen: u64,
@@ -99,6 +108,7 @@ impl Kaynnistin {
             pyynnot: Vec::new(),
             netti_luvut: None,
             netti_tiilirikko: None,
+            netti_asteroidit: None,
             vaikeus: Vaikeus::Normaali,
             pasianssin_vaikeus: pasianssi::Vaikeus::Normaali,
             siemen,
@@ -111,26 +121,35 @@ impl Kaynnistin {
             Some(Kaynnissa::Luvut(_)) => "2048",
             Some(Kaynnissa::Pasianssi(_)) => "Pasianssi",
             Some(Kaynnissa::Tiilirikko(_)) => "Tiilirikko",
+            Some(Kaynnissa::Asteroidit(_)) => "Asteroidit",
             None => "Pelikone",
         }
     }
 
     /// Reaaliaikainen peli tarvitsee tiheämmän päivityksen kuin vuoropelit.
     pub fn toimintapeli(&self) -> bool {
-        matches!(self.peli, Some(Kaynnissa::Tiilirikko(_)))
+        matches!(
+            self.peli,
+            Some(Kaynnissa::Tiilirikko(_) | Kaynnissa::Asteroidit(_))
+        )
     }
 
     /// Pohjassa olevat nuolet. Näppäintoisto olisi mailan ohjaukseen liian nykivä.
-    pub fn aseta_ohjaus(&mut self, vasen: bool, oikea: bool) {
-        if let Some(Kaynnissa::Tiilirikko(peli)) = &mut self.peli {
-            peli.ohjaus = oikea as i8 - vasen as i8;
+    pub fn aseta_ohjaus(&mut self, vasen: bool, oikea: bool, ylos: bool) {
+        let suunta = oikea as i8 - vasen as i8;
+        match &mut self.peli {
+            Some(Kaynnissa::Tiilirikko(peli)) => peli.ohjaus = suunta,
+            Some(Kaynnissa::Asteroidit(peli)) => peli.aseta_nuolet(suunta, ylos),
+            _ => {}
         }
     }
 
     /// Ikkuna ei ole aktiivinen, joten reaaliaikainen peli jää odottamaan.
     pub fn keskeyta(&mut self) {
-        if let Some(Kaynnissa::Tiilirikko(peli)) = &mut self.peli {
-            peli.keskeyta();
+        match &mut self.peli {
+            Some(Kaynnissa::Tiilirikko(peli)) => peli.keskeyta(),
+            Some(Kaynnissa::Asteroidit(peli)) => peli.keskeyta(),
+            _ => {}
         }
     }
 
@@ -186,6 +205,15 @@ impl Kaynnistin {
                 self.pyynnot.push(Pyynto::Hae(Nettipeli::Tiilirikko));
                 Kaynnissa::Tiilirikko(Box::new(peli))
             }
+            Laji::Asteroidit => {
+                let mut peli = Asteroidit::new(siemen);
+                peli.paras = self.tallennus.asteroidit;
+                peli.parhaat = self.tallennus.asteroidien_parhaat.clone();
+                peli.netti_parhaat = self.netti_asteroidit.clone();
+                peli.aanet_paalla = self.aanet_paalla;
+                self.pyynnot.push(Pyynto::Hae(Nettipeli::Asteroidit));
+                Kaynnissa::Asteroidit(Box::new(peli))
+            }
         });
     }
 
@@ -196,6 +224,7 @@ impl Kaynnistin {
         for (peli, jono) in [
             (Nettipeli::Luvut, &tallennus.luvut_jono),
             (Nettipeli::Tiilirikko, &tallennus.tiilirikon_jono),
+            (Nettipeli::Asteroidit, &tallennus.asteroidien_jono),
         ] {
             let tulokset = jono.iter().cloned();
             self.pyynnot
@@ -219,10 +248,17 @@ impl Kaynnistin {
                 }
                 self.netti_tiilirikko = Some(lista);
             }
+            Vastaus::Lista(Nettipeli::Asteroidit, lista) => {
+                if let Some(Kaynnissa::Asteroidit(peli)) = &mut self.peli {
+                    peli.netti_parhaat = Some(lista.clone());
+                }
+                self.netti_asteroidit = Some(lista);
+            }
             Vastaus::Lahetetty(peli, tulos) => {
                 let jono = match peli {
                     Nettipeli::Luvut => &mut self.tallennus.luvut_jono,
                     Nettipeli::Tiilirikko => &mut self.tallennus.tiilirikon_jono,
+                    Nettipeli::Asteroidit => &mut self.tallennus.asteroidien_jono,
                 };
                 jono.retain(|t| *t != tulos);
                 self.tallenna = true;
@@ -254,6 +290,16 @@ impl Kaynnistin {
                         .push(Pyynto::Laheta(Nettipeli::Tiilirikko, tulos));
                 }
             }
+            Some(Kaynnissa::Asteroidit(peli)) => {
+                self.tallennus.asteroidit = peli.paras;
+                self.tallennus.asteroidien_parhaat = peli.parhaat.clone();
+                self.netti_asteroidit = peli.netti_parhaat.clone();
+                if let Some(tulos) = peli.lahetys.take() {
+                    lisaa_tulos(&mut self.tallennus.asteroidien_jono, tulos.clone());
+                    self.pyynnot
+                        .push(Pyynto::Laheta(Nettipeli::Asteroidit, tulos));
+                }
+            }
             _ => {}
         }
     }
@@ -263,6 +309,7 @@ impl Kaynnistin {
         match &mut self.peli {
             Some(Kaynnissa::Luvut(peli)) => peli.vahvista_nimi(),
             Some(Kaynnissa::Tiilirikko(peli)) => peli.vahvista_nimi(),
+            Some(Kaynnissa::Asteroidit(peli)) => peli.vahvista_nimi(),
             _ => {}
         }
         self.paivita_tallennus();
@@ -282,6 +329,14 @@ impl Kaynnistin {
                     self.tallenna = true;
                 }
             }
+            Some(Kaynnissa::Asteroidit(peli)) => {
+                peli.edista(ms);
+                // Sama kuin Tiilirikossa: peli päättyy ajan kuluessa eikä syötteeseen.
+                if std::mem::take(&mut peli.uusi_tulos) {
+                    self.paivita_tallennus();
+                    self.tallenna = true;
+                }
+            }
             None => {}
         }
     }
@@ -292,6 +347,7 @@ impl Kaynnistin {
             Some(Kaynnissa::Luvut(peli)) => std::mem::take(&mut peli.aanijono),
             Some(Kaynnissa::Pasianssi(peli)) => std::mem::take(&mut peli.aanijono),
             Some(Kaynnissa::Tiilirikko(peli)) => std::mem::take(&mut peli.aanijono),
+            Some(Kaynnissa::Asteroidit(peli)) => std::mem::take(&mut peli.aanijono),
             None => Vec::new(),
         }
     }
@@ -302,6 +358,7 @@ impl Kaynnistin {
         let uusi_tulos = match &mut self.peli {
             Some(Kaynnissa::Luvut(peli)) => std::mem::take(&mut peli.uusi_tulos),
             Some(Kaynnissa::Tiilirikko(peli)) => std::mem::take(&mut peli.uusi_tulos),
+            Some(Kaynnissa::Asteroidit(peli)) => std::mem::take(&mut peli.uusi_tulos),
             _ => false,
         };
         if uusi_tulos || self.aanet_paalla != aanet_ennen {
@@ -330,6 +387,11 @@ impl Kaynnistin {
                 peli.lopeta
             }
             Some(Kaynnissa::Tiilirikko(peli)) => {
+                peli.kasittele(syote);
+                self.aanet_paalla = peli.aanet_paalla;
+                peli.lopeta
+            }
+            Some(Kaynnissa::Asteroidit(peli)) => {
                 peli.kasittele(syote);
                 self.aanet_paalla = peli.aanet_paalla;
                 peli.lopeta
@@ -451,10 +513,11 @@ mod tests {
         k.kasittele(Syote::Nuoli(1, 0));
         k.kasittele(Syote::Nuoli(1, 0));
         k.kasittele(Syote::Nuoli(1, 0));
-        assert_eq!(k.valittu, 3);
+        k.kasittele(Syote::Nuoli(1, 0));
+        assert_eq!(k.valittu, 4);
         k.kasittele(Syote::Numero(0));
         k.kasittele(Syote::Numero(9));
-        assert_eq!(k.valittu, 3);
+        assert_eq!(k.valittu, 4);
 
         let (x, y) = piirto::kortin_keskipiste(0);
         k.kasittele(Syote::Hiiri(x, y));
@@ -475,6 +538,79 @@ mod tests {
         assert!(matches!(k.peli, Some(Kaynnissa::Tiilirikko(_))));
         assert_eq!(k.otsikko(), "Tiilirikko");
         assert!(k.toimintapeli());
+        k.kasittele(Syote::Peru);
+
+        let (x, y) = piirto::kortin_keskipiste(4);
+        k.kasittele(Syote::Klikkaus(x, y));
+        assert!(matches!(k.peli, Some(Kaynnissa::Asteroidit(_))));
+        assert_eq!(k.otsikko(), "Asteroidit");
+        assert!(k.toimintapeli());
+    }
+
+    #[test]
+    fn asteroidien_tulos_tallentuu_jonottaa_ja_palautuu() {
+        use klassikot8000::asteroidit::{Kivi, Koko};
+
+        let mut k = Kaynnistin::new(1);
+        k.kaynnista(Laji::Asteroidit);
+        assert_eq!(
+            std::mem::take(&mut k.pyynnot),
+            [Pyynto::Hae(Nettipeli::Asteroidit)]
+        );
+        k.kasittele(Syote::Ammu);
+        let Some(Kaynnissa::Asteroidit(peli)) = &mut k.peli else {
+            panic!("asteroidit ei ole käynnissä");
+        };
+        peli.lauta.elamat = 1;
+        peli.lauta.kivet = vec![Kivi {
+            paikka: peli.lauta.alus.paikka,
+            nopeus: (0.0, 0.0),
+            koko: Koko::Pieni,
+            kulma: 0.0,
+            pyorinta: 0.0,
+            muoto: 0,
+        }];
+        k.edista(5);
+        assert!(k.tallenna);
+        assert_eq!(k.tallennus.asteroidit, 100);
+        k.kasittele(Syote::Kirjain('A'));
+        k.kasittele(Syote::Ammu);
+
+        let tulos = Tulos {
+            nimi: "A".to_string(),
+            pisteet: 100,
+        };
+        assert_eq!(
+            std::mem::take(&mut k.pyynnot),
+            [Pyynto::Laheta(Nettipeli::Asteroidit, tulos.clone())]
+        );
+
+        let mut uusi = Kaynnistin::new(2);
+        uusi.lataa(Tallennus::tekstista(&k.tallennus.tekstiksi()));
+        assert_eq!(
+            uusi.pyynnot,
+            [Pyynto::Laheta(Nettipeli::Asteroidit, tulos.clone())]
+        );
+        uusi.vastaanota(Vastaus::Lahetetty(Nettipeli::Asteroidit, tulos));
+        assert!(uusi.tallennus.asteroidien_jono.is_empty());
+        uusi.kaynnista(Laji::Asteroidit);
+        let Some(Kaynnissa::Asteroidit(peli)) = &uusi.peli else {
+            panic!("asteroidit ei ole käynnissä");
+        };
+        assert_eq!(peli.paras, 100);
+        assert_eq!(peli.parhaat[0].nimi, "A");
+    }
+
+    #[test]
+    fn nuolet_ohjaavat_asteroideja_pohjassa_ollessaan() {
+        let mut k = Kaynnistin::new(1);
+        k.kaynnista(Laji::Asteroidit);
+        k.aseta_ohjaus(true, false, true);
+        let Some(Kaynnissa::Asteroidit(peli)) = &k.peli else {
+            panic!("asteroidit ei ole käynnissä");
+        };
+        assert_eq!(peli.ohjaus.kaanto, -1);
+        assert!(peli.ohjaus.tyonto);
     }
 
     #[test]
@@ -638,12 +774,12 @@ mod tests {
     fn nuolet_ohjaavat_tiilirikkoa_pohjassa_ollessaan() {
         let mut k = Kaynnistin::new(1);
         k.kaynnista(Laji::Tiilirikko);
-        k.aseta_ohjaus(true, false);
+        k.aseta_ohjaus(true, false, false);
         let Some(Kaynnissa::Tiilirikko(peli)) = &k.peli else {
             panic!("tiilirikko ei ole käynnissä");
         };
         assert_eq!(peli.ohjaus, -1);
-        k.aseta_ohjaus(true, true);
+        k.aseta_ohjaus(true, true, false);
         let Some(Kaynnissa::Tiilirikko(peli)) = &k.peli else {
             panic!("tiilirikko ei ole käynnissä");
         };
@@ -821,6 +957,7 @@ mod tests {
             Laji::Luvut,
             Laji::Pasianssi,
             Laji::Tiilirikko,
+            Laji::Asteroidit,
         ] {
             k.kaynnista(laji);
             k.edista(100);

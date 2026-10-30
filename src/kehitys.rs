@@ -31,6 +31,8 @@ pub struct Liput {
     pub jumissa: bool,
     /// Tiilirikko: aloittaa tästä kentästä (nollasta alkaen) pallo lennossa.
     pub kentta: Option<usize>,
+    /// Asteroidit: aloittaa tästä aallosta (nollasta alkaen) ja lentää `aika_ms` paikallaan.
+    pub aalto: Option<usize>,
     /// Kuvakaappauksen hetki viimeisen laukauksen jälkeen, animaatioiden tarkistukseen.
     pub aika_ms: u32,
 }
@@ -47,6 +49,8 @@ impl Liput {
             Some(Laji::Pasianssi)
         } else if self.kentta.is_some() {
             Some(Laji::Tiilirikko)
+        } else if self.aalto.is_some() {
+            Some(Laji::Asteroidit)
         } else {
             None
         }
@@ -71,6 +75,7 @@ pub fn lue_liput() -> Result<Liput, String> {
         voitto: false,
         jumissa: false,
         kentta: None,
+        aalto: None,
         aika_ms: OLETUSAIKA_MS,
     };
     let mut args = std::env::args().skip(1);
@@ -88,6 +93,7 @@ pub fn lue_liput() -> Result<Liput, String> {
                     "2048" => Laji::Luvut,
                     "pasianssi" => Laji::Pasianssi,
                     "tiilirikko" => Laji::Tiilirikko,
+                    "asteroidit" => Laji::Asteroidit,
                     _ => return Err(format!("--game: {arvo}")),
                 });
             }
@@ -95,6 +101,7 @@ pub fn lue_liput() -> Result<Liput, String> {
             "--win" => liput.voitto = arvo == "1",
             "--stuck" => liput.jumissa = arvo == "1",
             "--stage" => liput.kentta = Some(arvo.parse().map_err(|_| "--stage: ei luku")?),
+            "--wave" => liput.aalto = Some(arvo.parse().map_err(|_| "--wave: ei luku")?),
             "--board" => {
                 let luvut = arvo
                     .split(',')
