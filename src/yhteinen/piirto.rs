@@ -127,6 +127,84 @@ pub fn ruudulta_kuvaan(x: i32, y: i32) -> (i32, i32) {
     )
 }
 
+/// Kohta, johon valmis ruutu mahtuu ikkunassa kuvasuhde säilyen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Sovitus {
+    pub x: usize,
+    pub y: usize,
+    pub l: usize,
+    pub k: usize,
+}
+
+impl Sovitus {
+    /// Ikkunan koon on oltava vähintään 1x1.
+    pub fn new(ikkuna_l: usize, ikkuna_k: usize) -> Self {
+        let (l, k) = if ikkuna_l * RUUDUN_KORKEUS > ikkuna_k * RUUDUN_LEVEYS {
+            ((ikkuna_k * RUUDUN_LEVEYS / RUUDUN_KORKEUS).max(1), ikkuna_k)
+        } else {
+            (ikkuna_l, (ikkuna_l * RUUDUN_KORKEUS / RUUDUN_LEVEYS).max(1))
+        };
+        Self {
+            x: (ikkuna_l - l) / 2,
+            y: (ikkuna_k - k) / 2,
+            l,
+            k,
+        }
+    }
+
+    /// Ikkunan pikseli ruudun koordinaateiksi. Sivupalkeilla ei osu mihinkään.
+    pub fn ruudulle(&self, x: i32, y: i32) -> Option<(i32, i32)> {
+        let x = usize::try_from(x).ok()?.checked_sub(self.x)?;
+        let y = usize::try_from(y).ok()?.checked_sub(self.y)?;
+        (x < self.l && y < self.k).then_some((
+            (x * RUUDUN_LEVEYS / self.l) as i32,
+            (y * RUUDUN_KORKEUS / self.k) as i32,
+        ))
+    }
+}
+
+/// Lähdepikselit, jotka kuuluvat kohteen pikseliin `i`. Aina vähintään yksi.
+fn lahdevali(i: usize, kohde: usize, lahde: usize) -> (usize, usize) {
+    let alku = i * lahde / kohde;
+    (alku, ((i + 1) * lahde / kohde).max(alku + 1))
+}
+
+/// Skaalaa ruudun ikkunan kokoiseksi. Pienennys laskee keskiarvon, jotta ohuet viivat
+/// säilyvät; Windowsin oma venytys hävittäisi ne. Sama rivi kopioidaan laskematta uudelleen.
+pub fn sovita_ikkunaan(ruutu: &[u32], ikkuna: &mut [u32], ikkuna_l: usize, sovitus: Sovitus) {
+    ikkuna.fill(REUNA);
+    let sarakkeet: Vec<(usize, usize)> = (0..sovitus.l)
+        .map(|x| lahdevali(x, sovitus.l, RUUDUN_LEVEYS))
+        .collect();
+    let mut edellinen = None;
+    for y in 0..sovitus.k {
+        let alku = (sovitus.y + y) * ikkuna_l + sovitus.x;
+        let rivit = lahdevali(y, sovitus.k, RUUDUN_KORKEUS);
+        if edellinen == Some(rivit) {
+            ikkuna.copy_within(alku - ikkuna_l..alku - ikkuna_l + sovitus.l, alku);
+            continue;
+        }
+        edellinen = Some(rivit);
+        let kohde = &mut ikkuna[alku..alku + sovitus.l];
+        for (pikseli, &(x0, x1)) in kohde.iter_mut().zip(&sarakkeet) {
+            let maara = ((x1 - x0) * (rivit.1 - rivit.0)) as u32;
+            if maara == 1 {
+                *pikseli = ruutu[rivit.0 * RUUDUN_LEVEYS + x0];
+                continue;
+            }
+            let (mut r, mut g, mut b) = (0, 0, 0);
+            for rivi in rivit.0..rivit.1 {
+                for &vari in &ruutu[rivi * RUUDUN_LEVEYS + x0..rivi * RUUDUN_LEVEYS + x1] {
+                    r += (vari >> 16) & 0xFF;
+                    g += (vari >> 8) & 0xFF;
+                    b += vari & 0xFF;
+                }
+            }
+            *pikseli = (r / maara) << 16 | (g / maara) << 8 | (b / maara);
+        }
+    }
+}
+
 /// Rivittää tekstin sanojen välistä. Ei kopioi tekstiä, palauttaa vain viipaleet.
 pub fn rivita(teksti: &str, leveys: usize) -> Vec<&str> {
     let mut rivit = Vec::new();
@@ -400,5 +478,69 @@ mod tests {
         }
         assert!(ruudulta_kuvaan(0, 0).0 < 0);
         assert!(ruudulta_kuvaan(1700, 0).0 >= LEVEYS as i32);
+    }
+
+    #[test]
+    fn sovitus_mahtuu_yleisiin_resoluutioihin_ja_hiiri_osuu_kuvaan() {
+        for (l, k) in [
+            (800, 450),
+            (1024, 768),
+            (1120, 630),
+            (1280, 1024),
+            (1760, 990),
+            (1920, 1009),
+            (1920, 1080),
+            (3680, 2070),
+            (1, 1),
+        ] {
+            let sovitus = Sovitus::new(l, k);
+            assert!(
+                sovitus.x + sovitus.l <= l && sovitus.y + sovitus.k <= k,
+                "{l}x{k}"
+            );
+            assert!(sovitus.l == l || sovitus.k == k, "{l}x{k}");
+            let (x, y) = (
+                (sovitus.x + sovitus.l - 1) as i32,
+                (sovitus.y + sovitus.k - 1) as i32,
+            );
+            let (rx, ry) = sovitus.ruudulle(x, y).unwrap();
+            assert!((rx as usize) < RUUDUN_LEVEYS && (ry as usize) < RUUDUN_KORKEUS);
+            assert_eq!(
+                sovitus.ruudulle(sovitus.x as i32, sovitus.y as i32),
+                Some((0, 0))
+            );
+        }
+        // 1280x1024: palkit ylhäällä ja alhaalla eivät osu kuvaan
+        let sovitus = Sovitus::new(1280, 1024);
+        assert_eq!((sovitus.y, sovitus.k), (152, 720));
+        assert_eq!(sovitus.ruudulle(640, 100), None);
+        assert_eq!(sovitus.ruudulle(640, 900), None);
+        assert_eq!(sovitus.ruudulle(-1, 300), None);
+        assert_eq!(sovitus.ruudulle(640, 512), Some((960, 540)));
+    }
+
+    #[test]
+    fn sovitus_tayttaa_palkit_ja_sailyttaa_ohuen_viivan() {
+        let mut ruutu = vec![0; RUUDUN_LEVEYS * RUUDUN_KORKEUS];
+        // pystyviiva x = 960, leveys yksi pikseli
+        for rivi in ruutu.chunks_mut(RUUDUN_LEVEYS) {
+            rivi[960] = 0xFFFFFF;
+        }
+        let (l, k) = (960, 700);
+        let sovitus = Sovitus::new(l, k);
+        assert_eq!(sovitus.k, 540);
+        let mut ikkuna = vec![0; l * k];
+        sovita_ikkunaan(&ruutu, &mut ikkuna, l, sovitus);
+        assert_eq!(ikkuna[0], REUNA);
+        assert_eq!(ikkuna[l * k - 1], REUNA);
+        let rivi = &ikkuna[sovitus.y * l..(sovitus.y + 1) * l];
+        assert_eq!(rivi[480], 0x7F7F7F);
+        assert_eq!(rivi[479], 0);
+
+        // sama koko on suora kopio
+        let mut ikkuna = vec![0; RUUDUN_LEVEYS * RUUDUN_KORKEUS];
+        let sama = Sovitus::new(RUUDUN_LEVEYS, RUUDUN_KORKEUS);
+        sovita_ikkunaan(&ruutu, &mut ikkuna, RUUDUN_LEVEYS, sama);
+        assert_eq!(ikkuna, ruutu);
     }
 }

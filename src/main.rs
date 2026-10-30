@@ -32,12 +32,15 @@ use pelit::luvut::tallennus;
 #[cfg(debug_assertions)]
 use pelit::pasianssi::peli as pasianssi_peli;
 use yhteinen::aanet::{Mikseri, NAYTETAAJUUS};
-use yhteinen::piirto::{KORKEUS, LEVEYS, RUUDUN_KORKEUS, RUUDUN_LEVEYS};
+use yhteinen::piirto::{KORKEUS, LEVEYS, RUUDUN_KORKEUS, RUUDUN_LEVEYS, Sovitus, sovita_ikkunaan};
 use yhteinen::syote::Syote;
 
 const PAIVITYKSIA_SEKUNNISSA: usize = 30;
 // Noin 36 ms: kytkin hiljentää äänet heti, mutta puskuri ei tyhjene kesken.
 const AANIPUSKURI: usize = 400;
+// Scale::FitScreen kertoo tämän suurimmalla kertoimella, joka mahtuu näytölle, ja vähentää
+// yhden askeleen: ikkuna on 16:9 ja näytön reunaan jää tilaa otsikkopalkille ja tehtäväpalkille.
+const IKKUNAN_POHJA: (usize, usize) = (160, 90);
 
 fn aikasiemen() -> u64 {
     SystemTime::now()
@@ -126,17 +129,17 @@ fn pelisilmukka(
     kuva: &mut [u32],
     polku: Option<&Path>,
 ) -> Result<(), minifb::Error> {
-    // Otsikkopalkki ei mahtuisi Full HD -näytölle täyden kuvan kanssa, joten ikkuna on
-    // reunaton ja täyttää ruudun. Ohjelma sulkeutuu valikon Esc-näppäimellä tai Alt+F4:llä.
     let asetukset = WindowOptions {
-        none: true,
-        scale: Scale::X1,
+        resize: true,
+        scale: Scale::FitScreen,
         ..WindowOptions::default()
     };
     let mut otsikko = kaynnistin.otsikko();
-    let mut ikkuna = Window::new(otsikko, RUUDUN_LEVEYS, RUUDUN_KORKEUS, asetukset)?;
+    let mut ikkuna = Window::new(otsikko, IKKUNAN_POHJA.0, IKKUNAN_POHJA.1, asetukset)?;
+    // Oletuspaikassa ikkuna voisi jatkua ruudun yli, ja sulkemisnappi jäisi piiloon.
     ikkuna.set_position(0, 0);
     ikkuna.set_target_fps(PAIVITYKSIA_SEKUNNISSA);
+    let mut ikkunakuva = Vec::new();
 
     let mikseri = Arc::new(Mutex::new(Mikseri::new()));
     // Laitetta ei suljeta itse: tinyaudion Drop voi kaataa pelin lopetuksessa, ja
@@ -158,8 +161,15 @@ fn pelisilmukka(
             }
         }
 
-        if let Some((x, y)) = ikkuna.get_mouse_pos(MouseMode::Discard) {
-            let piste = (x as i32, y as i32);
+        // Pienennetyssä ikkunassa koko voi olla nolla.
+        let (ikkuna_l, ikkuna_k) = ikkuna.get_size();
+        let (ikkuna_l, ikkuna_k) = (ikkuna_l.max(1), ikkuna_k.max(1));
+        let sovitus = Sovitus::new(ikkuna_l, ikkuna_k);
+
+        let hiiren_paikka = ikkuna
+            .get_unscaled_mouse_pos(MouseMode::Discard)
+            .and_then(|(x, y)| sovitus.ruudulle(x as i32, y as i32));
+        if let Some(piste) = hiiren_paikka {
             let nakyma = kaynnistin.nakyman_piste(piste.0, piste.1);
             if piste != hiiri {
                 hiiri = piste;
@@ -201,7 +211,9 @@ fn pelisilmukka(
 
         // Vesi ja tähtäin elävät koko ajan, joten joka päivitys piirretään kokonaan.
         piirto::piirra(&kaynnistin, ruutu, kuva);
-        ikkuna.update_with_buffer(ruutu, RUUDUN_LEVEYS, RUUDUN_KORKEUS)?;
+        ikkunakuva.resize(ikkuna_l * ikkuna_k, 0);
+        sovita_ikkunaan(ruutu, &mut ikkunakuva, ikkuna_l, sovitus);
+        ikkuna.update_with_buffer(&ikkunakuva, ikkuna_l, ikkuna_k)?;
     }
     // Ikkunan voi sulkea kesken pelin.
     kaynnistin.viimeistele();
