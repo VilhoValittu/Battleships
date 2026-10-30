@@ -7,6 +7,7 @@ pub struct Liput {
     pub siemen: Option<u64>,
     pub kuvakaappaus: Option<String>,
     pub siirrot: Vec<laivanupotus::Ruutu>,
+    pub vaikeus: Option<laivanupotus::Vaikeus>,
     /// Kuvakaappauksen hetki viimeisen laukauksen jälkeen, animaatioiden tarkistukseen.
     pub aika_ms: u32,
 }
@@ -19,6 +20,7 @@ pub fn lue_liput() -> Result<Liput, String> {
         siemen: None,
         kuvakaappaus: None,
         siirrot: Vec::new(),
+        vaikeus: None,
         aika_ms: OLETUSAIKA_MS,
     };
     let mut args = std::env::args().skip(1);
@@ -28,6 +30,12 @@ pub fn lue_liput() -> Result<Liput, String> {
             "--seed" => liput.siemen = Some(arvo.parse().map_err(|_| "--seed: ei luku")?),
             "--screenshot" => liput.kuvakaappaus = Some(arvo),
             "--time" => liput.aika_ms = arvo.parse().map_err(|_| "--time: ei luku")?,
+            "--level" => {
+                let taso = laivanupotus::Vaikeus::KAIKKI
+                    .into_iter()
+                    .find(|taso| taso.nimi().eq_ignore_ascii_case(&arvo));
+                liput.vaikeus = Some(taso.ok_or(format!("--level: {arvo}"))?);
+            }
             "--moves" => {
                 for osa in arvo.split(',') {
                     let ruutu = osa.parse().map_err(|_| format!("--moves: {osa}"))?;

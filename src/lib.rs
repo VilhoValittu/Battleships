@@ -8,6 +8,7 @@ pub mod vastustaja;
 pub use arpa::Arpa;
 pub use laivasto::{Laiva, Laivasto, Laukaustulos};
 pub use ruutu::{Ruudut, Ruutu};
+pub use vastustaja::Vaikeus;
 
 pub const KOKO: usize = 10;
 pub const SARAKKEET: &str = "ABCDEFGHIJ";

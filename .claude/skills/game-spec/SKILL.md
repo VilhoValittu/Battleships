@@ -28,7 +28,9 @@ Code, comments and all UI text are Finnish. Identifiers are ASCII-fied Finnish (
 
 ## Opponent AI (`vastustajan_laukaus`)
 
-Uniform random choice among cells not yet shot. No memory of hits, no hunt/target mode.
+Uniform random choice among cells not yet shot. No memory of hits, no hunt/target mode. In the Rust game this is the `Helppo` level.
+
+Added by the user's request (2026-10-30), not in the Python: three difficulty levels (`vastustaja::Vaikeus`). `Helppo` is the Python's random shot. `Normaali` shoots randomly until it hits, then next to the hit, and along the line once two hits show the ship's direction. `Vaikea` counts for each cell how many possible placements of the remaining ships cover it and shoots the highest; misses, sunk ships and the no-touch rule limit the placements, and while a hit is open only placements explaining it count. The AI gets only `Tiedot` (shots, open hits, sunk ships, remaining lengths), never the positions of floating ships, so no level cheats. The rules and turn order are the same on every level. The level is chosen on the intro screen with `1`-`3`, left/right arrows or a click on its button, defaults to `Normaali`, survives a replay but not a restart, and its name shows in the title bar during play.
 
 ## Output
 
@@ -56,7 +58,7 @@ Start of every game: a separator line, `Tervetuloa pelaamaan laivanupotusta.`, r
 
 Interface mechanics change necessarily: typed row/column prompts and their errors (`Syötä validi numero!`, `Syötä validi kirjain!`) become mouse clicks; clicking an already shot cell does nothing (the `Ammuit jo tähän!` rule still holds, show it as feedback or ignore the click); the ASCII board becomes graphics with the same meanings (unknown, miss, hit, own ship); the clear-screen trick and the `k`/`e` replay prompt become a redraw and a button or key.
 
-Everything else carries over unchanged: fleet and placement rules, turn order and the no-reply-after-win rule, sink reporting on the completing shot only, the random AI, and the Finnish message texts (`ohi.`, `OSUMA!`, `... upposi!`, win and loss lines).
+Everything else carries over unchanged: fleet and placement rules, turn order and the no-reply-after-win rule, sink reporting on the completing shot only, and the Finnish message texts (`ohi.`, `OSUMA!`, `... upposi!`, win and loss lines).
 
 Implemented window controls: intro screen before every game (Space, Enter or click starts); the cursor moves with mouse hover, arrows, `A`-`J` and `1`-`0` (`0` = row 10); click, Space or Enter shoots; a repeat shot shows `Ammuit jo tähän!`; at the end `K` or its button replays, `E` or its button quits; `Esc` quits at any time.
 
@@ -69,5 +71,5 @@ Added by the user's request (2026-10-30), not in the Python: C64/Amiga-style vec
 ## Gaps that are safe to improve (only when the user has asked for the feature)
 
 - Intro text hard-codes "5 laivaa (pituudet 5, 4, 3, 3 ja 2)" instead of deriving from `LAIVAT`.
-- Random AI with no hunt mode; manual ship placement; sunk-ship reveal; reveal enemy fleet at game end; `K`/whitespace accepted at replay.
+- Manual ship placement; sunk-ship reveal; reveal enemy fleet at game end; `K`/whitespace accepted at replay.
 - Do not "fix" any of these silently during a straight port. Port first, then change behaviour as a separate, named step.

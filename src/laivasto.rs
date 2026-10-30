@@ -1,3 +1,4 @@
+use crate::vastustaja::Tiedot;
 use crate::{Arpa, KOKO, LAIVAT, Ruudut, Ruutu};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -47,6 +48,24 @@ impl Laivasto {
 
     pub fn ammutut(&self) -> Ruudut {
         self.ammutut
+    }
+
+    /// Laudasta se osa, jonka ampuja on saanut laukauksillaan selville.
+    pub fn tiedot(&self) -> Tiedot {
+        let mut tiedot = Tiedot {
+            ammutut: self.ammutut,
+            ..Tiedot::default()
+        };
+        for laiva in &self.laivat {
+            if self.on_upotettu(laiva) {
+                tiedot.upotetut = tiedot.upotetut.yhdiste(laiva.ruudut);
+            } else {
+                let osumat = laiva.ruudut.leikkaus(self.ammutut);
+                tiedot.osumat = tiedot.osumat.yhdiste(osumat);
+                tiedot.jaljella.push(laiva.ruudut.maara());
+            }
+        }
+        tiedot
     }
 
     pub fn on_laiva(&self, ruutu: Ruutu) -> bool {

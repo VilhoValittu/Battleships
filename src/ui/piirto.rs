@@ -1,6 +1,6 @@
 use std::f32::consts::{PI, TAU};
 
-use laivanupotus::{KOKO, Laiva, Laivasto, Laukaustulos, Ruutu, SARAKKEET};
+use laivanupotus::{KOKO, Laiva, Laivasto, Laukaustulos, Ruutu, SARAKKEET, Vaikeus};
 
 use super::peli::{Peli, TULOS_VIIVE_MS, Tehoste, Vaihe};
 use super::vektori::{self, Kangas, kehapiste, varjosta};
@@ -99,6 +99,39 @@ const NAPIT: [(Nappi, &str, i32); 2] = [
     (Nappi::Lopeta, "E = Lopeta", NAPPI_X + 13 * MERKKI + 48),
 ];
 
+const TASO_OTSIKKO: &str = "Taso:";
+const TASO_Y: i32 = 672;
+const TASO_X: i32 = 48 + 6 * MERKKI;
+const TASO_VALI: i32 = 12;
+const TASOT: [(Vaikeus, &str, i32); 3] = [
+    (Vaikeus::Helppo, "1 Helppo", TASO_X),
+    (
+        Vaikeus::Normaali,
+        "2 Normaali",
+        TASO_X + 8 * MERKKI + 24 + TASO_VALI,
+    ),
+    (
+        Vaikeus::Vaikea,
+        "3 Vaikea",
+        TASO_X + 18 * MERKKI + 48 + 2 * TASO_VALI,
+    ),
+];
+
+pub fn vaikeus_pisteesta(x: i32, y: i32) -> Option<Vaikeus> {
+    TASOT
+        .iter()
+        .find(|&&(_, teksti, nx)| {
+            (nx..nx + napin_leveys(teksti)).contains(&x) && (TASO_Y..TASO_Y + NAPPI_K).contains(&y)
+        })
+        .map(|&(vaikeus, ..)| vaikeus)
+}
+
+#[cfg(test)]
+pub fn vaikeuden_keskipiste(vaikeus: Vaikeus) -> (i32, i32) {
+    let (_, teksti, x) = TASOT.iter().find(|t| t.0 == vaikeus).copied().unwrap();
+    (x + napin_leveys(teksti) / 2, TASO_Y + NAPPI_K / 2)
+}
+
 /// Vastustajan laudan ruutu annetussa pikselissä.
 pub fn ruutu_pisteesta(x: i32, y: i32) -> Option<Ruutu> {
     let (dx, dy) = (x - VASTUSTAJA_X, y - LAUTA_Y);
@@ -194,7 +227,7 @@ pub fn piirra(peli: &Peli, kuva: &mut [u32]) {
         kello: peli.kello_ms,
     };
     if peli.vaihe == Vaihe::Alku {
-        p.alkuruutu();
+        p.alkuruutu(peli.vaikeus);
     } else {
         p.pelinakyma(peli);
     }
@@ -270,7 +303,7 @@ impl Piirtaja<'_> {
         }
     }
 
-    fn alkuruutu(&mut self) {
+    fn alkuruutu(&mut self, vaikeus: Vaikeus) {
         self.liuku(0, HORISONTTI_Y, TAIVAS_YLA, TAIVAS_ALA);
         self.tahdet();
         self.liuku(HORISONTTI_Y, MAISEMA_ALA_Y, MERI_YLA, MERI_ALA);
@@ -332,10 +365,22 @@ impl Piirtaja<'_> {
             self.teksti(48, y, rivi, VALKOINEN);
             y += RIVIN_KORKEUS;
         }
-        y += RIVIN_KORKEUS / 2;
+        self.tasovalinta(vaikeus);
+        y = TASO_Y + NAPPI_K + 6;
         self.teksti(48, y, "Paina välilyöntiä tai klikkaa.", REUNA);
         if self.vilkku() {
             self.k.laatikko(48 + 30 * MERKKI, y, MERKKI, MERKKI, REUNA);
+        }
+    }
+
+    fn tasovalinta(&mut self, valittu: Vaikeus) {
+        self.teksti(48, TASO_Y + 3, TASO_OTSIKKO, KELTAINEN);
+        for (vaikeus, teksti, x) in TASOT {
+            if vaikeus == valittu {
+                self.nappi(x, TASO_Y, teksti, WB_ORANSSI, MUSTA);
+            } else {
+                self.nappi(x, TASO_Y, teksti, VALKOINEN, WB_SININEN);
+            }
         }
     }
 
@@ -383,7 +428,7 @@ impl Piirtaja<'_> {
         let (l, k) = (LEVEYS as i32, KORKEUS as i32);
         self.k.kehys(0, 0, l, k, REUNA);
         self.k.kehys(1, 1, l - 2, k - 2, REUNA);
-        self.otsikkopalkki();
+        self.otsikkopalkki(peli.vaikeus);
 
         self.vektoriteksti(
             VASTUSTAJA_X,
@@ -439,11 +484,14 @@ impl Piirtaja<'_> {
         }
     }
 
-    fn otsikkopalkki(&mut self) {
+    fn otsikkopalkki(&mut self, vaikeus: Vaikeus) {
         self.k.laatikko(6, 6, LEVEYS as i32 - 12, 30, VALKOINEN);
         self.teksti(18, 9, "Laivanupotus", WB_SININEN);
+        let nimi = vaikeus.nimi();
+        let nimi_x = AANI_X - 12 - nimi.chars().count() as i32 * MERKKI;
+        self.teksti(nimi_x, 9, nimi, WB_SININEN);
         for y in [9, 15, 21, 27] {
-            self.k.laatikko(324, y, AANI_X - 336, 3, WB_SININEN);
+            self.k.laatikko(324, y, nimi_x - 336, 3, WB_SININEN);
         }
     }
 
@@ -728,14 +776,18 @@ impl Piirtaja<'_> {
 
     fn napit(&mut self) {
         for (_, teksti, x) in NAPIT {
-            let leveys = napin_leveys(teksti);
-            self.k.laatikko(x, NAPPI_Y, leveys, NAPPI_K, VALKOINEN);
-            self.k
-                .laatikko(x + 3, NAPPI_Y + NAPPI_K - 3, leveys - 3, 3, MUSTA);
-            self.k
-                .laatikko(x + leveys - 3, NAPPI_Y + 3, 3, NAPPI_K - 3, MUSTA);
-            self.teksti(x + 12, NAPPI_Y + 3, teksti, WB_SININEN);
+            self.nappi(x, NAPPI_Y, teksti, VALKOINEN, WB_SININEN);
         }
+    }
+
+    fn nappi(&mut self, x: i32, y: i32, teksti: &str, tausta: u32, vari: u32) {
+        let leveys = napin_leveys(teksti);
+        self.k.laatikko(x, y, leveys, NAPPI_K, tausta);
+        self.k
+            .laatikko(x + 3, y + NAPPI_K - 3, leveys - 3, 3, MUSTA);
+        self.k
+            .laatikko(x + leveys - 3, y + 3, 3, NAPPI_K - 3, MUSTA);
+        self.teksti(x + 12, y + 3, teksti, vari);
     }
 }
 

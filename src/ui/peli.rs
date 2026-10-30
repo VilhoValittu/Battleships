@@ -1,4 +1,4 @@
-use laivanupotus::{Arpa, KOKO, Laivasto, Laukaustulos, Ruutu, SARAKKEET, vastustaja};
+use laivanupotus::{Arpa, KOKO, Laivasto, Laukaustulos, Ruutu, SARAKKEET, Vaikeus, vastustaja};
 
 use super::aanet::Aani;
 use super::piirto;
@@ -50,6 +50,7 @@ pub enum Syote {
 
 pub struct Peli {
     pub vaihe: Vaihe,
+    pub vaikeus: Vaikeus,
     pub oma: Laivasto,
     pub vastustaja: Laivasto,
     pub kursori: Ruutu,
@@ -71,6 +72,7 @@ impl Peli {
         let mut arpa = Arpa::new(siemen);
         Self {
             vaihe: Vaihe::Alku,
+            vaikeus: Vaikeus::Normaali,
             oma: Laivasto::satunnainen(&mut arpa),
             vastustaja: Laivasto::satunnainen(&mut arpa),
             kursori: Ruutu { rivi: 0, sarake: 0 },
@@ -128,17 +130,37 @@ impl Peli {
             return true;
         }
         match self.vaihe {
-            Vaihe::Alku => match syote {
-                Syote::Ammu | Syote::Klikkaus(..) => {
-                    self.vaihe = Vaihe::Ammunta;
-                    self.aanijono.push((Aani::Ovi, 0));
-                    true
-                }
-                _ => false,
-            },
+            Vaihe::Alku => self.kasittele_alku(syote),
             Vaihe::Ammunta => self.kasittele_ammunta(syote),
             Vaihe::Voitto | Vaihe::Tappio => self.kasittele_loppu(syote),
         }
+    }
+
+    fn kasittele_alku(&mut self, syote: Syote) -> bool {
+        let tasot = Vaikeus::KAIKKI;
+        let valittu = match syote {
+            Syote::Numero(numero) => (numero as usize)
+                .checked_sub(1)
+                .and_then(|i| tasot.get(i).copied()),
+            Syote::Nuoli(_, muutos) => tasot.iter().position(|&t| t == self.vaikeus).map(|i| {
+                tasot[i
+                    .saturating_add_signed(muutos as isize)
+                    .min(tasot.len() - 1)]
+            }),
+            Syote::Klikkaus(x, y) => piirto::vaikeus_pisteesta(x, y),
+            _ => None,
+        };
+        if let Some(vaikeus) = valittu {
+            let muuttui = vaikeus != self.vaikeus;
+            self.vaikeus = vaikeus;
+            return muuttui;
+        }
+        if matches!(syote, Syote::Ammu | Syote::Klikkaus(..)) {
+            self.vaihe = Vaihe::Ammunta;
+            self.aanijono.push((Aani::Ovi, 0));
+            return true;
+        }
+        false
     }
 
     fn kasittele_ammunta(&mut self, syote: Syote) -> bool {
@@ -224,7 +246,7 @@ impl Peli {
             return;
         }
 
-        let laukaus = vastustaja::valitse(self.oma.ammutut(), &mut self.arpa);
+        let laukaus = vastustaja::valitse(self.vaikeus, &self.oma.tiedot(), &mut self.arpa);
         let tulos = laukaus.and_then(|r| Some((r, self.oma.kasittele_laukaus(r)?)));
         if let Some((ruutu, tulos)) = tulos {
             self.viestit[1] = tulos_teksti("Vastustaja ampui", ruutu, tulos);
@@ -437,6 +459,40 @@ mod tests {
 
         peli.edista(TEHOSTE_KESTO_MS);
         assert!(peli.tehosteet.is_empty());
+    }
+
+    #[test]
+    fn taso_valitaan_alkuruudulla_ja_sailyy_uusinnassa() {
+        let mut peli = Peli::new(1);
+        assert_eq!(peli.vaikeus, Vaikeus::Normaali);
+        peli.kasittele(Syote::Numero(3));
+        assert_eq!(peli.vaikeus, Vaikeus::Vaikea);
+        peli.kasittele(Syote::Nuoli(0, 1));
+        assert_eq!(peli.vaikeus, Vaikeus::Vaikea);
+        peli.kasittele(Syote::Nuoli(0, -1));
+        assert_eq!(peli.vaikeus, Vaikeus::Normaali);
+        peli.kasittele(Syote::Numero(0));
+        peli.kasittele(Syote::Numero(4));
+        assert_eq!(peli.vaikeus, Vaikeus::Normaali);
+
+        let (x, y) = piirto::vaikeuden_keskipiste(Vaikeus::Helppo);
+        peli.kasittele(Syote::Klikkaus(x, y));
+        assert_eq!(peli.vaikeus, Vaikeus::Helppo);
+        assert_eq!(peli.vaihe, Vaihe::Alku);
+
+        peli.kasittele(Syote::Klikkaus(0, 0));
+        assert_eq!(peli.vaihe, Vaihe::Ammunta);
+        peli.vaihe = Vaihe::Voitto;
+        peli.kasittele(Syote::Kirjain('K'));
+        assert_eq!(peli.vaikeus, Vaikeus::Helppo);
+    }
+
+    #[test]
+    fn numerot_eivat_vaihda_tasoa_kesken_pelin() {
+        let mut peli = pelissa(1);
+        peli.kasittele(Syote::Numero(1));
+        assert_eq!(peli.vaikeus, Vaikeus::Normaali);
+        assert_eq!(peli.kursori.rivi, 0);
     }
 
     #[test]

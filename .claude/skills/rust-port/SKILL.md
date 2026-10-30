@@ -46,7 +46,7 @@ Details the window version has to get right:
 1. `cargo init` in the repo root (package `laivanupotus`), add `rust-toolchain.toml` (above), `.gitignore` (`/target`, `__pycache__/`), `.gitattributes` with `*.rs text eol=lf`, `*.toml text eol=lf`, `Cargo.lock text eol=lf` (the Python file and `.vscode/pyproject.toml` are stored CRLF; do not renormalize them).
 2. **Logic library with tests, no I/O and no drawing (done).** Randomness is injected (`&mut Arpa`), never a global RNG inside logic, so tests seed `Arpa::new`.
 3. **Window with the same flow (done):** random placement, click or keyboard to shoot, same Finnish result messages, win/loss text, play-again.
-4. **Polish and upgrades**, one named step at a time, each with tests and a screenshot: animations, sound, manual ship placement, hunt-mode AI, sunk-ship reveal. Update `game-spec` when behaviour changes on purpose.
+4. **Polish and upgrades**, one named step at a time, each with tests and a screenshot: animations, sound, manual ship placement, sunk-ship reveal. Update `game-spec` when behaviour changes on purpose.
 
 ## Layout
 
@@ -72,7 +72,7 @@ Mirror the Python's Finnish domain words so old and new code stay greppable side
 | `sijoita_laivat()` | `Laivasto::satunnainen(&mut Arpa)` |
 | `kasittele_laukaus(...)` | `Laivasto::kasittele_laukaus(&mut self, Ruutu) -> Option<Laukaustulos>` (`Ohi`, `Osuma`, `Upposi(&str)`; `None` = already shot) |
 | `kaikki_upotettu(...)` | `Laivasto::kaikki_upotettu()` |
-| `vastustajan_laukaus(...)` | `vastustaja::valitse(Ruudut, &mut Arpa) -> Option<Ruutu>` |
+| `vastustajan_laukaus(...)` | `vastustaja::valitse(Vaikeus, &Tiedot, &mut Arpa) -> Option<Ruutu>` |
 | `pelilauta`, `laukaus`, `tulos_teksti` | UI layer, not logic |
 
 Snake_case functions, CamelCase types, ASCII-only identifiers (no ä/ö, as in the Python). Game text stays Finnish, copied from `game-spec`. Code comments follow the repo: Finnish, short, why not what. Talk to the user in Finnish.

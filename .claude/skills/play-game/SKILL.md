@@ -49,6 +49,7 @@ Then open the PNG with the Read tool to see it. Always stop the process afterwar
 These exist in debug builds only (`target\debug\laivanupotus.exe`; verified). The screenshot is rendered without opening a window, at 960x768:
 
 - `--seed <n>`: reproducible placement and AI.
+- `--level <helppo|normaali|vaikea>`: opponent level, default `normaali`.
 - `--screenshot <path>`: draw a few frames, save a PNG with the framework's own frame capture, exit. More reliable than `window-shot.ps1` for GPU windows.
 - Optionally `--moves "B3,C4,..."`: replay shots to reach a given state (mid-game, sunk ship, win, loss) without clicking.
 - `--time <ms>`: advance the animation clock before the screenshot (default 3000, all effects finished). All `--moves` shots start at clock 0, so use one move to inspect an effect: `--moves G1 --time 110` shows the shell in flight, `--time 500` the explosion. On the intro screen it sets the 3D ship's angle.

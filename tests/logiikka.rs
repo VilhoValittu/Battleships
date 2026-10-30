@@ -1,4 +1,6 @@
-use laivanupotus::{Arpa, KOKO, LAIVAT, Laivasto, Laukaustulos, Ruudut, Ruutu, vastustaja};
+use laivanupotus::{
+    Arpa, KOKO, LAIVAT, Laivasto, Laukaustulos, Ruudut, Ruutu, Vaikeus, vastustaja,
+};
 
 fn kaikki_ruudut() -> impl Iterator<Item = Ruutu> {
     (0..KOKO * KOKO).filter_map(|i| Ruutu::new(i / KOKO, i % KOKO))
@@ -114,12 +116,97 @@ fn sama_ruutu_hylataan_toisella_kerralla() {
 
 #[test]
 fn vastustaja_ei_ammu_samaan_ja_kattaa_koko_laudan() {
-    let mut arpa = Arpa::new(3);
-    let mut ammutut = Ruudut::default();
-    for _ in 0..KOKO * KOKO {
-        let ruutu = vastustaja::valitse(ammutut, &mut arpa).unwrap();
-        assert!(!ammutut.sisaltaa(ruutu));
-        ammutut.lisaa(ruutu);
+    for vaikeus in Vaikeus::KAIKKI {
+        for siemen in 0..50 {
+            let mut arpa = Arpa::new(siemen);
+            let mut laivasto = Laivasto::satunnainen(&mut arpa);
+            for _ in 0..KOKO * KOKO {
+                let ruutu = vastustaja::valitse(vaikeus, &laivasto.tiedot(), &mut arpa).unwrap();
+                assert!(laivasto.kasittele_laukaus(ruutu).is_some(), "{vaikeus:?}");
+            }
+            assert_eq!(
+                vastustaja::valitse(vaikeus, &laivasto.tiedot(), &mut arpa),
+                None
+            );
+        }
     }
-    assert_eq!(vastustaja::valitse(ammutut, &mut arpa), None);
+}
+
+/// Montako laukausta vastustaja tarvitsee koko laivaston upottamiseen, keskimäärin.
+fn keskimaarin_laukauksia(vaikeus: Vaikeus) -> f32 {
+    const PELEJA: u64 = 100;
+    let mut laukauksia = 0;
+    for siemen in 0..PELEJA {
+        let mut arpa = Arpa::new(siemen);
+        let mut laivasto = Laivasto::satunnainen(&mut arpa);
+        while !laivasto.kaikki_upotettu() {
+            let ruutu = vastustaja::valitse(vaikeus, &laivasto.tiedot(), &mut arpa).unwrap();
+            laivasto.kasittele_laukaus(ruutu);
+            laukauksia += 1;
+        }
+    }
+    laukauksia as f32 / PELEJA as f32
+}
+
+#[test]
+fn vaikeampi_taso_upottaa_laivaston_nopeammin() {
+    let helppo = keskimaarin_laukauksia(Vaikeus::Helppo);
+    let normaali = keskimaarin_laukauksia(Vaikeus::Normaali);
+    let vaikea = keskimaarin_laukauksia(Vaikeus::Vaikea);
+    println!("helppo {helppo}, normaali {normaali}, vaikea {vaikea}");
+    assert!(helppo > 85.0, "helppo {helppo}");
+    assert!(normaali < helppo - 15.0, "normaali {normaali}");
+    assert!(vaikea < normaali - 10.0, "vaikea {vaikea}");
+}
+
+#[test]
+fn normaali_ja_vaikea_ampuvat_osuman_viereen() {
+    for vaikeus in [Vaikeus::Normaali, Vaikeus::Vaikea] {
+        for siemen in 0..200 {
+            let mut arpa = Arpa::new(siemen);
+            let mut laivasto = Laivasto::satunnainen(&mut arpa);
+            let laiva = laivasto.laivat()[0];
+            let osuma = kaikki_ruudut().find(|&r| laiva.ruudut.sisaltaa(r)).unwrap();
+            laivasto.kasittele_laukaus(osuma);
+            let ruutu = vastustaja::valitse(vaikeus, &laivasto.tiedot(), &mut arpa).unwrap();
+            let etaisyys = ruutu.rivi.abs_diff(osuma.rivi) + ruutu.sarake.abs_diff(osuma.sarake);
+            assert_eq!(etaisyys, 1, "{vaikeus:?}, siemen {siemen}");
+        }
+    }
+}
+
+#[test]
+fn vaikea_ei_ammu_uponneen_laivan_viereen() {
+    for siemen in 0..100 {
+        let mut arpa = Arpa::new(siemen);
+        let mut laivasto = Laivasto::satunnainen(&mut arpa);
+        while !laivasto.kaikki_upotettu() {
+            let tiedot = laivasto.tiedot();
+            let ruutu = vastustaja::valitse(Vaikeus::Vaikea, &tiedot, &mut arpa).unwrap();
+            assert!(
+                !tiedot.upotetut.ymparys().sisaltaa(ruutu),
+                "siemen {siemen}"
+            );
+            laivasto.kasittele_laukaus(ruutu);
+        }
+    }
+}
+
+#[test]
+fn tiedot_eivat_paljasta_kelluvia_laivoja() {
+    let mut laivasto = Laivasto::satunnainen(&mut Arpa::new(1));
+    assert_eq!(laivasto.tiedot().osumat.maara(), 0);
+    assert_eq!(laivasto.tiedot().jaljella, [5, 4, 3, 3, 2]);
+
+    let partioalus = laivasto.laivat()[4];
+    let ruudut: Vec<_> = kaikki_ruudut()
+        .filter(|&r| partioalus.ruudut.sisaltaa(r))
+        .collect();
+    laivasto.kasittele_laukaus(ruudut[0]);
+    assert_eq!(laivasto.tiedot().osumat.maara(), 1);
+    laivasto.kasittele_laukaus(ruudut[1]);
+    let tiedot = laivasto.tiedot();
+    assert_eq!(tiedot.osumat.maara(), 0);
+    assert_eq!(tiedot.upotetut, partioalus.ruudut);
+    assert_eq!(tiedot.jaljella, [5, 4, 3, 3]);
 }

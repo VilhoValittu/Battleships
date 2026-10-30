@@ -64,6 +64,14 @@ impl Ruudut {
         Ruudut(self.0 | muut.0)
     }
 
+    pub fn leikkaus(self, muut: Ruudut) -> Ruudut {
+        Ruudut(self.0 & muut.0)
+    }
+
+    pub fn erotus(self, muut: Ruudut) -> Ruudut {
+        Ruudut(self.0 & !muut.0)
+    }
+
     /// Joukon ruudut ja kaikki niiden naapurit, myös vinottaiset.
     pub fn ymparys(self) -> Ruudut {
         let mut tulos = self;

@@ -151,6 +151,9 @@ fn main() -> ExitCode {
             }
         };
         let mut peli = Peli::new(liput.siemen.unwrap_or_else(aikasiemen));
+        if let Some(vaikeus) = liput.vaikeus {
+            peli.vaikeus = vaikeus;
+        }
         if !liput.siirrot.is_empty() {
             peli.kasittele(Syote::Ammu);
         }
