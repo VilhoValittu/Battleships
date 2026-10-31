@@ -1,5 +1,7 @@
 # Klassikot8000
 
+**Suomeksi** | [English](README.en.md)
+
 Tylsää? Kuusi vanhan liiton peliä yhdessä pienessä ikkunassa, C64- ja Amiga-henkisessä asussa. Ei tiliä, ei mainoksia, ei opeteltavaa. Avaa, valitse peli ja anna ajan kulua.
 
 Pyörii vaikka perunalla.
