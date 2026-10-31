@@ -11,8 +11,8 @@ use crate::yhteinen::kortit::{KORTTI_K, KORTTI_L, pelimerkki};
 use crate::yhteinen::piirto::*;
 use crate::yhteinen::vektori::{Kangas, Tahko, kuutio};
 
-const POYTA_X: i32 = 48;
-const SIVU_X: i32 = 1314;
+const POYTA_X: i32 = 24;
+const SIVU_X: i32 = 1332;
 const POYTA_L: i32 = SIVU_X - 12 - POYTA_X;
 const SIVU_L: i32 = RUUDUN_LEVEYS as i32 - 24 - SIVU_X;
 const SIVU_TEKSTI_X: i32 = SIVU_X + 18;
@@ -26,7 +26,7 @@ const NIMI_Y: i32 = PAIKKA_Y + 6;
 const RAHAT_RIVI_Y: i32 = NIMI_Y + 28;
 const KORTIT_Y: i32 = RAHAT_RIVI_Y + 24;
 const TEKO_Y: i32 = KORTIT_Y + KORTTI_K + 8;
-const KORTTI_ASKEL: i32 = 72;
+const KORTTI_ASKEL: i32 = KORTTI_L + 8;
 const MERKKI_L: i32 = 48;
 
 const POTTI_Y: i32 = PAIKKA_Y + PAIKKA_K + 8;
@@ -528,6 +528,8 @@ mod tests {
         const { assert!(OMA_Y + OMA_K <= KASI_RIVI_Y) };
         const { assert!(SAANTO_Y + 34 < RUUDUN_KORKEUS as i32) };
         const { assert!(5 * YHTEISET_ASKEL <= POYTA_L) };
+        // Vastustajan kortit eivät peitä toisiaan, ja koko arvo näkyy näytössä.
+        const { assert!(KORTTI_L < KORTTI_ASKEL) };
         const { assert!(KORTTI_L + KORTTI_ASKEL + 16 <= PAIKKA_L) };
         const { assert!(NAPIT_Y + VUORO_NAPIT.len() as i32 * NAPPI_ASKEL < RUUDUN_KORKEUS as i32) };
     }
