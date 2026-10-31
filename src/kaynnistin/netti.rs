@@ -20,6 +20,7 @@ pub enum Nettipeli {
     Luvut,
     Tiilirikko,
     Asteroidit,
+    Silmukka,
 }
 
 impl Nettipeli {
@@ -29,6 +30,7 @@ impl Nettipeli {
             Nettipeli::Luvut => "luvut",
             Nettipeli::Tiilirikko => "tiilirikko",
             Nettipeli::Asteroidit => "asteroidit",
+            Nettipeli::Silmukka => "silmukka",
         }
     }
 }

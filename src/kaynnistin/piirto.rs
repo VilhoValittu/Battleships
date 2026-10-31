@@ -1,14 +1,14 @@
 //! Käynnistimen näkymä: pelikortit ja ohjeet.
 
 use super::{Kaynnissa, Kaynnistin, PELIT};
-use crate::pelit::{asteroidit, laivanupotus, luvut, pasianssi, tiilirikko};
+use crate::pelit::{asteroidit, laivanupotus, luvut, pasianssi, silmukka, tiilirikko};
 use crate::yhteinen::piirto::*;
 use crate::yhteinen::vektori::{self, Kangas};
 
 const KORTTI_X: i32 = 48;
 const KORTTI_L: i32 = LEVEYS as i32 - 2 * KORTTI_X;
 const KORTTI_Y: i32 = 360;
-const KORTTI_K: i32 = 57;
+const KORTTI_K: i32 = 54;
 const KORTTI_ASKEL: i32 = KORTTI_K + 3;
 const KORTTI_SISENNYS: i32 = 18;
 
@@ -40,6 +40,7 @@ pub fn piirra(kaynnistin: &Kaynnistin, ruutu: &mut [u32], kuva: &mut [u32]) {
         Some(Kaynnissa::Luvut(peli)) => luvut::piirto::piirra(peli, kuva),
         Some(Kaynnissa::Tiilirikko(peli)) => tiilirikko::piirto::piirra(peli, kuva),
         Some(Kaynnissa::Asteroidit(peli)) => asteroidit::piirto::piirra(peli, kuva),
+        Some(Kaynnissa::Silmukka(peli)) => silmukka::piirto::piirra(peli, kuva),
         None => {
             let mut p = Piirtaja {
                 k: Kangas::new(kuva),
@@ -72,23 +73,15 @@ impl Piirtaja<'_> {
                 .laatikko(KORTTI_X + KORTTI_L, y + 3, 3, KORTTI_K, MUSTA);
             let x = KORTTI_X + KORTTI_SISENNYS;
             let nimi = format!("{} {}", i + 1, kortti.nimi);
-            self.vektoriteksti(x, y + 6, &nimi, OTSIKKO, nimi_vari, true);
-            self.teksti(x, y + 33, kortti.kuvaus, MUSTA);
+            self.vektoriteksti(x, y + 4, &nimi, OTSIKKO, nimi_vari, true);
+            self.teksti(x, y + 29, kortti.kuvaus, MUSTA);
         }
-        let mut y = KORTTI_Y + PELIT.len() as i32 * KORTTI_ASKEL + 6;
-        const VIIMEINEN: &str = "M: äänet. Esc: lopeta.";
-        for rivi in [
-            "Nuolet, numero tai hiiri: valitse.",
-            "Välilyönti tai klikkaus: pelaa.",
-            VIIMEINEN,
-        ] {
-            self.teksti(KORTTI_X, y, rivi, VALKOINEN);
-            y += RIVIN_KORKEUS;
-        }
-        // Viisi korttia vie alarivin, joten kursori jää viimeisen ohjeen perään.
+        // Kuusi korttia vie muut rivit, joten ohjeesta jää vain tärkein ja hiiri löytyy itsestään.
+        const OHJE: &str = "Väli: pelaa. M: äänet. Esc: lopeta.";
+        self.teksti(KORTTI_X, ALOITUS_Y, OHJE, VALKOINEN);
         if self.vilkku() {
-            let x = KORTTI_X + (VIIMEINEN.chars().count() as i32 + 1) * MERKKI;
-            self.k.laatikko(x, y - RIVIN_KORKEUS, MERKKI, MERKKI, REUNA);
+            let x = KORTTI_X + OHJE.chars().count() as i32 * MERKKI;
+            self.k.laatikko(x, ALOITUS_Y, MERKKI, MERKKI, REUNA);
         }
     }
 }
@@ -96,6 +89,12 @@ impl Piirtaja<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn kortit_ja_ohje_mahtuvat_kuvaan() {
+        const { assert!(KORTTI_Y + PELIT.len() as i32 * KORTTI_ASKEL <= ALOITUS_Y) };
+        const { assert!(ALOITUS_Y + MERKKI < KORKEUS as i32) };
+    }
 
     #[test]
     fn jokainen_kortti_loytyy_ja_valit_eivat_ole_kohteita() {

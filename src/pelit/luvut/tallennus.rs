@@ -46,6 +46,12 @@ pub struct Tallennus {
     pub asteroidien_parhaat: Vec<Tulos>,
     /// Asteroidien tulokset, jotka eivät ole vielä päässeet nettilistalle.
     pub asteroidien_jono: Vec<Tulos>,
+    /// Silmukan paras tulos. Vanhassa tallennuksessa nolla.
+    pub silmukka: u32,
+    /// Silmukan top 3, järjestys kuten `parhaat`.
+    pub silmukan_parhaat: Vec<Tulos>,
+    /// Silmukan tulokset, jotka eivät ole vielä päässeet nettilistalle.
+    pub silmukan_jono: Vec<Tulos>,
 }
 
 fn luku(teksti: &str) -> Option<u32> {
@@ -67,8 +73,8 @@ fn ruudut(teksti: &str) -> Option<Ruudut> {
 impl Tallennus {
     pub fn tekstiksi(&self) -> String {
         let mut teksti = format!(
-            "{OTSAKE}\nparas {}\nhiljaa {}\ntiilirikko {}\nasteroidit {}\n",
-            self.paras, self.hiljaa as u8, self.tiilirikko, self.asteroidit,
+            "{OTSAKE}\nparas {}\nhiljaa {}\ntiilirikko {}\nasteroidit {}\nsilmukka {}\n",
+            self.paras, self.hiljaa as u8, self.tiilirikko, self.asteroidit, self.silmukka,
         );
         for tulos in &self.parhaat {
             teksti += &format!("top {} {}\n", tulos.pisteet, tulos.nimi);
@@ -87,6 +93,12 @@ impl Tallennus {
         }
         for tulos in &self.asteroidien_jono {
             teksti += &format!("asteroidijono {} {}\n", tulos.pisteet, tulos.nimi);
+        }
+        for tulos in &self.silmukan_parhaat {
+            teksti += &format!("silmukkatop {} {}\n", tulos.pisteet, tulos.nimi);
+        }
+        for tulos in &self.silmukan_jono {
+            teksti += &format!("silmukkajono {} {}\n", tulos.pisteet, tulos.nimi);
         }
         if let Some(kesken) = &self.kesken {
             let luvut: Vec<String> = kesken.ruudut.iter().flatten().map(u32::to_string).collect();
@@ -111,13 +123,15 @@ impl Tallennus {
         let (mut parhaat, mut tiilirikon_parhaat) = (Vec::new(), Vec::new());
         let (mut luvut_jono, mut tiilirikon_jono) = (Vec::new(), Vec::new());
         let (mut asteroidien_parhaat, mut asteroidien_jono) = (Vec::new(), Vec::new());
-        let (mut tiilirikko, mut asteroidit) = (None, None);
+        let (mut silmukan_parhaat, mut silmukan_jono) = (Vec::new(), Vec::new());
+        let (mut tiilirikko, mut asteroidit, mut silmukka) = (None, None, None);
         for rivi in rivit {
             match rivi.split_once(' ') {
                 Some(("paras", arvo)) => paras = luku(arvo),
                 Some(("hiljaa", arvo)) => hiljaa = arvo == "1",
                 Some(("tiilirikko", arvo)) => tiilirikko = luku(arvo),
                 Some(("asteroidit", arvo)) => asteroidit = luku(arvo),
+                Some(("silmukka", arvo)) => silmukka = luku(arvo),
                 Some(("top", arvo)) => {
                     if let Some(tulos) = tulos_tekstista(arvo) {
                         lisaa_tulos(&mut parhaat, tulos);
@@ -146,6 +160,16 @@ impl Tallennus {
                 Some(("asteroidijono", arvo)) => {
                     if let Some(tulos) = tulos_tekstista(arvo) {
                         lisaa_tulos(&mut asteroidien_jono, tulos);
+                    }
+                }
+                Some(("silmukkatop", arvo)) => {
+                    if let Some(tulos) = tulos_tekstista(arvo) {
+                        lisaa_tulos(&mut silmukan_parhaat, tulos);
+                    }
+                }
+                Some(("silmukkajono", arvo)) => {
+                    if let Some(tulos) = tulos_tekstista(arvo) {
+                        lisaa_tulos(&mut silmukan_jono, tulos);
                     }
                 }
                 Some(("lauta", arvo)) => lauta = ruudut(arvo),
@@ -180,6 +204,9 @@ impl Tallennus {
             asteroidit: asteroidit.unwrap_or(0),
             asteroidien_parhaat,
             asteroidien_jono,
+            silmukka: silmukka.unwrap_or(0),
+            silmukan_parhaat,
+            silmukan_jono,
         }
     }
 }
@@ -252,6 +279,15 @@ mod tests {
                 nimi: "KIVI".to_string(),
                 pisteet: 4000,
             }],
+            silmukka: 2500,
+            silmukan_parhaat: vec![Tulos {
+                nimi: "ITIKKA".to_string(),
+                pisteet: 2500,
+            }],
+            silmukan_jono: vec![Tulos {
+                nimi: "ITIKKA".to_string(),
+                pisteet: 2500,
+            }],
         }
     }
 
@@ -271,6 +307,9 @@ mod tests {
             asteroidit: 0,
             asteroidien_parhaat: Vec::new(),
             asteroidien_jono: Vec::new(),
+            silmukka: 0,
+            silmukan_parhaat: Vec::new(),
+            silmukan_jono: Vec::new(),
         };
         assert_eq!(Tallennus::tekstista(&t.tekstiksi()), t);
     }
@@ -299,6 +338,7 @@ mod tests {
         assert!(!t.hiljaa);
         assert_eq!(t.tiilirikko, 0);
         assert_eq!(t.asteroidit, 0);
+        assert_eq!(t.silmukka, 0);
         assert!(t.parhaat.is_empty());
     }
 

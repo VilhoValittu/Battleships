@@ -33,6 +33,8 @@ pub struct Liput {
     pub kentta: Option<usize>,
     /// Asteroidit: aloittaa tästä aallosta (nollasta alkaen) ja lentää `aika_ms` paikallaan.
     pub aalto: Option<usize>,
+    /// Silmukka: aloittaa valmiista renkaasta, jonka sisällä on näin monta itikkaa.
+    pub rengas: Option<i32>,
     /// Kuvakaappauksen hetki viimeisen laukauksen jälkeen, animaatioiden tarkistukseen.
     pub aika_ms: u32,
 }
@@ -51,6 +53,8 @@ impl Liput {
             Some(Laji::Tiilirikko)
         } else if self.aalto.is_some() {
             Some(Laji::Asteroidit)
+        } else if self.rengas.is_some() {
+            Some(Laji::Silmukka)
         } else {
             None
         }
@@ -76,6 +80,7 @@ pub fn lue_liput() -> Result<Liput, String> {
         jumissa: false,
         kentta: None,
         aalto: None,
+        rengas: None,
         aika_ms: OLETUSAIKA_MS,
     };
     let mut args = std::env::args().skip(1);
@@ -94,6 +99,7 @@ pub fn lue_liput() -> Result<Liput, String> {
                     "pasianssi" => Laji::Pasianssi,
                     "tiilirikko" => Laji::Tiilirikko,
                     "asteroidit" => Laji::Asteroidit,
+                    "silmukka" => Laji::Silmukka,
                     _ => return Err(format!("--game: {arvo}")),
                 });
             }
@@ -102,6 +108,7 @@ pub fn lue_liput() -> Result<Liput, String> {
             "--stuck" => liput.jumissa = arvo == "1",
             "--stage" => liput.kentta = Some(arvo.parse().map_err(|_| "--stage: ei luku")?),
             "--wave" => liput.aalto = Some(arvo.parse().map_err(|_| "--wave: ei luku")?),
+            "--ring" => liput.rengas = Some(arvo.parse().map_err(|_| "--ring: ei luku")?),
             "--board" => {
                 let luvut = arvo
                     .split(',')

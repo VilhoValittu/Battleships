@@ -10,6 +10,8 @@ pub mod laivanupotus;
 pub mod luvut;
 #[path = "pelit/pasianssi/logiikka.rs"]
 pub mod pasianssi;
+#[path = "pelit/silmukka/logiikka.rs"]
+pub mod silmukka;
 #[path = "pelit/tiilirikko/logiikka.rs"]
 pub mod tiilirikko;
 

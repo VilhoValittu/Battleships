@@ -41,9 +41,22 @@ pub enum Aani {
     Moottori,
     /// Asteroidit: lentävän lautasen ulina.
     Lautanen,
+    /// Silmukka: omena rusahtaa.
+    Omena,
+    /// Silmukka: tyhjä silmukka haihtuu.
+    Puhkus,
+    /// Silmukka: muna kuoriutuu.
+    Surina,
+    /// Silmukka: saaliin nouseva helinä, yksi sävel saalista kohden.
+    Helina1,
+    Helina2,
+    Helina3,
+    Helina4,
+    Helina5,
+    Helina6,
 }
 
-const AANIA: usize = 17;
+const AANIA: usize = 26;
 
 struct Soitto {
     aani: Aani,
@@ -80,6 +93,15 @@ impl Mikseri {
                 kivi(&mut arpa),
                 moottori(&mut arpa),
                 lautanen(),
+                omena(&mut arpa),
+                puhkus(&mut arpa),
+                surina(),
+                helina(523.3),
+                helina(587.3),
+                helina(659.3),
+                helina(784.0),
+                helina(880.0),
+                helina(1046.5),
             ],
             soivat: Vec::new(),
             paalla: true,
@@ -346,6 +368,39 @@ fn lautanen() -> Vec<i8> {
     })
 }
 
+fn omena(arpa: &mut Arpa) -> Vec<i8> {
+    let mut vaihe = 0.0;
+    rakenna(0.09, |t| {
+        vaihe += (700.0 - 3500.0 * t) / NAYTETAAJUUS as f32;
+        (kantti(vaihe) * 0.3 + kohina(arpa) * 0.25) * (1.0 - t / 0.09)
+    })
+}
+
+fn puhkus(arpa: &mut Arpa) -> Vec<i8> {
+    let mut suodin = 0.0;
+    rakenna(0.3, |t| {
+        suodin += (kohina(arpa) - suodin) * (0.35 - t);
+        suodin * 0.8 * (1.0 - t / 0.3)
+    })
+}
+
+fn surina() -> Vec<i8> {
+    let mut vaihe = 0.0;
+    rakenna(0.22, |t| {
+        vaihe += (420.0 + 90.0 * (TAU * 35.0 * t).sin()) / NAYTETAAJUUS as f32;
+        saha(vaihe) * 0.18 * (1.0 - t / 0.22)
+    })
+}
+
+/// Kirkas sävel oktaavin kanssa. Pentatoninen asteikko kuulostaa hyvältä missä tahansa järjestyksessä.
+fn helina(taajuus: f32) -> Vec<i8> {
+    rakenna(0.35, |t| {
+        let perus = (TAU * taajuus * t).sin();
+        let harmoninen = (TAU * taajuus * 2.0 * t).sin() * 0.4;
+        (perus + harmoninen) * 0.32 * (-t * 9.0).exp()
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -376,6 +431,15 @@ mod tests {
             Aani::Kivi,
             Aani::Moottori,
             Aani::Lautanen,
+            Aani::Omena,
+            Aani::Puhkus,
+            Aani::Surina,
+            Aani::Helina1,
+            Aani::Helina2,
+            Aani::Helina3,
+            Aani::Helina4,
+            Aani::Helina5,
+            Aani::Helina6,
         ] {
             let mut mikseri = Mikseri::new();
             mikseri.soita(aani, 0);

@@ -30,6 +30,8 @@ use klassikot8000::luvut::Lukulauta;
 #[cfg(debug_assertions)]
 use klassikot8000::pasianssi::{self, KUNINGAS, Kortti, Maa};
 #[cfg(debug_assertions)]
+use klassikot8000::silmukka::{Laji, Otus, Suunta};
+#[cfg(debug_assertions)]
 use klassikot8000::tiilirikko::Tiilipeli;
 #[cfg(debug_assertions)]
 use pelit::laivanupotus::peli::Vaihe;
@@ -381,11 +383,36 @@ fn main() -> ExitCode {
                     }
                 }
             }
+            Some(Kaynnissa::Silmukka(peli)) => {
+                if let Some(itikoita) = liput.rengas {
+                    peli.kasittele(Syote::Ammu);
+                    // Pää sulkee renkaan kolmen askeleen päästä, ja häntä jää sen ulkopuolelle.
+                    let mut ruudut: Vec<(i32, i32)> = (1..=18).map(|x| (x, 4)).collect();
+                    ruudut.extend((5..=16).map(|y| (18, y)));
+                    ruudut.extend((5..=17).rev().map(|x| (x, 16)));
+                    ruudut.extend((7..=15).rev().map(|y| (5, y)));
+                    peli.lauta.jalki = ruudut[0];
+                    peli.lauta.mato = ruudut.into_iter().rev().collect();
+                    peli.lauta.suunta = Suunta::Ylos;
+                    let mato = peli.lauta.mato.clone();
+                    peli.lauta.herkut.retain(|h| !mato.contains(&h.paikka));
+                    peli.lauta.otukset = (0..itikoita)
+                        .map(|i| Otus::uusi(Laji::Itikka, (7 + i * 2, 7 + i % 3 * 3), (1, 1), 0))
+                        .collect();
+                    // Aikahyppy on rajattu, joten kuvakaappauksen hetki ajetaan pieninä askelina.
+                    for _ in 0..liput.aika_ms / 16 {
+                        peli.edista(16);
+                    }
+                }
+            }
             None => {}
         }
         kaynnistin.ota_aanet();
         if let Some(polku) = liput.kuvakaappaus {
-            kaynnistin.edista(liput.aika_ms);
+            // Renkaan tehosteet on ajettu jo, eikä niitä saa hypätä yli.
+            if liput.rengas.is_none() {
+                kaynnistin.edista(liput.aika_ms);
+            }
             piirto::piirra(&kaynnistin, &mut ruutu, &mut kuva);
             return match kehitys::tallenna_png(&polku, &ruutu, RUUDUN_LEVEYS, RUUDUN_KORKEUS) {
                 Ok(()) => ExitCode::SUCCESS,

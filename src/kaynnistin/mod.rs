@@ -13,6 +13,7 @@ use crate::pelit::laivanupotus::peli::Peli;
 use crate::pelit::luvut::peli::Luvut;
 use crate::pelit::luvut::tallennus::Tallennus;
 use crate::pelit::pasianssi::peli::{self as pasianssi_peli, Pasianssi};
+use crate::pelit::silmukka::peli::Silmukka;
 use crate::pelit::tiilirikko::peli::Tiilirikko;
 use crate::yhteinen::aanet::Aani;
 use crate::yhteinen::piirto::{aanikytkimella, ruudulta_kuvaan};
@@ -26,6 +27,7 @@ pub enum Laji {
     Pasianssi,
     Tiilirikko,
     Asteroidit,
+    Silmukka,
 }
 
 pub struct Kortti {
@@ -34,7 +36,7 @@ pub struct Kortti {
     pub kuvaus: &'static str,
 }
 
-pub const PELIT: [Kortti; 5] = [
+pub const PELIT: [Kortti; 6] = [
     Kortti {
         laji: Laji::Laivanupotus,
         nimi: "LAIVANUPOTUS",
@@ -60,6 +62,11 @@ pub const PELIT: [Kortti; 5] = [
         nimi: "ASTEROIDIT",
         kuvaus: "Ammu kivet ennen kuin ne osuvat.",
     },
+    Kortti {
+        laji: Laji::Silmukka,
+        nimi: "SILMUKKA",
+        kuvaus: "Kierrä mato itikoiden ympärille.",
+    },
 ];
 
 pub enum Kaynnissa {
@@ -68,6 +75,7 @@ pub enum Kaynnissa {
     Pasianssi(Box<Pasianssi>),
     Tiilirikko(Box<Tiilirikko>),
     Asteroidit(Box<Asteroidit>),
+    Silmukka(Box<Silmukka>),
 }
 
 /// Pelin valinta ja käynnissä oleva peli. Asetukset säilyvät, kun peli vaihtuu.
@@ -89,6 +97,7 @@ pub struct Kaynnistin {
     netti_luvut: Option<Vec<Tulos>>,
     netti_tiilirikko: Option<Vec<Tulos>>,
     netti_asteroidit: Option<Vec<Tulos>>,
+    netti_silmukka: Option<Vec<Tulos>>,
     vaikeus: Vaikeus,
     pasianssin_vaikeus: pasianssi::Vaikeus,
     siemen: u64,
@@ -109,6 +118,7 @@ impl Kaynnistin {
             netti_luvut: None,
             netti_tiilirikko: None,
             netti_asteroidit: None,
+            netti_silmukka: None,
             vaikeus: Vaikeus::Normaali,
             pasianssin_vaikeus: pasianssi::Vaikeus::Normaali,
             siemen,
@@ -122,6 +132,7 @@ impl Kaynnistin {
             Some(Kaynnissa::Pasianssi(_)) => "Pasianssi",
             Some(Kaynnissa::Tiilirikko(_)) => "Tiilirikko",
             Some(Kaynnissa::Asteroidit(_)) => "Asteroidit",
+            Some(Kaynnissa::Silmukka(_)) => "Silmukka",
             None => "Pelikone",
         }
     }
@@ -130,7 +141,7 @@ impl Kaynnistin {
     pub fn toimintapeli(&self) -> bool {
         matches!(
             self.peli,
-            Some(Kaynnissa::Tiilirikko(_) | Kaynnissa::Asteroidit(_))
+            Some(Kaynnissa::Tiilirikko(_) | Kaynnissa::Asteroidit(_) | Kaynnissa::Silmukka(_))
         )
     }
 
@@ -149,14 +160,18 @@ impl Kaynnistin {
         match &mut self.peli {
             Some(Kaynnissa::Tiilirikko(peli)) => peli.keskeyta(),
             Some(Kaynnissa::Asteroidit(peli)) => peli.keskeyta(),
+            Some(Kaynnissa::Silmukka(peli)) => peli.keskeyta(),
             _ => {}
         }
     }
 
     /// Laivanupotuksessa nuoli liikuttaa tähtäintä, mutta 2048:ssa toisto tekisi
-    /// pohjassa pidetystä nuolesta siirtosarjan.
+    /// pohjassa pidetystä nuolesta siirtosarjan, ja Silmukassa se täyttäisi kääntöjonon.
     pub fn nuolet_toistuvat(&self) -> bool {
-        !matches!(self.peli, Some(Kaynnissa::Luvut(_)))
+        !matches!(
+            self.peli,
+            Some(Kaynnissa::Luvut(_) | Kaynnissa::Silmukka(_))
+        )
     }
 
     /// Muuttaa ruudun pikselin sen näkymän koordinaateiksi, joka on nyt esillä.
@@ -214,6 +229,15 @@ impl Kaynnistin {
                 self.pyynnot.push(Pyynto::Hae(Nettipeli::Asteroidit));
                 Kaynnissa::Asteroidit(Box::new(peli))
             }
+            Laji::Silmukka => {
+                let mut peli = Silmukka::new(siemen);
+                peli.paras = self.tallennus.silmukka;
+                peli.parhaat = self.tallennus.silmukan_parhaat.clone();
+                peli.netti_parhaat = self.netti_silmukka.clone();
+                peli.aanet_paalla = self.aanet_paalla;
+                self.pyynnot.push(Pyynto::Hae(Nettipeli::Silmukka));
+                Kaynnissa::Silmukka(Box::new(peli))
+            }
         });
     }
 
@@ -225,6 +249,7 @@ impl Kaynnistin {
             (Nettipeli::Luvut, &tallennus.luvut_jono),
             (Nettipeli::Tiilirikko, &tallennus.tiilirikon_jono),
             (Nettipeli::Asteroidit, &tallennus.asteroidien_jono),
+            (Nettipeli::Silmukka, &tallennus.silmukan_jono),
         ] {
             let tulokset = jono.iter().cloned();
             self.pyynnot
@@ -254,11 +279,18 @@ impl Kaynnistin {
                 }
                 self.netti_asteroidit = Some(lista);
             }
+            Vastaus::Lista(Nettipeli::Silmukka, lista) => {
+                if let Some(Kaynnissa::Silmukka(peli)) = &mut self.peli {
+                    peli.netti_parhaat = Some(lista.clone());
+                }
+                self.netti_silmukka = Some(lista);
+            }
             Vastaus::Lahetetty(peli, tulos) => {
                 let jono = match peli {
                     Nettipeli::Luvut => &mut self.tallennus.luvut_jono,
                     Nettipeli::Tiilirikko => &mut self.tallennus.tiilirikon_jono,
                     Nettipeli::Asteroidit => &mut self.tallennus.asteroidien_jono,
+                    Nettipeli::Silmukka => &mut self.tallennus.silmukan_jono,
                 };
                 jono.retain(|t| *t != tulos);
                 self.tallenna = true;
@@ -300,6 +332,16 @@ impl Kaynnistin {
                         .push(Pyynto::Laheta(Nettipeli::Asteroidit, tulos));
                 }
             }
+            Some(Kaynnissa::Silmukka(peli)) => {
+                self.tallennus.silmukka = peli.paras;
+                self.tallennus.silmukan_parhaat = peli.parhaat.clone();
+                self.netti_silmukka = peli.netti_parhaat.clone();
+                if let Some(tulos) = peli.lahetys.take() {
+                    lisaa_tulos(&mut self.tallennus.silmukan_jono, tulos.clone());
+                    self.pyynnot
+                        .push(Pyynto::Laheta(Nettipeli::Silmukka, tulos));
+                }
+            }
             _ => {}
         }
     }
@@ -310,6 +352,7 @@ impl Kaynnistin {
             Some(Kaynnissa::Luvut(peli)) => peli.vahvista_nimi(),
             Some(Kaynnissa::Tiilirikko(peli)) => peli.vahvista_nimi(),
             Some(Kaynnissa::Asteroidit(peli)) => peli.vahvista_nimi(),
+            Some(Kaynnissa::Silmukka(peli)) => peli.vahvista_nimi(),
             _ => {}
         }
         self.paivita_tallennus();
@@ -337,6 +380,14 @@ impl Kaynnistin {
                     self.tallenna = true;
                 }
             }
+            Some(Kaynnissa::Silmukka(peli)) => {
+                peli.edista(ms);
+                // Sama kuin Tiilirikossa: peli päättyy ajan kuluessa eikä syötteeseen.
+                if std::mem::take(&mut peli.uusi_tulos) {
+                    self.paivita_tallennus();
+                    self.tallenna = true;
+                }
+            }
             None => {}
         }
     }
@@ -348,6 +399,7 @@ impl Kaynnistin {
             Some(Kaynnissa::Pasianssi(peli)) => std::mem::take(&mut peli.aanijono),
             Some(Kaynnissa::Tiilirikko(peli)) => std::mem::take(&mut peli.aanijono),
             Some(Kaynnissa::Asteroidit(peli)) => std::mem::take(&mut peli.aanijono),
+            Some(Kaynnissa::Silmukka(peli)) => std::mem::take(&mut peli.aanijono),
             None => Vec::new(),
         }
     }
@@ -359,6 +411,7 @@ impl Kaynnistin {
             Some(Kaynnissa::Luvut(peli)) => std::mem::take(&mut peli.uusi_tulos),
             Some(Kaynnissa::Tiilirikko(peli)) => std::mem::take(&mut peli.uusi_tulos),
             Some(Kaynnissa::Asteroidit(peli)) => std::mem::take(&mut peli.uusi_tulos),
+            Some(Kaynnissa::Silmukka(peli)) => std::mem::take(&mut peli.uusi_tulos),
             _ => false,
         };
         if uusi_tulos || self.aanet_paalla != aanet_ennen {
@@ -392,6 +445,11 @@ impl Kaynnistin {
                 peli.lopeta
             }
             Some(Kaynnissa::Asteroidit(peli)) => {
+                peli.kasittele(syote);
+                self.aanet_paalla = peli.aanet_paalla;
+                peli.lopeta
+            }
+            Some(Kaynnissa::Silmukka(peli)) => {
                 peli.kasittele(syote);
                 self.aanet_paalla = peli.aanet_paalla;
                 peli.lopeta
@@ -514,10 +572,10 @@ mod tests {
         k.kasittele(Syote::Nuoli(1, 0));
         k.kasittele(Syote::Nuoli(1, 0));
         k.kasittele(Syote::Nuoli(1, 0));
-        assert_eq!(k.valittu, 4);
+        assert_eq!(k.valittu, 5);
         k.kasittele(Syote::Numero(0));
         k.kasittele(Syote::Numero(9));
-        assert_eq!(k.valittu, 4);
+        assert_eq!(k.valittu, 5);
 
         let (x, y) = piirto::kortin_keskipiste(0);
         k.kasittele(Syote::Hiiri(x, y));
@@ -545,6 +603,66 @@ mod tests {
         assert!(matches!(k.peli, Some(Kaynnissa::Asteroidit(_))));
         assert_eq!(k.otsikko(), "Asteroidit");
         assert!(k.toimintapeli());
+        k.kasittele(Syote::Peru);
+
+        let (x, y) = piirto::kortin_keskipiste(5);
+        k.kasittele(Syote::Klikkaus(x, y));
+        assert!(matches!(k.peli, Some(Kaynnissa::Silmukka(_))));
+        assert_eq!(k.otsikko(), "Silmukka");
+        assert!(k.toimintapeli());
+        assert!(!k.nuolet_toistuvat());
+    }
+
+    #[test]
+    fn silmukan_tulos_tallentuu_jonottaa_ja_palautuu() {
+        use klassikot8000::silmukka::{ASKEL_MS, Laji as Otuslaji, Otus};
+
+        let mut k = Kaynnistin::new(1);
+        k.kaynnista(Laji::Silmukka);
+        assert_eq!(
+            std::mem::take(&mut k.pyynnot),
+            [Pyynto::Hae(Nettipeli::Silmukka)]
+        );
+        k.kasittele(Syote::Ammu);
+        let Some(Kaynnissa::Silmukka(peli)) = &mut k.peli else {
+            panic!("silmukka ei ole käynnissä");
+        };
+        let paa = peli.lauta.paa();
+        peli.lauta.pisteet = 225;
+        let mut itikka = Otus::uusi(Otuslaji::Itikka, (paa.0 + 1, paa.1), (1, 1), 0);
+        itikka.odotus_ms = 100_000;
+        itikka.jakso_ms = 100_000;
+        peli.lauta.otukset = vec![itikka];
+        peli.lauta.odotus_ms = ASKEL_MS;
+        k.edista(ASKEL_MS);
+        assert!(k.tallenna);
+        assert_eq!(k.tallennus.silmukka, 225);
+        k.kasittele(Syote::Kirjain('A'));
+        k.kasittele(Syote::Ammu);
+
+        let tulos = Tulos {
+            nimi: "A".to_string(),
+            pisteet: 225,
+        };
+        assert_eq!(
+            std::mem::take(&mut k.pyynnot),
+            [Pyynto::Laheta(Nettipeli::Silmukka, tulos.clone())]
+        );
+
+        let mut uusi = Kaynnistin::new(2);
+        uusi.lataa(Tallennus::tekstista(&k.tallennus.tekstiksi()));
+        assert_eq!(
+            uusi.pyynnot,
+            [Pyynto::Laheta(Nettipeli::Silmukka, tulos.clone())]
+        );
+        uusi.vastaanota(Vastaus::Lahetetty(Nettipeli::Silmukka, tulos));
+        assert!(uusi.tallennus.silmukan_jono.is_empty());
+        uusi.kaynnista(Laji::Silmukka);
+        let Some(Kaynnissa::Silmukka(peli)) = &uusi.peli else {
+            panic!("silmukka ei ole käynnissä");
+        };
+        assert_eq!(peli.paras, 225);
+        assert_eq!(peli.parhaat[0].nimi, "A");
     }
 
     #[test]
@@ -958,6 +1076,7 @@ mod tests {
             Laji::Pasianssi,
             Laji::Tiilirikko,
             Laji::Asteroidit,
+            Laji::Silmukka,
         ] {
             k.kaynnista(laji);
             k.edista(100);
