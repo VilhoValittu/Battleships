@@ -4,6 +4,11 @@
 pub mod arpa;
 #[path = "pelit/asteroidit/logiikka.rs"]
 pub mod asteroidit;
+#[path = "pelit/blackjack/logiikka.rs"]
+pub mod blackjack;
+#[path = "pelit/holdem/logiikka.rs"]
+pub mod holdem;
+pub mod kortit;
 #[path = "pelit/laivanupotus/logiikka/mod.rs"]
 pub mod laivanupotus;
 #[path = "pelit/luvut/logiikka.rs"]

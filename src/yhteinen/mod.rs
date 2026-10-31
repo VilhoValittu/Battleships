@@ -4,6 +4,7 @@
 pub mod aanet;
 pub mod fontti;
 pub mod kieli;
+pub mod kortit;
 pub mod piirto;
 pub mod syote;
 pub mod tulokset;

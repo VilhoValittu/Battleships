@@ -28,6 +28,8 @@ use klassikot8000::Arpa;
 #[cfg(debug_assertions)]
 use klassikot8000::asteroidit::Avaruus;
 #[cfg(debug_assertions)]
+use klassikot8000::blackjack::{self, Vuoro};
+#[cfg(debug_assertions)]
 use klassikot8000::luvut::Lukulauta;
 #[cfg(debug_assertions)]
 use klassikot8000::miinaharava;
@@ -561,6 +563,77 @@ fn main() -> ExitCode {
                     if liput.pamaus {
                         peli.avaa(miinat[1]);
                     }
+                }
+            }
+            Some(Kaynnissa::Blackjack(peli)) => {
+                if liput.napit.is_some() || liput.kadet.is_some() || liput.konkurssi {
+                    peli.kasittele(Syote::Ammu);
+                }
+                for merkki in liput.napit.unwrap_or_default().chars() {
+                    peli.kasittele(match merkki {
+                        ' ' => Syote::Ammu,
+                        '0'..='9' => Syote::Numero(merkki as u8 - b'0'),
+                        _ => Syote::Kirjain(merkki),
+                    });
+                    peli.edista(10_000);
+                }
+                if let Some(kasia) = liput.kadet {
+                    // Pisin käsi näyttää, miten kortit mahtuvat kapeaankin kaistaan.
+                    let kasi = |arvot: &[u8], panos| blackjack::Kasi {
+                        kortit: arvot
+                            .iter()
+                            .map(|&arvo| Kortti {
+                                maa: Maa::KAIKKI[arvo as usize % Maa::KAIKKI.len()],
+                                arvo,
+                            })
+                            .collect(),
+                        panos,
+                        tuplattu: false,
+                        halkaistu: true,
+                        tulos: None,
+                    };
+                    let mallit: [&[u8]; 4] =
+                        [&[1, 1, 2, 2, 3, 3, 1, 1], &[10, 6], &[1, 5], &[13, 9]];
+                    peli.poyta.kadet = mallit[..kasia.clamp(1, 4)]
+                        .iter()
+                        .map(|arvot| kasi(arvot, 25 * blackjack::YKSI))
+                        .collect();
+                    peli.poyta.jakaja = kasi(&[10, 7], 0).kortit;
+                    peli.poyta.piilossa = true;
+                    peli.poyta.vuoro = Vuoro::Pelaaja;
+                }
+                if liput.konkurssi {
+                    // Kaikki rahat peliin: pelaajalle 17 ja jakajalle 20.
+                    peli.kasittele(Syote::Kirjain('K'));
+                    peli.poyta.kenka.extend([10, 7, 10, 10].map(|arvo| Kortti {
+                        maa: Maa::Pata,
+                        arvo,
+                    }));
+                    peli.kasittele(Syote::Ammu);
+                    peli.kasittele(Syote::Kirjain('J'));
+                    peli.edista(10_000);
+                }
+            }
+            Some(Kaynnissa::Holdem(peli)) => {
+                if liput.napit.is_some() || liput.konkurssi || liput.voitto {
+                    peli.kasittele(Syote::Ammu);
+                    peli.edista(100_000);
+                }
+                for merkki in liput.napit.unwrap_or_default().chars() {
+                    peli.kasittele(match merkki {
+                        ' ' => Syote::Ammu,
+                        '0'..='9' => Syote::Numero(merkki as u8 - b'0'),
+                        _ => Syote::Kirjain(merkki),
+                    });
+                    peli.edista(100_000);
+                }
+                if liput.konkurssi {
+                    peli.vaihe = pelit::holdem::peli::Vaihe::Havio;
+                    peli.viesti = kieli::muotoile("holdem.havio", &[&5]);
+                }
+                if liput.voitto {
+                    peli.vaihe = pelit::holdem::peli::Vaihe::Voitto;
+                    peli.viesti = kieli::muotoile("holdem.voitto", &[&5000]);
                 }
             }
             None => {}

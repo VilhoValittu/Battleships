@@ -2,7 +2,7 @@
 
 [Suomeksi](README.md) | **English**
 
-Bored? Eight old-school games in one small window, dressed up in C64 and Amiga style. No account, no ads, nothing to learn. Open it, pick a game and let the time pass.
+Bored? Ten old-school games in one small window, dressed up in C64 and Amiga style. No account, no ads, nothing to learn. Open it, pick a game and let the time pass.
 
 Runs even on a potato.
 
@@ -48,10 +48,20 @@ The other office classic. A number tells how many mines touch the cell, and the 
 
 *Left mouse opens and right flags, or arrows, space and F.*
 
+### Blackjack
+You against a computer dealer, with play money. You start with 300 and the lowest bet is 1. Get closer to 21 than the dealer without going over. You can hit, stand, double or split a pair, and take insurance when the dealer shows an ace. Blackjack pays 3:2 and insurance 2:1, and the dealer always stands on 17. The shoe holds six decks. When the money runs out, the game starts over. Your money doesn't carry over when you leave for the menu.
+
+*Mouse or keys: arrows and 1-4 for the bet, space deals, O hits, J stands, T doubles, H splits, V insures, N declines.*
+
+### Texas Hold'em
+No-limit poker against four computers. Everyone starts with 1000, and the last one with money wins. Two cards of your own and five shared: the best five-card hand takes the pot. Blinds start at 10/20 and double every ten hands, so a game always ends. The rules are the familiar tournament ones, with side pots, minimum raises and a dead button. The computers don't peek: they only see their own cards and the shared ones. Your money doesn't carry over when you leave for the menu.
+
+*Mouse or keys: V checks or calls, K folds, R raises, arrows and 1-4 change the raise, space hurries the computers and deals the next hand.*
+
 ## Good to know
 
 - `Esc` returns from a game to the menu, and a good score from an unfinished game still reaches the list. `P` pauses the action games, `M` mutes the sound and `L` in the menu switches the language between Finnish and English.
-- All games except Battleships and Solitaire also have an online Top 3. Without a connection the games play just as well.
+- All games except Battleships, Solitaire, Minesweeper, Blackjack and Hold'em also have an online Top 3. Without a connection the games play just as well.
 - The menu shows the game's version and tells you if GitHub has a newer release. The game checks this when it starts.
 
 ## Get playing

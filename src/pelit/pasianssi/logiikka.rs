@@ -1,10 +1,10 @@
 //! Klondike-pasianssin säännöt ilman ikkunaa, piirtoa tai syötettä.
 
 use crate::Arpa;
+use crate::kortit::sekoitettu;
+pub use crate::kortit::{KUNINGAS, Kortti, MAITA, Maa};
 
 pub const SARAKKEITA: usize = 7;
-pub const MAITA: usize = 4;
-pub const KUNINGAS: u8 = 13;
 pub const KORTTEJA: usize = MAITA * KUNINGAS as usize;
 
 const PISTE_JATTEESTA_SARAKKEELLE: u32 = 5;
@@ -14,29 +14,6 @@ const SAKKO_PERUSTALTA: u32 = 15;
 const SAKKO_PERUUTUKSESTA: u32 = 5;
 const SAKKO_KIERROSTA_YKSI: u32 = 100;
 const SAKKO_KIERROSTA_KOLME: u32 = 20;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Maa {
-    Hertta,
-    Ruutu,
-    Risti,
-    Pata,
-}
-
-impl Maa {
-    pub const KAIKKI: [Maa; MAITA] = [Maa::Hertta, Maa::Ruutu, Maa::Risti, Maa::Pata];
-
-    pub fn on_punainen(self) -> bool {
-        matches!(self, Maa::Hertta | Maa::Ruutu)
-    }
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Kortti {
-    pub maa: Maa,
-    /// Ässä on 1 ja kuningas 13.
-    pub arvo: u8,
-}
 
 impl Kortti {
     fn sopii_paalle(self, alla: Kortti) -> bool {
@@ -125,13 +102,7 @@ pub struct Lauta {
 
 impl Lauta {
     pub fn new(vaikeus: Vaikeus, arpa: &mut Arpa) -> Self {
-        let mut pakka: Vec<Kortti> = Maa::KAIKKI
-            .into_iter()
-            .flat_map(|maa| (1..=KUNINGAS).map(move |arvo| Kortti { maa, arvo }))
-            .collect();
-        for i in (1..pakka.len()).rev() {
-            pakka.swap(i, arpa.alle(i + 1));
-        }
+        let mut pakka = sekoitettu(1, arpa);
         let mut sarakkeet: [Sarake; SARAKKEITA] = Default::default();
         for (i, sarake) in sarakkeet.iter_mut().enumerate() {
             sarake.kortit = pakka.split_off(pakka.len() - (i + 1));

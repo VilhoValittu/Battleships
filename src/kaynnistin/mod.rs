@@ -11,6 +11,10 @@ use klassikot8000::pasianssi;
 use self::netti::{Nettipeli, Pyynto, Vastaus};
 use crate::pelit::asteroidit::peli::Asteroidit;
 use crate::pelit::asteroidit::piirto::kivimalli;
+use crate::pelit::blackjack::peli::{self as blackjack_peli, Blackjack};
+use crate::pelit::blackjack::piirto::pelimerkkipinot;
+use crate::pelit::holdem::peli::{self as holdem_peli, Holdem};
+use crate::pelit::holdem::piirto::poytamalli;
 use crate::pelit::laivanupotus::peli::Peli;
 use crate::pelit::laivanupotus::piirto::alkumalli as laivamalli;
 use crate::pelit::luvut::peli::Luvut;
@@ -63,6 +67,8 @@ pub enum Laji {
     Silmukka,
     Palikka,
     Miinaharava,
+    Blackjack,
+    Holdem,
 }
 
 pub struct Kortti {
@@ -72,7 +78,7 @@ pub struct Kortti {
     pub malli: fn() -> Vec<Tahko>,
 }
 
-pub const PELIT: [Kortti; 8] = [
+pub const PELIT: [Kortti; 10] = [
     Kortti {
         laji: Laji::Laivanupotus,
         nimi: "peli.laivanupotus",
@@ -121,6 +127,18 @@ pub const PELIT: [Kortti; 8] = [
         kuvaus: "valikko.miinaharava",
         malli: miinamalli,
     },
+    Kortti {
+        laji: Laji::Blackjack,
+        nimi: "peli.blackjack",
+        kuvaus: "valikko.blackjack",
+        malli: pelimerkkipinot,
+    },
+    Kortti {
+        laji: Laji::Holdem,
+        nimi: "peli.holdem",
+        kuvaus: "valikko.holdem",
+        malli: poytamalli,
+    },
 ];
 
 pub enum Kaynnissa {
@@ -132,6 +150,8 @@ pub enum Kaynnissa {
     Silmukka(Box<Silmukka>),
     Palikka(Box<Palikkapeli>),
     Miinaharava(Box<Miinaharava>),
+    Blackjack(Box<Blackjack>),
+    Holdem(Box<Holdem>),
 }
 
 /// Pelin valinta ja käynnissä oleva peli. Asetukset säilyvät, kun peli vaihtuu.
@@ -205,7 +225,7 @@ impl Kaynnistin {
         }
     }
 
-    /// Valitun pelin omat parhaat. Laivanupotuksella, pasianssilla ja miinaharavalla ei ole pistelistaa.
+    /// Valitun pelin omat parhaat. Laivanupotuksella, pasianssilla, miinaharavalla ja korttipeleillä ei ole pistelistaa.
     pub fn valitun_parhaat(&self) -> Option<&[Tulos]> {
         match PELIT[self.valittu].laji {
             Laji::Luvut => Some(&self.tallennus.parhaat),
@@ -213,7 +233,11 @@ impl Kaynnistin {
             Laji::Asteroidit => Some(&self.tallennus.asteroidien_parhaat),
             Laji::Silmukka => Some(&self.tallennus.silmukan_parhaat),
             Laji::Palikka => Some(&self.tallennus.palikan_parhaat),
-            Laji::Laivanupotus | Laji::Pasianssi | Laji::Miinaharava => None,
+            Laji::Laivanupotus
+            | Laji::Pasianssi
+            | Laji::Miinaharava
+            | Laji::Blackjack
+            | Laji::Holdem => None,
         }
     }
 
@@ -256,6 +280,14 @@ impl Kaynnistin {
                     askel,
                 })
             }
+            Some(Kaynnissa::Blackjack(peli)) => peli.kuvan_askel().map(|askel| KuvanAvain::Vuoro {
+                syotteita: self.syotteita,
+                askel,
+            }),
+            Some(Kaynnissa::Holdem(peli)) => peli.kuvan_askel().map(|askel| KuvanAvain::Vuoro {
+                syotteita: self.syotteita,
+                askel,
+            }),
             Some(_) => None,
         }
     }
@@ -270,6 +302,8 @@ impl Kaynnistin {
             Some(Kaynnissa::Silmukka(_)) => "peli.silmukka",
             Some(Kaynnissa::Palikka(_)) => "peli.palikka",
             Some(Kaynnissa::Miinaharava(_)) => "peli.miinaharava",
+            Some(Kaynnissa::Blackjack(_)) => "peli.blackjack",
+            Some(Kaynnissa::Holdem(_)) => "peli.holdem",
             None => "peli.pelikone",
         })
     }
@@ -327,6 +361,8 @@ impl Kaynnistin {
         match &self.peli {
             None => (x, y),
             Some(Kaynnissa::Pasianssi(peli)) if peli.vaihe != pasianssi_peli::Vaihe::Alku => (x, y),
+            Some(Kaynnissa::Blackjack(peli)) if peli.vaihe != blackjack_peli::Vaihe::Alku => (x, y),
+            Some(Kaynnissa::Holdem(peli)) if peli.vaihe != holdem_peli::Vaihe::Alku => (x, y),
             _ => ruudulta_kuvaan(x, y),
         }
     }
@@ -402,6 +438,16 @@ impl Kaynnistin {
                 peli.ajat = self.tallennus.miinaajat;
                 peli.aanet_paalla = self.aanet_paalla;
                 Kaynnissa::Miinaharava(Box::new(peli))
+            }
+            Laji::Blackjack => {
+                let mut peli = Blackjack::new(siemen);
+                peli.aanet_paalla = self.aanet_paalla;
+                Kaynnissa::Blackjack(Box::new(peli))
+            }
+            Laji::Holdem => {
+                let mut peli = Holdem::new(siemen);
+                peli.aanet_paalla = self.aanet_paalla;
+                Kaynnissa::Holdem(Box::new(peli))
             }
         });
     }
@@ -598,6 +644,8 @@ impl Kaynnistin {
                 }
             }
             Some(Kaynnissa::Miinaharava(peli)) => peli.edista(ms),
+            Some(Kaynnissa::Blackjack(peli)) => peli.edista(ms),
+            Some(Kaynnissa::Holdem(peli)) => peli.edista(ms),
             None => {}
         }
     }
@@ -612,6 +660,8 @@ impl Kaynnistin {
             Some(Kaynnissa::Silmukka(peli)) => std::mem::take(&mut peli.aanijono),
             Some(Kaynnissa::Palikka(peli)) => std::mem::take(&mut peli.aanijono),
             Some(Kaynnissa::Miinaharava(peli)) => std::mem::take(&mut peli.aanijono),
+            Some(Kaynnissa::Blackjack(peli)) => std::mem::take(&mut peli.aanijono),
+            Some(Kaynnissa::Holdem(peli)) => std::mem::take(&mut peli.aanijono),
             None => Vec::new(),
         }
     }
@@ -681,6 +731,16 @@ impl Kaynnistin {
                 self.miinaharavan_vaikeus = peli.vaikeus;
                 peli.lopeta
             }
+            Some(Kaynnissa::Blackjack(peli)) => {
+                peli.kasittele(syote);
+                self.aanet_paalla = peli.aanet_paalla;
+                peli.lopeta
+            }
+            Some(Kaynnissa::Holdem(peli)) => {
+                peli.kasittele(syote);
+                self.aanet_paalla = peli.aanet_paalla;
+                peli.lopeta
+            }
             None => {
                 self.kasittele_valikko(syote);
                 return;
@@ -722,10 +782,9 @@ impl Kaynnistin {
                 }
             }
             Syote::Numero(numero) => {
-                if let Some(i) = (numero as usize)
-                    .checked_sub(1)
-                    .filter(|&i| i < PELIT.len())
-                {
+                // Kymmenes kortti on nolla, kuten numerorivillä.
+                let i = (numero as usize + 9) % 10;
+                if i < PELIT.len() {
                     self.valitse(i);
                 }
             }
@@ -803,13 +862,16 @@ mod tests {
         k.kasittele(Syote::Nuoli(1, 0));
         k.kasittele(Syote::Nuoli(1, 0));
         assert_eq!(k.valittu, 5);
+        k.kasittele(Syote::Nuoli(1, 0));
+        k.kasittele(Syote::Nuoli(1, 0));
+        k.kasittele(Syote::Nuoli(1, 0));
+        k.kasittele(Syote::Nuoli(1, 0));
+        k.kasittele(Syote::Nuoli(1, 0));
+        assert_eq!(k.valittu, 9);
+        k.kasittele(Syote::Numero(1));
+        assert_eq!(k.valittu, 0);
         k.kasittele(Syote::Numero(0));
-        k.kasittele(Syote::Numero(9));
-        assert_eq!(k.valittu, 5);
-        k.kasittele(Syote::Nuoli(1, 0));
-        k.kasittele(Syote::Nuoli(1, 0));
-        k.kasittele(Syote::Nuoli(1, 0));
-        assert_eq!(k.valittu, 7);
+        assert_eq!(k.valittu, 9);
 
         let (x, y) = piirto::kortin_keskipiste(0);
         k.kasittele(Syote::Hiiri(x, y));
@@ -857,8 +919,20 @@ mod tests {
         assert_eq!(k.otsikko(), "Miinaharava");
         k.kasittele(Syote::Peru);
 
-        k.kasittele(Syote::Numero(8));
-        assert_eq!(k.valittu, 7);
+        let (x, y) = piirto::kortin_keskipiste(8);
+        k.kasittele(Syote::Klikkaus(x, y));
+        assert!(matches!(k.peli, Some(Kaynnissa::Blackjack(_))));
+        assert_eq!(k.otsikko(), "Blackjack");
+        k.kasittele(Syote::Peru);
+
+        let (x, y) = piirto::kortin_keskipiste(9);
+        k.kasittele(Syote::Klikkaus(x, y));
+        assert!(matches!(k.peli, Some(Kaynnissa::Holdem(_))));
+        assert_eq!(k.otsikko(), "Texas Hold'em");
+        k.kasittele(Syote::Peru);
+
+        k.kasittele(Syote::Numero(9));
+        assert_eq!(k.valittu, 8);
     }
 
     #[test]
@@ -951,6 +1025,65 @@ mod tests {
         };
         peli.vaihe = pasianssi_peli::Vaihe::Voitto;
         assert_eq!(k.kuvan_avain(true), None);
+    }
+
+    #[test]
+    fn blackjackin_kuva_vaihtuu_vain_syotteesta_ja_jakajan_siirroista() {
+        let mut k = Kaynnistin::new(1);
+        k.kaynnista(Laji::Blackjack);
+        // alkuruudun malli pyörii
+        assert_eq!(k.kuvan_avain(true), None);
+        assert_eq!(k.nakyman_piste(285, 0), (0, 0));
+        k.kasittele(Syote::Ammu);
+        assert_eq!(k.nakyman_piste(285, 7), (285, 7));
+        assert!(!k.toimintapeli());
+
+        let lepo = k.kuvan_avain(true);
+        assert!(lepo.is_some());
+        k.edista(60_000);
+        assert_eq!(k.kuvan_avain(true), lepo);
+        k.kasittele(Syote::Nuoli(0, 1));
+        assert_ne!(k.kuvan_avain(true), lepo);
+
+        // jakaja siirtää ilman syötettä, joten kuva vaihtuu pelkästä ajasta
+        let Some(Kaynnissa::Blackjack(peli)) = &mut k.peli else {
+            panic!("blackjack ei ole käynnissä");
+        };
+        let mut pakka = vec![
+            klassikot8000::blackjack::Kortti {
+                maa: klassikot8000::blackjack::Maa::Pata,
+                arvo: 10,
+            };
+            100
+        ];
+        pakka[99].arvo = 9;
+        peli.poyta.kenka = pakka;
+        k.kasittele(Syote::Ammu);
+        k.kasittele(Syote::Kirjain('J'));
+        let ennen = k.kuvan_avain(true);
+        k.edista(1000);
+        assert_ne!(k.kuvan_avain(true), ennen);
+    }
+
+    #[test]
+    fn holdemin_kuva_vaihtuu_vain_syotteesta_ja_siirroista() {
+        let mut k = Kaynnistin::new(1);
+        k.kaynnista(Laji::Holdem);
+        // alkuruudun malli pyörii
+        assert_eq!(k.kuvan_avain(true), None);
+        assert_eq!(k.nakyman_piste(285, 0), (0, 0));
+        k.kasittele(Syote::Ammu);
+        assert_eq!(k.nakyman_piste(285, 7), (285, 7));
+        assert!(!k.toimintapeli());
+
+        // Koneet siirtävät ilman syötettä, ja pelaajan vuorolla kuva pysyy paikallaan.
+        k.edista(1_000_000);
+        let lepo = k.kuvan_avain(true);
+        assert!(lepo.is_some());
+        k.edista(60_000);
+        assert_eq!(k.kuvan_avain(true), lepo);
+        k.kasittele(Syote::Hiiri(0, 0));
+        assert_ne!(k.kuvan_avain(true), lepo);
     }
 
     #[test]
@@ -1563,6 +1696,8 @@ mod tests {
             Laji::Silmukka,
             Laji::Palikka,
             Laji::Miinaharava,
+            Laji::Blackjack,
+            Laji::Holdem,
         ] {
             k.kaynnista(laji);
             k.edista(100);

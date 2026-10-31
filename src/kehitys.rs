@@ -52,6 +52,13 @@ pub struct Liput {
     pub pelatut: Option<u32>,
     /// Miinaharava: aloittaa pelin ja astuu miinaan.
     pub pamaus: bool,
+    /// Blackjack ja Hold'em: aloittaa pelin ja antaa nämä näppäimet: kirjaimet ja numerot
+    /// sellaisinaan, välilyönti jakaa tai jatkaa. Koneet ehtivät pelata joka näppäimen jälkeen.
+    pub napit: Option<String>,
+    /// Blackjack: aloittaa pelin ja asettaa pöydälle näin monta kättä.
+    pub kadet: Option<usize>,
+    /// Blackjack ja Hold'em: aloittaa pelin, jossa rahat ovat juuri loppuneet.
+    pub konkurssi: bool,
     /// Kuvakaappauksen hetki viimeisen laukauksen jälkeen, animaatioiden tarkistukseen.
     pub aika_ms: u32,
 }
@@ -72,6 +79,8 @@ impl Liput {
             Some(Laji::Asteroidit)
         } else if self.rengas.is_some() {
             Some(Laji::Silmukka)
+        } else if self.napit.is_some() || self.kadet.is_some() || self.konkurssi {
+            Some(Laji::Blackjack)
         } else {
             None
         }
@@ -106,6 +115,9 @@ pub fn lue_liput() -> Result<Liput, String> {
         rengas: None,
         pelatut: None,
         pamaus: false,
+        napit: None,
+        kadet: None,
+        konkurssi: false,
         aika_ms: OLETUSAIKA_MS,
     };
     let mut args = std::env::args().skip(1);
@@ -132,6 +144,8 @@ pub fn lue_liput() -> Result<Liput, String> {
                     "silmukka" => Laji::Silmukka,
                     "palikka" => Laji::Palikka,
                     "miinaharava" => Laji::Miinaharava,
+                    "blackjack" => Laji::Blackjack,
+                    "holdem" => Laji::Holdem,
                     _ => return Err(format!("--game: {arvo}")),
                 });
             }
@@ -152,6 +166,9 @@ pub fn lue_liput() -> Result<Liput, String> {
             "--ring" => liput.rengas = Some(arvo.parse().map_err(|_| "--ring: ei luku")?),
             "--plays" => liput.pelatut = Some(arvo.parse().map_err(|_| "--plays: ei luku")?),
             "--boom" => liput.pamaus = arvo == "1",
+            "--keys" => liput.napit = Some(arvo),
+            "--hands" => liput.kadet = Some(arvo.parse().map_err(|_| "--hands: ei luku")?),
+            "--broke" => liput.konkurssi = arvo == "1",
             "--board" => {
                 let luvut = arvo
                     .split(',')

@@ -2,16 +2,15 @@
 //! pelilauta piirretään suoraan täysikokoiselle ruudulle.
 
 use klassikot8000::pasianssi::{
-    KUNINGAS, Kohde, Kortti, Lahde, Lauta, MAITA, Maa, SARAKKEITA, Sarake, Vaikeus,
+    KUNINGAS, Kohde, Lahde, Lauta, MAITA, Maa, SARAKKEITA, Sarake, Vaikeus,
 };
 
 use super::peli::{Nappi, Pasianssi, Vaihe};
 use crate::yhteinen::kieli::kaanna;
+use crate::yhteinen::kortit::{KORTTI_K, KORTTI_L};
 use crate::yhteinen::piirto::*;
-use crate::yhteinen::vektori::{Kangas, Tahko, kehapiste, kuutio};
+use crate::yhteinen::vektori::{Kangas, Tahko, kuutio};
 
-const KORTTI_L: i32 = 150;
-const KORTTI_K: i32 = 210;
 const SARAKE_X: i32 = 48;
 const SARAKE_ASKEL: i32 = 180;
 const YLARIVI_Y: i32 = 54;
@@ -229,84 +228,6 @@ pub fn napin_keskipiste(nappi: Nappi) -> (i32, i32) {
 #[cfg(test)]
 pub fn kortin_kulma_pakka() -> (i32, i32) {
     (sarakkeen_x(0), YLARIVI_Y)
-}
-
-fn maan_vari(maa: Maa) -> u32 {
-    if maa.on_punainen() { OSUMA } else { MUSTA }
-}
-
-fn arvon_nimi(arvo: u8) -> String {
-    match arvo {
-        1 => "A".to_string(),
-        11 => "J".to_string(),
-        12 => "Q".to_string(),
-        KUNINGAS => "K".to_string(),
-        _ => arvo.to_string(),
-    }
-}
-
-/// Maakuvioiden paikat kortin keskialueella, -1..1 kumpaankin suuntaan.
-fn kuviot(arvo: u8) -> &'static [(f32, f32)] {
-    const A: f32 = 0.55;
-    const B: f32 = 0.33;
-    const C: f32 = 0.66;
-    match arvo {
-        2 => &[(0.0, -1.0), (0.0, 1.0)],
-        3 => &[(0.0, -1.0), (0.0, 0.0), (0.0, 1.0)],
-        4 => &[(-A, -1.0), (A, -1.0), (-A, 1.0), (A, 1.0)],
-        5 => &[(-A, -1.0), (A, -1.0), (0.0, 0.0), (-A, 1.0), (A, 1.0)],
-        6 => &[
-            (-A, -1.0),
-            (A, -1.0),
-            (-A, 0.0),
-            (A, 0.0),
-            (-A, 1.0),
-            (A, 1.0),
-        ],
-        7 => &[
-            (-A, -1.0),
-            (A, -1.0),
-            (0.0, -0.5),
-            (-A, 0.0),
-            (A, 0.0),
-            (-A, 1.0),
-            (A, 1.0),
-        ],
-        8 => &[
-            (-A, -1.0),
-            (A, -1.0),
-            (0.0, -0.5),
-            (-A, 0.0),
-            (A, 0.0),
-            (0.0, 0.5),
-            (-A, 1.0),
-            (A, 1.0),
-        ],
-        9 => &[
-            (-A, -1.0),
-            (A, -1.0),
-            (-A, -B),
-            (A, -B),
-            (0.0, 0.0),
-            (-A, B),
-            (A, B),
-            (-A, 1.0),
-            (A, 1.0),
-        ],
-        10 => &[
-            (-A, -1.0),
-            (A, -1.0),
-            (0.0, -C),
-            (-A, -B),
-            (A, -B),
-            (-A, B),
-            (A, B),
-            (0.0, C),
-            (-A, 1.0),
-            (A, 1.0),
-        ],
-        _ => &[],
-    }
 }
 
 /// Alkuruudun malli: kolme pystyssä olevaa ohutta korttia. Mitat kuin laivalla.
@@ -527,103 +448,6 @@ impl Piirtaja<'_> {
         self.k.kehys(x, y, KORTTI_L, KORTTI_K, RUUDUKKO);
     }
 
-    /// Selkäpuoli on Amiga-sinistä ruudutusta.
-    fn kortin_tausta(&mut self, x: i32, y: i32) {
-        self.k.laatikko(x + 3, y + 3, KORTTI_L, KORTTI_K, MUSTA);
-        self.k.laatikko(x, y, KORTTI_L, KORTTI_K, WB_SININEN);
-        self.k.kehys(x, y, KORTTI_L, KORTTI_K, MUSTA);
-        self.k
-            .kehys(x + 6, y + 6, KORTTI_L - 12, KORTTI_K - 12, VALKOINEN);
-        const RUUTU: i32 = 12;
-        for rivi in 0..(KORTTI_K - 24) / RUUTU {
-            for sarake in 0..(KORTTI_L - 24) / RUUTU {
-                if (rivi + sarake) % 2 == 0 {
-                    let (rx, ry) = (x + 12 + sarake * RUUTU, y + 12 + rivi * RUUTU);
-                    self.k.laatikko(rx, ry, RUUTU, RUUTU, REUNA);
-                }
-            }
-        }
-    }
-
-    fn pelikortti(&mut self, x: i32, y: i32, kortti: Kortti) {
-        let vari = maan_vari(kortti.maa);
-        self.k.laatikko(x + 3, y + 3, KORTTI_L, KORTTI_K, MUSTA);
-        self.k.laatikko(x, y, KORTTI_L, KORTTI_K, VALKOINEN);
-        self.k.kehys(x, y, KORTTI_L, KORTTI_K, MUSTA);
-
-        let nimi = arvon_nimi(kortti.arvo);
-        self.vektoriteksti(x + 9, y + 8, &nimi, OTSIKKO, vari, true);
-        self.maakuvio(kortti.maa, (x + KORTTI_L - 21, y + 18), 12.0, vari);
-
-        let keski = (x + KORTTI_L / 2, y + 42 + (KORTTI_K - 42) / 2);
-        match kortti.arvo {
-            1 => self.maakuvio(kortti.maa, keski, 42.0, vari),
-            11..=KUNINGAS => {
-                // Kuvakortit ovat kehystetty kirjain, kuten vanhojen koneiden pasiansseissa.
-                let (kx, ky) = (x + 21, y + 42);
-                self.k
-                    .laatikko(kx, ky, KORTTI_L - 42, KORTTI_K - 57, KELTAINEN);
-                self.k.kehys(kx, ky, KORTTI_L - 42, KORTTI_K - 57, vari);
-                self.vektoriteksti(keski.0 - SUURI.0 / 2, ky + 12, &nimi, SUURI, vari, true);
-                self.maakuvio(kortti.maa, (keski.0, ky + 105), 21.0, vari);
-            }
-            arvo => {
-                for &(px, py) in kuviot(arvo) {
-                    let kohta = (keski.0 + (px * 54.0) as i32, keski.1 + (py * 66.0) as i32);
-                    self.maakuvio(kortti.maa, kohta, 15.0, vari);
-                }
-            }
-        }
-    }
-
-    fn taytetty_ympyra(&mut self, keski: (i32, i32), sade: f32, vari: u32) {
-        const SIVUJA: usize = 12;
-        let mut pisteet = [(0, 0); SIVUJA];
-        for (i, piste) in pisteet.iter_mut().enumerate() {
-            let kulma = i as f32 / SIVUJA as f32 * std::f32::consts::TAU;
-            *piste = kehapiste(keski, sade, kulma);
-        }
-        self.k.monikulmio(&pisteet, vari);
-    }
-
-    /// Maat kootaan ympyröistä ja monikulmioista, joten ne skaalautuvat mihin tahansa kokoon.
-    fn maakuvio(&mut self, maa: Maa, keski: (i32, i32), koko: f32, vari: u32) {
-        let piste = |x: f32, y: f32| (keski.0 + (x * koko) as i32, keski.1 + (y * koko) as i32);
-        let sade = koko * 0.5;
-        match maa {
-            Maa::Ruutu => {
-                let kulmat = [
-                    piste(0.0, -1.0),
-                    piste(0.8, 0.0),
-                    piste(0.0, 1.0),
-                    piste(-0.8, 0.0),
-                ];
-                self.k.monikulmio(&kulmat, vari);
-            }
-            Maa::Hertta => {
-                self.taytetty_ympyra(piste(-0.47, -0.4), sade, vari);
-                self.taytetty_ympyra(piste(0.47, -0.4), sade, vari);
-                let karki = [piste(-0.95, -0.2), piste(0.95, -0.2), piste(0.0, 1.0)];
-                self.k.monikulmio(&karki, vari);
-            }
-            Maa::Pata => {
-                self.taytetty_ympyra(piste(-0.47, 0.2), sade, vari);
-                self.taytetty_ympyra(piste(0.47, 0.2), sade, vari);
-                let karki = [piste(-0.95, 0.0), piste(0.95, 0.0), piste(0.0, -1.0)];
-                self.k.monikulmio(&karki, vari);
-                let varsi = [piste(0.0, 0.3), piste(0.35, 1.0), piste(-0.35, 1.0)];
-                self.k.monikulmio(&varsi, vari);
-            }
-            Maa::Risti => {
-                self.taytetty_ympyra(piste(0.0, -0.5), sade, vari);
-                self.taytetty_ympyra(piste(-0.52, 0.2), sade, vari);
-                self.taytetty_ympyra(piste(0.52, 0.2), sade, vari);
-                let varsi = [piste(0.0, -0.2), piste(0.35, 1.0), piste(-0.35, 1.0)];
-                self.k.monikulmio(&varsi, vari);
-            }
-        }
-    }
-
     fn pasianssi_sivu(&mut self, peli: &Pasianssi) {
         let tila = &peli.lauta.tila;
         let kierros = match peli.lauta.vaikeus.kierroksia() {
@@ -727,6 +551,7 @@ mod tests {
     use super::*;
     use crate::yhteinen::kieli::kaikilla_kielilla;
     use klassikot8000::Arpa;
+    use klassikot8000::pasianssi::Kortti;
 
     #[test]
     fn kortit_mahtuvat_ruudulle_pisimmassakin_sarakkeessa() {

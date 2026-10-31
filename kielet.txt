@@ -15,6 +15,8 @@ peli.asteroidit = Asteroidit
 peli.silmukka = Mato8000
 peli.palikka = Palikka8000
 peli.miinaharava = Miinaharava
+peli.blackjack = Blackjack
+peli.holdem = Texas Hold'em
 
 valikko.banneri = **** PELIKONE ****
 valikko.ohje = Väli: pelaa. M: äänet. Esc: lopeta.
@@ -29,6 +31,8 @@ valikko.asteroidit = Ammu kivet ennen kuin ne osuvat.
 valikko.silmukka = Kierrä mato itikoiden ympärille.
 valikko.palikka = Vaihda palikoita, kolme samaa suoraan.
 valikko.miinaharava = Avaa ruudut, älä osu miinaan.
+valikko.blackjack = Lähelle 21:tä, leikkirahalla jakajaa vastaan.
+valikko.holdem = Pokeria neljää konetta vastaan, 1000 rahaa.
 
 yhteinen.netti_top = NETTI TOP
 yhteinen.top3 = TOP 3
@@ -227,6 +231,118 @@ miinaharava.tappio = OSUIT MIINAAN!
 miinaharava.ennatys = Uusi ennätys: {} s!
 miinaharava.aika_viesti = Aika: {} s.
 
+blackjack.banneri = **** BLACKJACK ****
+blackjack.tervetuloa = Tervetuloa pelaamaan blackjackia.
+blackjack.ohje_1 = Pääse lähemmäs 21:tä kuin jakaja, mutta älä yli. Kuvakortit ovat 10, ässä 1 tai 11.
+blackjack.ohje_2 = Pelaat leikkirahalla: alussa 300, pienin panos 1.
+blackjack.nappain_panos = Panos: nuolet, numerot tai hiiri.
+blackjack.nappain_jako = Väli: jaa kortit.
+blackjack.nappain_kortit = O ota, J jää, T tuplaa, H halkaise.
+blackjack.nappain_vakuutus = Ässä esillä: V vakuuta, N älä.
+blackjack.nappi_vakuuta = V = Vakuuta
+blackjack.nappi_ei_vakuutusta = N = Ei vakuutusta
+blackjack.vakuutus_tarjous = Jakajalla on ässä. Vakuutus maksaa {}.
+blackjack.tasaraha_tarjous = Jakajalla on ässä. V = varma voitto {}.
+blackjack.vakuutus_havisi = Ei blackjackia, vakuutus hävisi.
+blackjack.viesti_vakuutus = Vakuutus maksoi {}. Yhteensä +{}.
+blackjack.saanto = Blackjack 3:2. Vakuutus 2:1. Jakaja jää 17:ään.
+blackjack.jakaja = JAKAJA
+blackjack.rahat = RAHAT
+blackjack.panos = PANOS
+blackjack.kasi_panos = PANOS {}
+blackjack.tulos_blackjack = BLACKJACK +{}
+blackjack.tulos_voitto = VOITTO +{}
+blackjack.tulos_tasan = TASAN
+blackjack.tulos_tappio = TAPPIO -{}
+blackjack.tulos_yli = YLI 21 -{}
+blackjack.rahat_loppu = RAHAT LOPPUIVAT!
+blackjack.sivu_nuolet = Nuolet: muuta panosta.
+blackjack.sivu_aanet = M: äänet päälle/pois.
+blackjack.nappi_jako = Väli = Jaa kortit
+blackjack.lisaa_1 = 1 = Lisää 1
+blackjack.lisaa_5 = 2 = Lisää 5
+blackjack.lisaa_25 = 3 = Lisää 25
+blackjack.lisaa_100 = 4 = Lisää 100
+blackjack.nappi_kaikki = K = Kaikki rahat
+blackjack.nappi_pienin = T = Pienin panos
+blackjack.nappi_ota = O = Ota kortti
+blackjack.nappi_jaa = J = Jää
+blackjack.nappi_tuplaa = T = Tuplaa
+blackjack.nappi_halkaise = H = Halkaise
+blackjack.aseta_panos = Aseta panos ja jaa kortit.
+blackjack.ei_tuplausta = Tuplaus vaatii kaksi korttia ja rahaa.
+blackjack.ei_halkaisua = Halkaisu vaatii parin ja rahaa.
+blackjack.viesti_blackjack = Blackjack! Voitit {}.
+blackjack.viesti_voitto = Voitit {}.
+blackjack.viesti_tappio = Hävisit {}.
+blackjack.viesti_tasan = Tasapeli, panos palasi.
+blackjack.konkurssi = Rahat loppuivat. K = uusi peli, {} rahaa.
+
+holdem.banneri = **** TEXAS HOLD'EM ****
+holdem.tervetuloa = Tervetuloa Hold'em-pöytään.
+holdem.ohje_1 = Kaksi omaa korttia ja viisi yhteistä: paras viiden kortin käsi voittaa potin.
+holdem.ohje_2 = Neljä konetta, kaikilla 1000 rahaa. Blindit 10/20 tuplaantuvat 10 jaon välein. Viimeinen rahoissa voittaa.
+holdem.nappain_vuoro = V tarkista tai maksa, K kippaa.
+holdem.nappain_korotus = R korota, nuolet ja 1-4 summa.
+holdem.nappain_jatka = Väli: jatka tai uusi jako.
+holdem.sina = Sinä
+holdem.kone_1 = Sulo
+holdem.kone_2 = Tyyne
+holdem.kone_3 = Eino
+holdem.kone_4 = Helmi
+holdem.kasi_hai = Hai
+holdem.kasi_pari = Pari
+holdem.kasi_kaksi_paria = Kaksi paria
+holdem.kasi_kolmoset = Kolmoset
+holdem.kasi_suora = Suora
+holdem.kasi_vari = Väri
+holdem.kasi_tayskasi = Täyskäsi
+holdem.kasi_neloset = Neloset
+holdem.kasi_varisuora = Värisuora
+holdem.kasi_kuningasvarisuora = Kuningasvärisuora
+holdem.merkki_nappi = D
+holdem.merkki_pieni = SB
+holdem.merkki_iso = BB
+holdem.pudonnut = PUDONNUT
+holdem.all_in = ALL-IN
+holdem.teko_tarkisti = TARKISTI
+holdem.teko_maksoi = MAKSOI
+holdem.teko_panosti = PANOSTI
+holdem.teko_korotti = KOROTTI
+holdem.teko_kippasi = KIPPASI
+holdem.panos_rivi = PANOS {}
+holdem.potti_rivi = POTTI {}
+holdem.sivupotit = , SIVUPOTTEJA {}
+holdem.oma_kasi = KÄTESI: {}
+holdem.saanto = Jako {}, taso {}. Blindit nousevat {} jaon päästä.
+holdem.voitit = VOITIT PÖYDÄN!
+holdem.putosit = PUTOSIT PELISTÄ!
+holdem.rahat = RAHAT
+holdem.blindit = BLINDIT
+holdem.sivu_nuolet = Nuolet: muuta korotus.
+holdem.sivu_aanet = M: äänet päälle/pois.
+holdem.nappi_tarkista = V = Tarkista
+holdem.nappi_maksa = V = Maksa {}
+holdem.nappi_kippaa = K = Kippaa
+holdem.nappi_korota = R = Korota {}
+holdem.nappi_panosta = R = Panosta {}
+holdem.nappi_pienin = 1 = Pienin korotus
+holdem.nappi_puoli = 2 = Puoli pottia
+holdem.nappi_potti = 3 = Koko potti
+holdem.nappi_kaikki = 4 = Kaikki rahat
+holdem.nappi_jatka = Väli = Jatka
+holdem.nappi_jako = Väli = Seuraava jako
+holdem.sinun_vuorosi = Sinun vuorosi.
+holdem.maksettavaa = Sinun vuorosi. Maksettavaa {}.
+holdem.miettii = {} miettii.
+holdem.kortit_esiin = Kortit esiin.
+holdem.seuraava_kortti = Seuraava kortti.
+holdem.ei_korotusta = Et voi korottaa nyt.
+holdem.voitot_kasi = {}. Käsi: {}.
+holdem.muut_kippasivat = Muut kippasivat. {}.
+holdem.havio = Putosit sijalle {}. K = uusi peli.
+holdem.voitto = Sait kaikki {} rahaa! K = uusi peli.
+
 
 [en]
 peli.pelikone = Game Machine
@@ -238,6 +354,8 @@ peli.asteroidit = Asteroids
 peli.silmukka = Mato8000
 peli.palikka = Palikka8000
 peli.miinaharava = Minesweeper
+peli.blackjack = Blackjack
+peli.holdem = Texas Hold'em
 
 valikko.banneri = **** GAME MACHINE ****
 valikko.ohje = Space: play. M: sound. Esc: quit.
@@ -252,6 +370,8 @@ valikko.asteroidit = Shoot the rocks before they hit.
 valikko.silmukka = Coil the worm around mosquitoes.
 valikko.palikka = Swap blocks, line up three of a kind.
 valikko.miinaharava = Open every cell, avoid the mines.
+valikko.blackjack = Get near 21, play money against the dealer.
+valikko.holdem = Poker against four computers, 1000 to start.
 
 yhteinen.netti_top = NET TOP 3
 yhteinen.top3 = TOP 3
@@ -449,3 +569,115 @@ miinaharava.pamaus = Boom! You hit a mine.
 miinaharava.tappio = YOU HIT A MINE!
 miinaharava.ennatys = New record: {} s!
 miinaharava.aika_viesti = Time: {} s.
+
+blackjack.banneri = **** BLACKJACK ****
+blackjack.tervetuloa = Welcome to Blackjack.
+blackjack.ohje_1 = Get closer to 21 than the dealer without going over. Face cards are 10, aces 1 or 11.
+blackjack.ohje_2 = You play with play money: 300 to start, lowest bet 1.
+blackjack.nappain_panos = Bet: arrows, numbers or mouse.
+blackjack.nappain_jako = Space: deal.
+blackjack.nappain_kortit = O hit, J stand, T double, H split.
+blackjack.nappain_vakuutus = Dealer ace: V insure, N decline.
+blackjack.nappi_vakuuta = V = Insure
+blackjack.nappi_ei_vakuutusta = N = No insurance
+blackjack.vakuutus_tarjous = Dealer shows an ace. Insurance costs {}.
+blackjack.tasaraha_tarjous = Dealer shows an ace. V = sure win of {}.
+blackjack.vakuutus_havisi = No blackjack, insurance lost.
+blackjack.viesti_vakuutus = Insurance paid {}. In total +{}.
+blackjack.saanto = Blackjack 3:2. Insurance 2:1. Dealer stands on 17.
+blackjack.jakaja = DEALER
+blackjack.rahat = MONEY
+blackjack.panos = BET
+blackjack.kasi_panos = BET {}
+blackjack.tulos_blackjack = BLACKJACK +{}
+blackjack.tulos_voitto = WIN +{}
+blackjack.tulos_tasan = PUSH
+blackjack.tulos_tappio = LOSS -{}
+blackjack.tulos_yli = BUST -{}
+blackjack.rahat_loppu = OUT OF MONEY!
+blackjack.sivu_nuolet = Arrows: change bet.
+blackjack.sivu_aanet = M: sound on/off.
+blackjack.nappi_jako = Space = Deal
+blackjack.lisaa_1 = 1 = Add 1
+blackjack.lisaa_5 = 2 = Add 5
+blackjack.lisaa_25 = 3 = Add 25
+blackjack.lisaa_100 = 4 = Add 100
+blackjack.nappi_kaikki = K = All in
+blackjack.nappi_pienin = T = Lowest bet
+blackjack.nappi_ota = O = Hit
+blackjack.nappi_jaa = J = Stand
+blackjack.nappi_tuplaa = T = Double
+blackjack.nappi_halkaise = H = Split
+blackjack.aseta_panos = Set your bet and deal.
+blackjack.ei_tuplausta = Doubling needs two cards and money.
+blackjack.ei_halkaisua = Splitting needs a pair and money.
+blackjack.viesti_blackjack = Blackjack! You won {}.
+blackjack.viesti_voitto = You won {}.
+blackjack.viesti_tappio = You lost {}.
+blackjack.viesti_tasan = Push, your bet came back.
+blackjack.konkurssi = Out of money. K = new game with {}.
+
+holdem.banneri = **** TEXAS HOLD'EM ****
+holdem.tervetuloa = Welcome to the Hold'em table.
+holdem.ohje_1 = Two cards of your own and five shared: the best five-card hand wins the pot.
+holdem.ohje_2 = Four computers, everyone has 1000. Blinds 10/20 double every 10 hands. Last one with money wins.
+holdem.nappain_vuoro = V check or call, K fold.
+holdem.nappain_korotus = R raise, arrows and 1-4 set amount.
+holdem.nappain_jatka = Space: go on or next hand.
+holdem.sina = You
+holdem.kone_1 = Sulo
+holdem.kone_2 = Tyyne
+holdem.kone_3 = Eino
+holdem.kone_4 = Helmi
+holdem.kasi_hai = High card
+holdem.kasi_pari = Pair
+holdem.kasi_kaksi_paria = Two pair
+holdem.kasi_kolmoset = Three of a kind
+holdem.kasi_suora = Straight
+holdem.kasi_vari = Flush
+holdem.kasi_tayskasi = Full house
+holdem.kasi_neloset = Four of a kind
+holdem.kasi_varisuora = Straight flush
+holdem.kasi_kuningasvarisuora = Royal flush
+holdem.merkki_nappi = D
+holdem.merkki_pieni = SB
+holdem.merkki_iso = BB
+holdem.pudonnut = OUT
+holdem.all_in = ALL-IN
+holdem.teko_tarkisti = CHECK
+holdem.teko_maksoi = CALL
+holdem.teko_panosti = BET
+holdem.teko_korotti = RAISE
+holdem.teko_kippasi = FOLD
+holdem.panos_rivi = BET {}
+holdem.potti_rivi = POT {}
+holdem.sivupotit = , SIDE POTS {}
+holdem.oma_kasi = YOUR HAND: {}
+holdem.saanto = Hand {}, level {}. Blinds go up in {} hands.
+holdem.voitit = YOU WON THE TABLE!
+holdem.putosit = YOU ARE OUT!
+holdem.rahat = MONEY
+holdem.blindit = BLINDS
+holdem.sivu_nuolet = Arrows: change raise.
+holdem.sivu_aanet = M: sound on/off.
+holdem.nappi_tarkista = V = Check
+holdem.nappi_maksa = V = Call {}
+holdem.nappi_kippaa = K = Fold
+holdem.nappi_korota = R = Raise to {}
+holdem.nappi_panosta = R = Bet {}
+holdem.nappi_pienin = 1 = Lowest raise
+holdem.nappi_puoli = 2 = Half pot
+holdem.nappi_potti = 3 = Full pot
+holdem.nappi_kaikki = 4 = All in
+holdem.nappi_jatka = Space = Go on
+holdem.nappi_jako = Space = Next hand
+holdem.sinun_vuorosi = Your turn.
+holdem.maksettavaa = Your turn. {} to call.
+holdem.miettii = {} is thinking.
+holdem.kortit_esiin = Show your cards.
+holdem.seuraava_kortti = Next card.
+holdem.ei_korotusta = You can't raise now.
+holdem.voitot_kasi = {}. Hand: {}.
+holdem.muut_kippasivat = Everyone else folded. {}.
+holdem.havio = You finished in place {}. K = new game.
+holdem.voitto = You took all {}! K = new game.

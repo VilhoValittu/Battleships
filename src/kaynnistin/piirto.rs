@@ -3,7 +3,8 @@
 use super::netti::VERSIO;
 use super::{Kaynnissa, Kaynnistin, PELIT};
 use crate::pelit::{
-    asteroidit, laivanupotus, luvut, miinaharava, palikka, pasianssi, silmukka, tiilirikko,
+    asteroidit, blackjack, holdem, laivanupotus, luvut, miinaharava, palikka, pasianssi, silmukka,
+    tiilirikko,
 };
 use crate::yhteinen::kieli::{kaanna, muotoile};
 use crate::yhteinen::piirto::*;
@@ -16,7 +17,7 @@ const RUUTU_L: i32 = RUUDUN_LEVEYS as i32;
 const KORTTI_X: i32 = 48;
 const KORTTI_L: i32 = 704;
 const KORTTI_Y: i32 = 172;
-const KORTTI_K: i32 = 92;
+const KORTTI_K: i32 = 72;
 const KORTTI_ASKEL: i32 = KORTTI_K + 8;
 const KORTIN_NUMERO_X: i32 = 60;
 const KORTIN_NIMI: (i32, i32, i32) = (24, 36, 32);
@@ -131,6 +132,16 @@ pub fn piirra(kaynnistin: &Kaynnistin, kehys: &mut Kehys) {
             return kehys.piirretty_suoraan();
         }
         Some(Kaynnissa::Pasianssi(peli)) => pasianssi::piirto::piirra_alku(peli, kuva),
+        Some(Kaynnissa::Blackjack(peli)) if peli.vaihe != blackjack::peli::Vaihe::Alku => {
+            blackjack::piirto::piirra(peli, &mut kehys.ruutu);
+            return kehys.piirretty_suoraan();
+        }
+        Some(Kaynnissa::Blackjack(peli)) => blackjack::piirto::piirra_alku(peli, kuva),
+        Some(Kaynnissa::Holdem(peli)) if peli.vaihe != holdem::peli::Vaihe::Alku => {
+            holdem::piirto::piirra(peli, &mut kehys.ruutu);
+            return kehys.piirretty_suoraan();
+        }
+        Some(Kaynnissa::Holdem(peli)) => holdem::piirto::piirra_alku(peli, kuva),
         Some(Kaynnissa::Laivanupotus(peli)) => laivanupotus::piirto::piirra(peli, kuva),
         Some(Kaynnissa::Luvut(peli)) => luvut::piirto::piirra(peli, kuva),
         Some(Kaynnissa::Tiilirikko(peli)) => tiilirikko::piirto::piirra(peli, kuva),
@@ -235,7 +246,8 @@ impl Piirtaja<'_> {
         let (koko, paksuus) = (KORTIN_NIMI, KORTIN_NIMEN_PAKSUUS);
         let teksti_y = keski_y - koko.1 / 2;
         let x = KORTTI_X + KORTIN_NUMERO_X;
-        let numero = (i + 1).to_string();
+        // Kymmenes kortti on nolla, kuten numerorivillä.
+        let numero = ((i + 1) % 10).to_string();
         self.levea_vektoriteksti(x, teksti_y, &numero, koko, paksuus, numero_vari);
         let nimi = kaanna(PELIT[i].nimi).to_uppercase();
         self.levea_vektoriteksti(x + 2 * koko.2, teksti_y, &nimi, koko, paksuus, nimi_vari);
