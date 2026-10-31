@@ -4,6 +4,7 @@ use super::{Kaynnissa, Kaynnistin, PELIT};
 use crate::pelit::{asteroidit, laivanupotus, luvut, pasianssi, silmukka, tiilirikko};
 use crate::yhteinen::kieli::kaanna;
 use crate::yhteinen::piirto::*;
+use crate::yhteinen::tulokset::Tulos;
 use crate::yhteinen::vektori::{Kangas, Tahko};
 
 // Käynnistin piirtää suoraan ruudulle, joten mitat ovat ruudun pikseleitä.
@@ -35,6 +36,8 @@ const MALLI_X: i32 = 1336;
 const MALLI_Y: i32 = 460;
 const MALLIN_KOKO: f32 = 76.0;
 const MALLIN_KEINUNTA: f32 = 6.0;
+pub const MALLIN_KASVU_MS: u32 = 200;
+const MALLIN_ALKUKOKO: f32 = 0.6;
 
 const PANEELI_X: i32 = 800;
 const PANEELI_L: i32 = 1072;
@@ -46,6 +49,12 @@ const TEKSTIN_KERROIN: i32 = 4;
 const SUURI_MERKKI: i32 = TEKSTIN_KERROIN * 8;
 const KUVAUS_RIVI: i32 = 40;
 const KUVAUS_MERKKEJA: usize = ((PANEELI_L - 2 * PANEELI_SISENNYS) / SUURI_MERKKI) as usize;
+const KAPEA_KUVAUS_MERKKEJA: usize =
+    ((PANEELI_L - 3 * PANEELI_SISENNYS - LISTA_L) / SUURI_MERKKI) as usize;
+
+const LISTA_L: i32 = 350;
+const LISTA_Y: i32 = 24;
+const LISTA_KOKO: (i32, i32, i32) = (14, 21, 20);
 
 const ALAPALKKI_Y: i32 = 976;
 const OHJE_X: i32 = 48;
@@ -132,22 +141,28 @@ pub fn piirra(kaynnistin: &Kaynnistin, ruutu: &mut [u32], kuva: &mut [u32]) {
 impl Piirtaja<'_> {
     fn valikko(&mut self, kaynnistin: &Kaynnistin) {
         self.maisematausta(MAISEMA);
-        self.valikon_malli(&kaynnistin.malli);
+        let ika = kaynnistin.kello_ms.saturating_sub(kaynnistin.valittu_ms);
+        self.valikon_malli(&kaynnistin.malli, ika);
         self.valikon_otsikko(kaanna("valikko.banneri"));
         for i in 0..PELIT.len() {
             self.valikkokortti(i, i == kaynnistin.valittu);
         }
-        self.kuvauspaneeli(PELIT[kaynnistin.valittu].kuvaus);
+        self.kuvauspaneeli(
+            PELIT[kaynnistin.valittu].kuvaus,
+            kaynnistin.valitun_parhaat(),
+        );
         self.ohjepalkki(kaanna("valikko.ohje"));
     }
 
-    fn valikon_malli(&mut self, malli: &[Tahko]) {
+    /// `ika` on aika valinnan vaihtumisesta: uusi malli kasvaa täyteen kokoonsa.
+    fn valikon_malli(&mut self, malli: &[Tahko], ika: u32) {
         let keinunta = (self.kello as f32 * 0.002).sin() * MALLIN_KEINUNTA;
+        let kasvu = (ika as f32 / MALLIN_KASVU_MS as f32).min(1.0);
         self.k.malli(
             malli,
             self.kello as f32 * LAIVAN_KIERTO,
             (MALLI_X, MALLI_Y + keinunta as i32),
-            MALLIN_KOKO,
+            MALLIN_KOKO * (MALLIN_ALKUKOKO + (1.0 - MALLIN_ALKUKOKO) * kasvu),
             LAIVA_REUNA,
         );
     }
@@ -196,7 +211,8 @@ impl Piirtaja<'_> {
         self.levea_vektoriteksti(x + 2 * koko.2, teksti_y, &nimi, koko, paksuus, nimi_vari);
     }
 
-    fn kuvauspaneeli(&mut self, kuvaus: &str) {
+    /// Kuvaus keskellä paneelia. Jos pelillä on tuloksia, ne vievät paneelin oikean laidan.
+    fn kuvauspaneeli(&mut self, kuvaus: &str, parhaat: Option<&[Tulos]>) {
         self.k.laatikko(
             PANEELI_X,
             PANEELI_YLA,
@@ -206,9 +222,19 @@ impl Piirtaja<'_> {
         );
         self.k
             .kehys(PANEELI_X, PANEELI_YLA, PANEELI_L, PANEELI_KORKEUS, REUNA);
+        let merkkeja = if let Some(parhaat) = parhaat {
+            let x = PANEELI_X + PANEELI_L - PANEELI_SISENNYS - LISTA_L;
+            let y = PANEELI_YLA + LISTA_Y;
+            self.parhaat_lista(x, y, LISTA_L, LISTA_KOKO, listan_otsikko(false), parhaat);
+            KAPEA_KUVAUS_MERKKEJA
+        } else {
+            KUVAUS_MERKKEJA
+        };
+        let rivit = rivita(kaanna(kuvaus), merkkeja);
         let x = PANEELI_X + PANEELI_SISENNYS;
-        let mut y = PANEELI_YLA + PANEELI_SISENNYS;
-        for rivi in rivita(kaanna(kuvaus), KUVAUS_MERKKEJA) {
+        let korkeus = rivit.len() as i32 * KUVAUS_RIVI - (KUVAUS_RIVI - SUURI_MERKKI);
+        let mut y = PANEELI_YLA + (PANEELI_KORKEUS - korkeus) / 2;
+        for rivi in rivit {
             self.teksti_koossa(x, y, rivi, TEKSTIN_KERROIN, VALKOINEN);
             y += KUVAUS_RIVI;
         }
@@ -231,6 +257,7 @@ impl Piirtaja<'_> {
 mod tests {
     use super::*;
     use crate::yhteinen::kieli::kaikilla_kielilla;
+    use crate::yhteinen::tulokset::NIMEN_PITUUS;
 
     #[test]
     fn kortit_ja_paneelit_mahtuvat_kuvaan() {
@@ -261,10 +288,17 @@ mod tests {
                 let nimi = kaanna(kortti.nimi).chars().count() as i32;
                 let oikea = KORTIN_NUMERO_X + (2 + nimi) * KORTIN_NIMI.2;
                 assert!(oikea <= KORTTI_L, "{}", kortti.nimi);
-                let rivit = rivita(kaanna(kortti.kuvaus), KUVAUS_MERKKEJA).len() as i32;
-                let korkeus = 2 * PANEELI_SISENNYS + rivit * KUVAUS_RIVI;
-                assert!(korkeus <= PANEELI_KORKEUS, "{}", kortti.kuvaus);
+                for merkkeja in [KUVAUS_MERKKEJA, KAPEA_KUVAUS_MERKKEJA] {
+                    let rivit = rivita(kaanna(kortti.kuvaus), merkkeja).len() as i32;
+                    let korkeus = 2 * PANEELI_SISENNYS + rivit * KUVAUS_RIVI;
+                    assert!(korkeus <= PANEELI_KORKEUS, "{}", kortti.kuvaus);
+                }
             }
+            // pisin nimi ja seitsennumeroiset pisteet samalle riville
+            let rivi = (2 + NIMEN_PITUUS as i32 + 7) * LISTA_KOKO.2;
+            assert!(rivi <= LISTA_L);
+            let otsikko = listan_otsikko(false).chars().count() as i32 * MERKKI;
+            assert!(otsikko <= LISTA_L);
             let ohje = kaanna("valikko.ohje").chars().count() as i32 + 1;
             assert!(OHJE_X + ohje * SUURI_MERKKI <= RUUTU_L);
             let otsikko = kaanna("valikko.banneri").chars().count() as i32;

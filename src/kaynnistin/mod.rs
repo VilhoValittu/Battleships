@@ -102,6 +102,8 @@ pub struct Kaynnistin {
     pub valittu: usize,
     /// Valitun pelin malli. Rakennetaan vain valinnan vaihtuessa.
     malli: Vec<Tahko>,
+    /// Kellon lukema, kun valinta viimeksi vaihtui.
+    valittu_ms: u32,
     pub peli: Option<Kaynnissa>,
     pub aanet_paalla: bool,
     pub lopeta: bool,
@@ -129,6 +131,7 @@ impl Kaynnistin {
         Self {
             valittu: 0,
             malli: (PELIT[0].malli)(),
+            valittu_ms: 0,
             peli: None,
             aanet_paalla: true,
             lopeta: false,
@@ -150,17 +153,31 @@ impl Kaynnistin {
     pub fn valitse(&mut self, i: usize) {
         if i != self.valittu {
             self.valittu = i;
+            self.valittu_ms = self.kello_ms;
             self.malli = (PELIT[i].malli)();
+        }
+    }
+
+    /// Valitun pelin omat parhaat. Laivanupotuksella ja pasianssilla ei ole pistelistaa.
+    pub fn valitun_parhaat(&self) -> Option<&[Tulos]> {
+        match PELIT[self.valittu].laji {
+            Laji::Luvut => Some(&self.tallennus.parhaat),
+            Laji::Tiilirikko => Some(&self.tallennus.tiilirikon_parhaat),
+            Laji::Asteroidit => Some(&self.tallennus.asteroidien_parhaat),
+            Laji::Silmukka => Some(&self.tallennus.silmukan_parhaat),
+            Laji::Laivanupotus | Laji::Pasianssi => None,
         }
     }
 
     /// Kaikki, mistä valikon kuva riippuu, tai `None` pelin aikana. Kun avain pysyy samana,
     /// valikkoa ei tarvitse piirtää. Taustalla oleva ikkuna ei animoi.
     pub fn valikon_avain(&self, aktiivinen: bool) -> Option<(usize, bool, Kieli, u32)> {
-        let askel = if aktiivinen {
-            self.kello_ms / VALIKON_ASKEL_MS
-        } else {
-            0
+        let kasvaa = self.kello_ms.saturating_sub(self.valittu_ms) < piirto::MALLIN_KASVU_MS;
+        let askel = match (aktiivinen, kasvaa) {
+            (false, _) => 0,
+            // lyhyt kasvu näytetään sulavasti silmukan tahdissa
+            (true, true) => self.kello_ms,
+            (true, false) => self.kello_ms / VALIKON_ASKEL_MS,
         };
         self.peli
             .is_none()
@@ -665,6 +682,12 @@ mod tests {
     #[test]
     fn valikon_avain_vaihtuu_vain_kun_kuva_voi_muuttua() {
         let mut k = Kaynnistin::new(1);
+        // kasvun aikana kuva vaihtuu joka kierroksella
+        let kasvussa = k.valikon_avain(true);
+        k.edista(1);
+        assert_ne!(k.valikon_avain(true), kasvussa);
+
+        k.edista(10 * VALIKON_ASKEL_MS - 1);
         let alku = k.valikon_avain(true);
         assert!(alku.is_some());
         k.edista(VALIKON_ASKEL_MS - 1);
@@ -687,9 +710,20 @@ mod tests {
     fn valinta_vaihtaa_mallin() {
         let mut k = Kaynnistin::new(1);
         let laiva = k.malli.len();
+        assert!(k.valitun_parhaat().is_none());
+        k.edista(1000);
         k.kasittele(Syote::Numero(5));
         assert_ne!(k.malli.len(), laiva);
         assert!(!k.malli.is_empty());
+        assert_eq!(k.valittu_ms, 1000);
+
+        k.tallennus.asteroidien_parhaat = vec![Tulos {
+            nimi: "A".to_string(),
+            pisteet: 100,
+        }];
+        assert_eq!(k.valitun_parhaat().unwrap().len(), 1);
+        k.kasittele(Syote::Numero(3));
+        assert!(k.valitun_parhaat().is_none());
     }
 
     #[test]
