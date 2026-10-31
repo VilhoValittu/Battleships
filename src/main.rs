@@ -171,7 +171,8 @@ fn pelisilmukka(
     let mut ikkuna = Window::new(otsikko, IKKUNAN_POHJA.0, IKKUNAN_POHJA.1, asetukset)?;
     // Oletuspaikassa ikkuna voisi jatkua ruudun yli, ja sulkemisnappi jäisi piiloon.
     ikkuna.set_position(0, 0);
-    ikkuna.set_target_fps(paivitystaajuus(&kaynnistin));
+    let mut taajuus = paivitystaajuus(&kaynnistin);
+    ikkuna.set_target_fps(taajuus);
     let mut ikkunakuva = Ikkunakuva::default();
 
     let mikseri = Arc::new(Mutex::new(Mikseri::new()));
@@ -248,7 +249,10 @@ fn pelisilmukka(
         if kaynnistin.otsikko() != otsikko {
             otsikko = kaynnistin.otsikko();
             ikkuna.set_title(otsikko);
-            ikkuna.set_target_fps(paivitystaajuus(&kaynnistin));
+        }
+        if paivitystaajuus(&kaynnistin) != taajuus {
+            taajuus = paivitystaajuus(&kaynnistin);
+            ikkuna.set_target_fps(taajuus);
         }
 
         // Millisekunnin osat jäävät seuraavaan kierrokseen, jottei peli hidastu 60 Hz:llä.

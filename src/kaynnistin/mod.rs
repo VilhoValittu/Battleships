@@ -196,12 +196,21 @@ impl Kaynnistin {
         })
     }
 
-    /// Reaaliaikainen peli tarvitsee tiheämmän päivityksen kuin vuoropelit.
+    /// Reaaliaikainen peli tarvitsee tiheämmän päivityksen kuin vuoropelit, mutta sen
+    /// alkuruudulle riittää sama tahti kuin muille alkuruuduille.
     pub fn toimintapeli(&self) -> bool {
-        matches!(
-            self.peli,
-            Some(Kaynnissa::Tiilirikko(_) | Kaynnissa::Asteroidit(_) | Kaynnissa::Silmukka(_))
-        )
+        match &self.peli {
+            Some(Kaynnissa::Tiilirikko(peli)) => {
+                !matches!(peli.vaihe, crate::pelit::tiilirikko::peli::Vaihe::Alku)
+            }
+            Some(Kaynnissa::Asteroidit(peli)) => {
+                !matches!(peli.vaihe, crate::pelit::asteroidit::peli::Vaihe::Alku)
+            }
+            Some(Kaynnissa::Silmukka(peli)) => {
+                !matches!(peli.vaihe, crate::pelit::silmukka::peli::Vaihe::Alku)
+            }
+            _ => false,
+        }
     }
 
     /// Pohjassa olevat nuolet. Näppäintoisto olisi mailan ohjaukseen liian nykivä.
@@ -661,22 +670,35 @@ mod tests {
         k.kasittele(Syote::Klikkaus(x, y));
         assert!(matches!(k.peli, Some(Kaynnissa::Tiilirikko(_))));
         assert_eq!(k.otsikko(), "Laatan murskain");
-        assert!(k.toimintapeli());
         k.kasittele(Syote::Peru);
 
         let (x, y) = piirto::kortin_keskipiste(4);
         k.kasittele(Syote::Klikkaus(x, y));
         assert!(matches!(k.peli, Some(Kaynnissa::Asteroidit(_))));
         assert_eq!(k.otsikko(), "Asteroidit");
-        assert!(k.toimintapeli());
         k.kasittele(Syote::Peru);
 
         let (x, y) = piirto::kortin_keskipiste(5);
         k.kasittele(Syote::Klikkaus(x, y));
         assert!(matches!(k.peli, Some(Kaynnissa::Silmukka(_))));
         assert_eq!(k.otsikko(), "Mato8000");
-        assert!(k.toimintapeli());
         assert!(!k.nuolet_toistuvat());
+    }
+
+    #[test]
+    fn toimintapeli_nopeutuu_vasta_alkuruudun_jalkeen() {
+        for laji in [Laji::Tiilirikko, Laji::Asteroidit, Laji::Silmukka] {
+            let mut k = Kaynnistin::new(1);
+            assert!(!k.toimintapeli());
+            k.kaynnista(laji);
+            assert!(!k.toimintapeli(), "{laji:?}");
+            k.kasittele(Syote::Ammu);
+            assert!(k.toimintapeli(), "{laji:?}");
+        }
+        let mut k = Kaynnistin::new(1);
+        k.kaynnista(Laji::Luvut);
+        k.kasittele(Syote::Ammu);
+        assert!(!k.toimintapeli());
     }
 
     #[test]
