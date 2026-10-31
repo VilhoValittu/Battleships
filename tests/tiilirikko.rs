@@ -644,7 +644,7 @@ fn vauhti(pallo: &Pallo) -> f32 {
 }
 
 #[test]
-fn supertiili_tekee_rikkojasta_30_prosenttia_nopeamman_superpallon() {
+fn supertiili_tekee_rikkojasta_supervauhtisen_superpallon() {
     let mut peli = supertiilella();
     assert_eq!(
         riko_ensimmainen(&mut peli),
@@ -660,9 +660,9 @@ fn supertiili_tekee_rikkojasta_30_prosenttia_nopeamman_superpallon() {
     let pallo = peli.pallot[0];
     assert!(pallo.superpallo);
     assert_eq!(peli.pallot.len(), 1);
-    assert!((pallo.lentovauhti() - pallo.vauhti * 1.3).abs() < 0.01);
+    assert!((pallo.lentovauhti() - pallo.vauhti * 2.5).abs() < 0.01);
     assert!(
-        (vauhti(&pallo) - (100.0f32.hypot(300.0) * 1.3 * pallo.vauhti / (pallo.vauhti - 4.0)))
+        (vauhti(&pallo) - (100.0f32.hypot(300.0) * 2.5 * pallo.vauhti / (pallo.vauhti - 4.0)))
             .abs()
             < 0.1
     );
@@ -728,7 +728,7 @@ fn pallotiili_tuplaa_superpallon_ja_kahdesta_superpallosta_saa_kahdeksankertaise
         panic!("palloja pitää olla kaksi");
     };
     assert!(vanha.superpallo && uusi.superpallo);
-    assert!((vauhti(&uusi) - uusi.vauhti * 1.3).abs() < 0.01);
+    assert!((vauhti(&uusi) - uusi.vauhti * 2.5).abs() < 0.01);
 
     let ennen = peli.pisteet;
     peli.tiilet[5][2] = 1;
@@ -764,7 +764,7 @@ fn superpallo_kimpoaa_mailasta_nopeammin_ja_loppuu_putoamiseen_ja_kentan_vaihtoo
     peli.pallot[0].nopeus = (0.0, 300.0);
     assert_eq!(peli.askel(0, &mut Arpa::new(1)), [Tapahtuma::Maila]);
     let pallo = peli.pallot[0];
-    assert!((vauhti(&pallo) - pallo.vauhti * 1.3).abs() < 0.01);
+    assert!((vauhti(&pallo) - pallo.vauhti * 2.5).abs() < 0.01);
 
     assert_eq!(pudota(&mut peli, 0), [Tapahtuma::Menetys]);
     assert!(!peli.pallot[0].superpallo);
@@ -805,11 +805,11 @@ fn pisteet_eivat_ylita_kattoa() {
 }
 
 #[test]
-fn nopeimmankin_pallon_askel_on_sadetta_lyhyempi() {
+fn nopeimmankin_pallon_askel_on_halkaisijaa_lyhyempi() {
     let mut peli = supertiilella();
     riko_ensimmainen(&mut peli);
     peli.pallot[0].vauhti = 660.0;
-    assert!(peli.pallot[0].lentovauhti() * ASKEL_MS as f32 / 1000.0 < PALLON_SADE);
+    assert!(peli.pallot[0].lentovauhti() * ASKEL_MS as f32 / 1000.0 < 2.0 * PALLON_SADE);
 }
 
 fn pallo_tiilen_sisalla(peli: &Tiilipeli, (x, y): (f32, f32)) -> bool {

@@ -35,7 +35,7 @@ const PERUSVAUHTI: f32 = 330.0;
 // Viisikymmentä kenttää: kasvu pysyy pienenä, jotta viimeisetkin ovat pelattavissa.
 const VAUHTI_KENTTAA_KOHTI: f32 = 3.0;
 const VAUHTI_TIILTA_KOHTI: f32 = 4.0;
-// Askel on pallon sädettä lyhyempi superpallonkin vauhdilla, joten pallo ei hyppää tiilen yli.
+// Askel on pallon halkaisijaa lyhyempi superpallonkin vauhdilla, joten pallo ei hyppää tiilen yli.
 const SUURIN_VAUHTI: f32 = 660.0;
 const SUURIN_KULMA: f32 = 1.05;
 const UUDEN_PALLON_KULMA: f32 = 0.5;
