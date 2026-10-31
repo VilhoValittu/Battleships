@@ -223,9 +223,26 @@ impl Tallennus {
 }
 
 #[cfg(not(debug_assertions))]
+fn tallennuskansio() -> Option<PathBuf> {
+    let muuttuja = |nimi| std::env::var_os(nimi).filter(|arvo| !arvo.is_empty());
+    if cfg!(windows) {
+        return muuttuja("APPDATA").map(PathBuf::from);
+    }
+    if cfg!(target_os = "macos") {
+        return Some(PathBuf::from(muuttuja("HOME")?).join("Library/Application Support"));
+    }
+    muuttuja("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| Some(PathBuf::from(muuttuja("HOME")?).join(".local/share")))
+}
+
+#[cfg(not(debug_assertions))]
 pub fn oletuspolku() -> Option<PathBuf> {
-    let kansio = PathBuf::from(std::env::var_os("APPDATA")?);
-    Some(kansio.join("klassikot8000").join("tallennus.txt"))
+    Some(
+        tallennuskansio()?
+            .join("klassikot8000")
+            .join("tallennus.txt"),
+    )
 }
 
 pub fn lue_tiedosto(polku: &Path) -> Tallennus {

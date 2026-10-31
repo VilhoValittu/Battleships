@@ -2,3 +2,6 @@
 *.toml text eol=lf
 Cargo.lock text eol=lf
 kielet.txt text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.plist text eol=lf

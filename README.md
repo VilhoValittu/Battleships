@@ -43,4 +43,8 @@ Matopeli, jossa itseensä törmääminen on koko idea. Osuma sulkee silmukan, ja
 
 ## Pelaamaan
 
-Peli toimii Windowsissa, ja lataus on alle megan. Hae uusin zip [julkaisuista](https://github.com/VilhoValittu/Klassikot8000/releases/latest), pura se ja käynnistä `klassikot8000.exe`.
+Hae omalle koneellesi sopiva paketti [julkaisuista](https://github.com/VilhoValittu/Klassikot8000/releases/latest) ja pura se. Lataus on Windowsille alle megan ja Linuxille alle 3 Mt.
+
+- **Windows** (`windows-x64`): käynnistä `klassikot8000.exe`.
+- **Linux** (`linux-x64`, `linux-arm64`): käynnistä `klassikot8000`. Peli tarvitsee X11:n tai XWaylandin ja äänille ALSA-kirjaston, jotka työpöytäkoneissa on yleensä valmiina.
+- **macOS** (`macos-universal`, Intel ja Apple Silicon): käynnistä `Klassikot8000.app`. Paketilla ei ole Applen allekirjoitusta, joten macOS estää ensimmäisen käynnistyksen. Poista esto Päätteessä: `xattr -d com.apple.quarantine Klassikot8000.app`.

@@ -1,0 +1,144 @@
+# Versiotagi (esim. v0.3.5) kääntää paketit kaikille alustoille ja julkaisee ne muutoslistan kanssa.
+# Käsin käynnistetty ajo tekee samat paketit mutta ei julkaise mitään.
+name: Julkaisu
+
+on:
+  push:
+    tags: ['v[0-9]*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # rust-toolchain.toml on lukittu Windowsin MSVC:hen, joka ei asennu muille alustoille.
+  RUSTUP_TOOLCHAIN: stable
+
+jobs:
+  versio:
+    runs-on: ubuntu-latest
+    outputs:
+      versio: ${{ steps.luku.outputs.versio }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: luku
+        name: Lue versio ja vertaa tagiin
+        run: |
+          versio=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -n 1)
+          echo "versio=$versio" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "v$versio" ]]; then
+            echo "::error::Tagi $GITHUB_REF_NAME ei vastaa Cargo.tomlin versiota $versio"
+            exit 1
+          fi
+
+  paketti:
+    needs: versio
+    name: ${{ matrix.alusta }}
+    runs-on: ${{ matrix.kone }}
+    strategy:
+      matrix:
+        include:
+          # Vanhin saatavilla oleva Ubuntu, jotta paketti toimii myös vanhemman glibc:n koneissa.
+          - alusta: linux-x64
+            kone: ubuntu-22.04
+          - alusta: linux-arm64
+            kone: ubuntu-22.04-arm
+          - alusta: macos-universal
+            kone: macos-latest
+            kohteet: x86_64-apple-darwin,aarch64-apple-darwin
+          - alusta: windows-x64
+            kone: windows-latest
+    env:
+      VERSIO: ${{ needs.versio.outputs.versio }}
+      ALUSTA: ${{ matrix.alusta }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.kohteet }}
+      - name: Asenna Linuxin kehityspaketit
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev pkg-config
+      - name: Testit
+        run: cargo test --locked
+
+      - name: Paketoi Linux
+        if: runner.os == 'Linux'
+        run: |
+          cargo build --release --locked
+          nimi="klassikot8000-$VERSIO-$ALUSTA"
+          mkdir -p "dist/$nimi"
+          cp target/release/klassikot8000 kielet.txt "dist/$nimi/"
+          tar -C dist -czf "dist/$nimi.tar.gz" "$nimi"
+          rm -r "dist/$nimi"
+
+      - name: Paketoi macOS
+        if: runner.os == 'macOS'
+        run: |
+          cargo build --release --locked --target x86_64-apple-darwin
+          cargo build --release --locked --target aarch64-apple-darwin
+          sisalto=dist/Klassikot8000.app/Contents
+          mkdir -p "$sisalto/MacOS"
+          lipo -create -output "$sisalto/MacOS/klassikot8000" \
+            target/x86_64-apple-darwin/release/klassikot8000 \
+            target/aarch64-apple-darwin/release/klassikot8000
+          lipo -archs "$sisalto/MacOS/klassikot8000"
+          sed "s/VERSIO/$VERSIO/g" paketointi/Info.plist > "$sisalto/Info.plist"
+          # Apple Silicon ei aja allekirjoittamatonta ohjelmaa lainkaan, joten paikallinen allekirjoitus on pakollinen.
+          codesign --force --sign - dist/Klassikot8000.app
+          ditto -c -k --keepParent dist/Klassikot8000.app "dist/klassikot8000-$VERSIO-$ALUSTA.zip"
+          rm -r dist/Klassikot8000.app
+
+      - name: Paketoi Windows
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: powershell -ExecutionPolicy Bypass -File paketoi.ps1
+
+      - name: Tarkista koko
+        shell: bash
+        run: |
+          # Paketin on pysyttävä alle 10 Mt:n.
+          for paketti in dist/*; do
+            koko=$(wc -c < "$paketti")
+            echo "$paketti: $koko tavua"
+            test "$koko" -lt 10000000
+          done
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ${{ matrix.alusta }}
+          path: dist/*
+          if-no-files-found: error
+
+  julkaisu:
+    needs: paketti
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAGI: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Muutoslista tarvitsee koko historian ja edellisen tagin.
+          fetch-depth: 0
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Tee muutoslista
+        run: bash .github/scripts/muutokset.sh "$TAGI" > muutokset.md
+      - name: Julkaise
+        run: |
+          # Uudelleenajo korvaa epäonnistuneen ajon jäljet.
+          if gh release view "$TAGI" > /dev/null 2>&1; then
+            gh release edit "$TAGI" --notes-file muutokset.md
+            gh release upload "$TAGI" dist/* --clobber
+          else
+            esiversio=()
+            if [[ "$TAGI" == *-* ]]; then
+              esiversio=(--prerelease)
+            fi
+            gh release create "$TAGI" dist/* --verify-tag --title "Klassikot8000 $TAGI" --notes-file muutokset.md "${esiversio[@]}"
+          fi
