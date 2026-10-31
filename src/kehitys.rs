@@ -6,7 +6,7 @@ use std::io::{self, Write};
 use klassikot8000::laivanupotus::{Ruutu, Vaikeus};
 use klassikot8000::luvut::{Ruudut, SIVU, Suunta};
 
-use crate::kaynnistin::Laji;
+use crate::kaynnistin::{Laji, PELIT};
 use crate::yhteinen::kieli::Kieli;
 
 pub struct Liput {
@@ -18,6 +18,8 @@ pub struct Liput {
     pub kieli: Option<Kieli>,
     /// Ohittaa käynnistimen. Kunkin pelin omat liput tekevät saman.
     peli: Option<Laji>,
+    /// Käynnistimen valittu kortti nollasta alkaen.
+    pub valittu: Option<usize>,
     /// 2048: luvut laudalla riveittäin, kuvakaappausta varten.
     pub lauta: Option<Ruudut>,
     /// 2048: siirrot kirjaimina U, D, L ja R.
@@ -75,6 +77,7 @@ pub fn lue_liput() -> Result<Liput, String> {
         vaikeus: None,
         kieli: None,
         peli: None,
+        valittu: None,
         lauta: None,
         liu_ut: Vec::new(),
         tallennus: None,
@@ -109,6 +112,13 @@ pub fn lue_liput() -> Result<Liput, String> {
                     "silmukka" => Laji::Silmukka,
                     _ => return Err(format!("--game: {arvo}")),
                 });
+            }
+            "--select" => {
+                let i = arvo.parse().map_err(|_| "--select: ei luku")?;
+                if i >= PELIT.len() {
+                    return Err(format!("--select: {arvo}"));
+                }
+                liput.valittu = Some(i);
             }
             "--draws" => liput.nostot = Some(arvo.parse().map_err(|_| "--draws: ei luku")?),
             "--win" => liput.voitto = arvo == "1",

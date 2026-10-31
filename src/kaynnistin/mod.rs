@@ -9,17 +9,28 @@ use klassikot8000::pasianssi;
 
 use self::netti::{Nettipeli, Pyynto, Vastaus};
 use crate::pelit::asteroidit::peli::Asteroidit;
+use crate::pelit::asteroidit::piirto::kivimalli;
 use crate::pelit::laivanupotus::peli::Peli;
+use crate::pelit::laivanupotus::piirto::alkumalli as laivamalli;
 use crate::pelit::luvut::peli::Luvut;
+use crate::pelit::luvut::piirto::lukupino;
 use crate::pelit::luvut::tallennus::Tallennus;
 use crate::pelit::pasianssi::peli::{self as pasianssi_peli, Pasianssi};
+use crate::pelit::pasianssi::piirto::korttipinot;
 use crate::pelit::silmukka::peli::Silmukka;
+use crate::pelit::silmukka::piirto::ouroboros;
 use crate::pelit::tiilirikko::peli::Tiilirikko;
+use crate::pelit::tiilirikko::piirto::tiilimuuri;
 use crate::yhteinen::aanet::Aani;
-use crate::yhteinen::kieli::{self, kaanna};
+use crate::yhteinen::kieli::{self, Kieli, kaanna};
 use crate::yhteinen::piirto::ruudulta_kuvaan;
 use crate::yhteinen::syote::Syote;
 use crate::yhteinen::tulokset::{Tulos, lisaa_tulos};
+use crate::yhteinen::vektori::Tahko;
+
+/// Valikon mallia ja vilkkua piirretään harvemmin kuin silmukka kiertää: joka toinen
+/// kierros riittää hitaaseen pyörintään ja puolittaa ruudun lähettämisen.
+const VALIKON_ASKEL_MS: u32 = 66;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Laji {
@@ -35,6 +46,7 @@ pub struct Kortti {
     pub laji: Laji,
     pub nimi: &'static str,
     pub kuvaus: &'static str,
+    pub malli: fn() -> Vec<Tahko>,
 }
 
 pub const PELIT: [Kortti; 6] = [
@@ -42,31 +54,37 @@ pub const PELIT: [Kortti; 6] = [
         laji: Laji::Laivanupotus,
         nimi: "peli.laivanupotus",
         kuvaus: "valikko.laivanupotus",
+        malli: laivamalli,
     },
     Kortti {
         laji: Laji::Luvut,
         nimi: "peli.luvut",
         kuvaus: "valikko.luvut",
+        malli: lukupino,
     },
     Kortti {
         laji: Laji::Pasianssi,
         nimi: "peli.pasianssi",
         kuvaus: "valikko.pasianssi",
+        malli: korttipinot,
     },
     Kortti {
         laji: Laji::Tiilirikko,
         nimi: "peli.tiilirikko",
         kuvaus: "valikko.tiilirikko",
+        malli: tiilimuuri,
     },
     Kortti {
         laji: Laji::Asteroidit,
         nimi: "peli.asteroidit",
         kuvaus: "valikko.asteroidit",
+        malli: kivimalli,
     },
     Kortti {
         laji: Laji::Silmukka,
         nimi: "peli.silmukka",
         kuvaus: "valikko.silmukka",
+        malli: ouroboros,
     },
 ];
 
@@ -82,6 +100,8 @@ pub enum Kaynnissa {
 /// Pelin valinta ja käynnissä oleva peli. Asetukset säilyvät, kun peli vaihtuu.
 pub struct Kaynnistin {
     pub valittu: usize,
+    /// Valitun pelin malli. Rakennetaan vain valinnan vaihtuessa.
+    malli: Vec<Tahko>,
     pub peli: Option<Kaynnissa>,
     pub aanet_paalla: bool,
     pub lopeta: bool,
@@ -108,6 +128,7 @@ impl Kaynnistin {
     pub fn new(siemen: u64) -> Self {
         Self {
             valittu: 0,
+            malli: (PELIT[0].malli)(),
             peli: None,
             aanet_paalla: true,
             lopeta: false,
@@ -124,6 +145,26 @@ impl Kaynnistin {
             pasianssin_vaikeus: pasianssi::Vaikeus::Normaali,
             siemen,
         }
+    }
+
+    pub fn valitse(&mut self, i: usize) {
+        if i != self.valittu {
+            self.valittu = i;
+            self.malli = (PELIT[i].malli)();
+        }
+    }
+
+    /// Kaikki, mistä valikon kuva riippuu, tai `None` pelin aikana. Kun avain pysyy samana,
+    /// valikkoa ei tarvitse piirtää. Taustalla oleva ikkuna ei animoi.
+    pub fn valikon_avain(&self, aktiivinen: bool) -> Option<(usize, bool, Kieli, u32)> {
+        let askel = if aktiivinen {
+            self.kello_ms / VALIKON_ASKEL_MS
+        } else {
+            0
+        };
+        self.peli
+            .is_none()
+            .then_some((self.valittu, self.aanet_paalla, kieli::nykyinen(), askel))
     }
 
     pub fn otsikko(&self) -> &'static str {
@@ -490,12 +531,12 @@ impl Kaynnistin {
             Syote::Ammu => self.kaynnista(PELIT[self.valittu].laji),
             Syote::Hiiri(x, y) => {
                 if let Some(i) = piirto::kortti_pisteesta(x, y) {
-                    self.valittu = i;
+                    self.valitse(i);
                 }
             }
             Syote::Klikkaus(x, y) => {
                 if let Some(i) = piirto::kortti_pisteesta(x, y) {
-                    self.valittu = i;
+                    self.valitse(i);
                     self.kaynnista(PELIT[i].laji);
                 }
             }
@@ -504,14 +545,12 @@ impl Kaynnistin {
                     .checked_sub(1)
                     .filter(|&i| i < PELIT.len())
                 {
-                    self.valittu = i;
+                    self.valitse(i);
                 }
             }
             Syote::Nuoli(drivi, _) => {
-                self.valittu = self
-                    .valittu
-                    .saturating_add_signed(drivi as isize)
-                    .min(PELIT.len() - 1);
+                let i = self.valittu.saturating_add_signed(drivi as isize);
+                self.valitse(i.min(PELIT.len() - 1));
             }
             _ => {}
         }
@@ -621,6 +660,36 @@ mod tests {
         assert_eq!(k.otsikko(), "Mato8000");
         assert!(k.toimintapeli());
         assert!(!k.nuolet_toistuvat());
+    }
+
+    #[test]
+    fn valikon_avain_vaihtuu_vain_kun_kuva_voi_muuttua() {
+        let mut k = Kaynnistin::new(1);
+        let alku = k.valikon_avain(true);
+        assert!(alku.is_some());
+        k.edista(VALIKON_ASKEL_MS - 1);
+        assert_eq!(k.valikon_avain(true), alku);
+        k.edista(1);
+        assert_ne!(k.valikon_avain(true), alku);
+
+        // taustalla kello ei näy kuvassa, mutta hiiren valinta ja asetukset näkyvät
+        let taustalla = k.valikon_avain(false);
+        k.edista(10 * VALIKON_ASKEL_MS);
+        assert_eq!(k.valikon_avain(false), taustalla);
+        k.kasittele(Syote::Numero(2));
+        assert_ne!(k.valikon_avain(false), taustalla);
+
+        k.kasittele(Syote::Ammu);
+        assert_eq!(k.valikon_avain(true), None);
+    }
+
+    #[test]
+    fn valinta_vaihtaa_mallin() {
+        let mut k = Kaynnistin::new(1);
+        let laiva = k.malli.len();
+        k.kasittele(Syote::Numero(5));
+        assert_ne!(k.malli.len(), laiva);
+        assert!(!k.malli.is_empty());
     }
 
     #[test]

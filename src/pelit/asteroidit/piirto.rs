@@ -106,7 +106,7 @@ fn ruudulle(keski: (i32, i32), kulma: f32, (x, y): Piste) -> (i32, i32) {
 }
 
 /// Alkuruudun malli: kulmikas kivi, kaksi kuusikulmaista kehää ja kärjet.
-fn kivimalli() -> Vec<Tahko> {
+pub fn kivimalli() -> Vec<Tahko> {
     const KULMIA: usize = 6;
     const YLA_SADE: [f32; KULMIA] = [1.9, 2.3, 1.7, 2.2, 1.8, 2.4];
     const ALA_SADE: [f32; KULMIA] = [2.2, 1.7, 2.3, 1.8, 2.4, 1.9];

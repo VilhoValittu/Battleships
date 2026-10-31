@@ -145,12 +145,14 @@ pub fn piirra(peli: &Peli, kuva: &mut [u32]) {
     p.aanikytkin(peli.aanet_paalla);
 }
 
+/// Alkuruudun ja käynnistimen malli.
+pub fn alkumalli() -> Vec<vektori::Tahko> {
+    vektori::taistelulaiva(RUNKO, KANSI, TORNI)
+}
+
 impl Piirtaja<'_> {
     fn alkuruutu(&mut self, vaikeus: Vaikeus) {
-        self.maisema(
-            kaanna("laivanupotus.banneri"),
-            &vektori::taistelulaiva(RUNKO, KANSI, TORNI),
-        );
+        self.maisema(kaanna("laivanupotus.banneri"), &alkumalli());
 
         self.alkuohje(&ALKU_OSAT, &ALKU_RIVIT);
         self.tasovalinta(vaikeus);

@@ -80,7 +80,7 @@ fn tiilen_paikka(rivi: usize, sarake: usize) -> (i32, i32) {
 }
 
 /// Alkuruudun malli: tiilimuuri ja sen edessä maila.
-fn tiilimuuri() -> Vec<Tahko> {
+pub fn tiilimuuri() -> Vec<Tahko> {
     let mut tahkot = Vec::new();
     for (rivi, &vari) in RIVIN_VARIT[..3].iter().enumerate() {
         for sarake in 0..4 {

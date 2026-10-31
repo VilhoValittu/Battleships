@@ -182,6 +182,7 @@ fn pelisilmukka(
     let mut edellinen = Instant::now();
     let mut hiiri = (-1, -1);
     let mut nappi_alhaalla = false;
+    let mut valikon_tila = None;
 
     while ikkuna.is_open() && !kaynnistin.lopeta {
         for nappain in ikkuna.get_keys_pressed(KeyRepeat::Yes) {
@@ -255,10 +256,18 @@ fn pelisilmukka(
         kaynnistin.edista(kulunut);
         edellinen += Duration::from_millis(kulunut as u64);
 
+        // Valikkoa ei piirretä, kun sen tila ja ikkunan koko ovat ennallaan.
+        let tila = kaynnistin
+            .valikon_avain(ikkuna.is_active())
+            .map(|avain| (avain, ikkuna_l, ikkuna_k));
+        let ennallaan = tila.is_some() && tila == valikon_tila;
+        valikon_tila = tila;
+        if !ennallaan {
+            piirto::piirra(&kaynnistin, ruutu, kuva);
+        }
         // Windows piirtää peitosta paljastuneen ikkunan itse edellisestä puskurista, joten
         // muuttumatonta kuvaa ei tarvitse lähettää uudelleen.
-        piirto::piirra(&kaynnistin, ruutu, kuva);
-        if ikkunakuva.sovita(ruutu, ikkuna_l, ikkuna_k, sovitus) {
+        if !ennallaan && ikkunakuva.sovita(ruutu, ikkuna_l, ikkuna_k, sovitus) {
             ikkuna.update_with_buffer(&ikkunakuva.pikselit, ikkuna_l, ikkuna_k)?;
         } else {
             ikkuna.update();
@@ -296,6 +305,9 @@ fn main() -> ExitCode {
         }
         if let Some(kieli) = liput.kieli {
             kieli::aseta(kieli);
+        }
+        if let Some(i) = liput.valittu {
+            kaynnistin.valitse(i);
         }
         if let Some(laji) = liput.laji() {
             kaynnistin.kaynnista(laji);

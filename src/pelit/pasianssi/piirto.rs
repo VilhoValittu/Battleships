@@ -310,7 +310,7 @@ fn kuviot(arvo: u8) -> &'static [(f32, f32)] {
 }
 
 /// Alkuruudun malli: kolme pystyssä olevaa ohutta korttia. Mitat kuin laivalla.
-fn korttipinot() -> Vec<Tahko> {
+pub fn korttipinot() -> Vec<Tahko> {
     let mut tahkot = Vec::new();
     for (i, vari) in [WB_SININEN, VALKOINEN, OSUMA].into_iter().enumerate() {
         let x = -3.6 + i as f32 * 2.4;

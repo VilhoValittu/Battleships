@@ -4,7 +4,7 @@ use super::{Kaynnissa, Kaynnistin, PELIT};
 use crate::pelit::{asteroidit, laivanupotus, luvut, pasianssi, silmukka, tiilirikko};
 use crate::yhteinen::kieli::kaanna;
 use crate::yhteinen::piirto::*;
-use crate::yhteinen::vektori::{self, Kangas};
+use crate::yhteinen::vektori::{Kangas, Tahko};
 
 // Käynnistin piirtää suoraan ruudulle, joten mitat ovat ruudun pikseleitä.
 const RUUTU_L: i32 = RUUDUN_LEVEYS as i32;
@@ -120,7 +120,7 @@ pub fn piirra(kaynnistin: &Kaynnistin, ruutu: &mut [u32], kuva: &mut [u32]) {
                 k: Kangas::kokoinen(ruutu, RUUDUN_LEVEYS, RUUDUN_KORKEUS),
                 kello: kaynnistin.kello_ms,
             };
-            p.valikko(kaynnistin.valittu);
+            p.valikko(kaynnistin);
             p.aanikytkin(kaynnistin.aanet_paalla);
             p.nappi(kielikytkimen_x(), KIELI_Y, KIELIKYTKIN, VALKOINEN, MUSTA);
             return;
@@ -130,22 +130,21 @@ pub fn piirra(kaynnistin: &Kaynnistin, ruutu: &mut [u32], kuva: &mut [u32]) {
 }
 
 impl Piirtaja<'_> {
-    fn valikko(&mut self, valittu: usize) {
+    fn valikko(&mut self, kaynnistin: &Kaynnistin) {
         self.maisematausta(MAISEMA);
-        self.valikon_malli();
+        self.valikon_malli(&kaynnistin.malli);
         self.valikon_otsikko(kaanna("valikko.banneri"));
         for i in 0..PELIT.len() {
-            self.valikkokortti(i, i == valittu);
+            self.valikkokortti(i, i == kaynnistin.valittu);
         }
-        self.kuvauspaneeli(PELIT[valittu].kuvaus);
+        self.kuvauspaneeli(PELIT[kaynnistin.valittu].kuvaus);
         self.ohjepalkki(kaanna("valikko.ohje"));
     }
 
-    fn valikon_malli(&mut self) {
-        let malli = vektori::taistelulaiva(RUNKO, KANSI, TORNI);
+    fn valikon_malli(&mut self, malli: &[Tahko]) {
         let keinunta = (self.kello as f32 * 0.002).sin() * MALLIN_KEINUNTA;
         self.k.malli(
-            &malli,
+            malli,
             self.kello as f32 * LAIVAN_KIERTO,
             (MALLI_X, MALLI_Y + keinunta as i32),
             MALLIN_KOKO,

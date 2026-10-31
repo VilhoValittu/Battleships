@@ -156,7 +156,7 @@ fn nivelet(lauta: &Niitty) -> Vec<(f32, f32)> {
 }
 
 /// Alkuruudun malli: häntäänsä pureva mato pystyasennossa, kapenee hännästä päähän.
-fn ouroboros() -> Vec<Tahko> {
+pub fn ouroboros() -> Vec<Tahko> {
     const OSIA: usize = 22;
     const KULMIA: usize = 6;
     const KEHAN_SADE: f32 = 2.5;

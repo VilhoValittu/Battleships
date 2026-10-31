@@ -147,7 +147,8 @@ fn tuplauksia(arvo: u32) -> i32 {
 }
 
 /// Alkuruudun malli: neljä laattaa kasvavina pinoina. Mitat kuin laivalla.
-fn lukupino(varit: [u32; 4]) -> Vec<Tahko> {
+pub fn lukupino() -> Vec<Tahko> {
+    let varit = [2, 8, 64, 2048].map(|arvo| laatan_varit(arvo).0);
     let mut tahkot = Vec::new();
     for (i, vari) in varit.into_iter().enumerate() {
         let x = -4.6 + i as f32 * 2.4;
@@ -173,8 +174,7 @@ pub fn piirra(luvut: &Luvut, kuva: &mut [u32]) {
 impl Piirtaja<'_> {
     fn luvut_alkuruutu(&mut self, luvut: &Luvut) {
         let jatkuu = luvut.jatkuu;
-        let varit = [2, 8, 64, 2048].map(|arvo| laatan_varit(arvo).0);
-        self.maisema(kaanna("luvut.banneri"), &lukupino(varit));
+        self.maisema(kaanna("luvut.banneri"), &lukupino());
         let otsikko = listan_otsikko(luvut.netti_parhaat.is_some());
         self.parhaat_alkuruudulla(otsikko, luvut.nakyva_lista());
         let y = self.alkuohje(&ALKU_OSAT, &ALKU_RIVIT);
