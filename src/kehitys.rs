@@ -46,6 +46,10 @@ pub struct Liput {
     pub aalto: Option<usize>,
     /// Silmukka: aloittaa valmiista renkaasta, jonka sisällä on näin monta itikkaa.
     pub rengas: Option<i32>,
+    /// Palikka ja miinaharava: aloittaa pelin ja pelaa näin monta siirtoa valmiiksi.
+    pub pelatut: Option<u32>,
+    /// Miinaharava: aloittaa pelin ja astuu miinaan.
+    pub pamaus: bool,
     /// Kuvakaappauksen hetki viimeisen laukauksen jälkeen, animaatioiden tarkistukseen.
     pub aika_ms: u32,
 }
@@ -97,6 +101,8 @@ pub fn lue_liput() -> Result<Liput, String> {
         toinen_pallo: false,
         aalto: None,
         rengas: None,
+        pelatut: None,
+        pamaus: false,
         aika_ms: OLETUSAIKA_MS,
     };
     let mut args = std::env::args().skip(1);
@@ -121,6 +127,8 @@ pub fn lue_liput() -> Result<Liput, String> {
                     "tiilirikko" => Laji::Tiilirikko,
                     "asteroidit" => Laji::Asteroidit,
                     "silmukka" => Laji::Silmukka,
+                    "palikka" => Laji::Palikka,
+                    "miinaharava" => Laji::Miinaharava,
                     _ => return Err(format!("--game: {arvo}")),
                 });
             }
@@ -138,6 +146,8 @@ pub fn lue_liput() -> Result<Liput, String> {
             "--second-ball" => liput.toinen_pallo = arvo == "1",
             "--wave" => liput.aalto = Some(arvo.parse().map_err(|_| "--wave: ei luku")?),
             "--ring" => liput.rengas = Some(arvo.parse().map_err(|_| "--ring: ei luku")?),
+            "--plays" => liput.pelatut = Some(arvo.parse().map_err(|_| "--plays: ei luku")?),
+            "--boom" => liput.pamaus = arvo == "1",
             "--board" => {
                 let luvut = arvo
                     .split(',')

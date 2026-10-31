@@ -2,9 +2,9 @@
 
 **Suomeksi** | [English](README.en.md)
 
-Tylsää? Kuusi vanhan liiton peliä yhdessä pienessä ikkunassa, C64- ja Amiga-henkisessä asussa. Ei tiliä, ei mainoksia, ei opeteltavaa. Avaa, valitse peli ja anna ajan kulua.
+Tylsää? Kahdeksan vanhan liiton peliä yhdessä pienessä ikkunassa, C64- ja Amiga-henkisessä asussa. Ei tiliä, ei mainoksia, ei opeteltavaa. Avaa, valitse peli ja anna ajan kulua.
 
-Pyörii vaikka perunalla.
+Pyörii vaikka perunalla. Clauden koodaama, AB:n ideasta.
 
 ## Pelit
 
@@ -38,10 +38,20 @@ Matopeli, jossa itseensä törmääminen on koko idea. Osuma sulkee silmukan, ja
 
 *Nuolet, WASD tai hiiri.*
 
+### Palikka8000
+Vaihda kahta vierekkäistä palikkaa, ja kolme samaa suorassa katoaa. Yläpuolelta putoavat uudet saattavat jatkaa ketjua, ja jokainen ketjun lenkki kertoo pisteet. Neljästä syntyy pommi ja viiden suorasta kaikkipalikka, joka vie mukanaan kaikki naapurinsa väriset. Tasojen myötä värejä tulee lisää, ja peli päättyy, kun yhtään siirtoa ei enää ole.
+
+*Hiiri tai nuolet ja välilyönti.*
+
+### Miinaharava
+Se toinen tuttu toimistoklassikko. Numero kertoo, montako miinaa ruudun ympärillä on, ja loput pitää päätellä. Ensimmäinen avaus on aina turvallinen, joten ensimmäistä räjähdystä ei voi laittaa huonon tuurin piikkiin. Kolme tasoa, ja jokaisella oma ennätysaikansa.
+
+*Hiiren vasen avaa ja oikea liputtaa, tai nuolet, välilyönti ja F.*
+
 ## Hyvä tietää
 
 - `Esc` palaa pelistä valikkoon, ja kesken jäänyt hyvä tulos pääsee silti listalle. `P` pysäyttää toimintapelit, `M` vaimentaa äänet ja `L` vaihtaa valikossa kielen suomen ja englannin välillä.
-- Laivanupotusta ja Pasianssia lukuun ottamatta peleissä on Top 3 -lista myös netissä. Ilman nettiä pelaat ihan yhtä hyvin.
+- Laivanupotusta, Pasianssia ja Miinaharavaa lukuun ottamatta peleissä on Top 3 -lista myös netissä. Ilman nettiä pelaat ihan yhtä hyvin.
 - Valikko näyttää pelin version ja kertoo, jos GitHubissa on uudempi julkaisu. Peli katsoo asian käynnistyessään.
 
 ## Pelaamaan

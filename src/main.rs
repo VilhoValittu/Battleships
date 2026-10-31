@@ -30,6 +30,8 @@ use klassikot8000::asteroidit::Avaruus;
 #[cfg(debug_assertions)]
 use klassikot8000::luvut::Lukulauta;
 #[cfg(debug_assertions)]
+use klassikot8000::miinaharava;
+#[cfg(debug_assertions)]
 use klassikot8000::pasianssi::{self, KUNINGAS, Kortti, Maa};
 #[cfg(debug_assertions)]
 use klassikot8000::silmukka::{Laji, Otus, Suunta};
@@ -40,6 +42,8 @@ use pelit::laivanupotus::peli::Vaihe;
 #[cfg(debug_assertions)]
 use pelit::luvut::peli as luvut;
 use pelit::luvut::tallennus;
+#[cfg(debug_assertions)]
+use pelit::palikka::peli as palikka_peli;
 #[cfg(debug_assertions)]
 use pelit::pasianssi::peli as pasianssi_peli;
 use yhteinen::aanet::{Mikseri, NAYTETAAJUUS};
@@ -217,6 +221,7 @@ fn pelisilmukka(
     let mut edellinen = Instant::now();
     let mut hiiri = (-1, -1);
     let mut nappi_alhaalla = false;
+    let mut oikea_alhaalla = false;
     let mut kuvan_tila = None;
 
     while ikkuna.is_open() && !kaynnistin.lopeta {
@@ -251,8 +256,14 @@ fn pelisilmukka(
                 kaynnistin.kasittele(Syote::Vapautus(nakyma.0, nakyma.1));
             }
             nappi_alhaalla = alhaalla;
+            let oikea = ikkuna.get_mouse_down(MouseButton::Right);
+            if oikea && !oikea_alhaalla {
+                kaynnistin.kasittele(Syote::OikeaKlikkaus(nakyma.0, nakyma.1));
+            }
+            oikea_alhaalla = oikea;
         } else {
             nappi_alhaalla = false;
+            oikea_alhaalla = false;
         }
 
         kaynnistin.aseta_ohjaus(
@@ -484,6 +495,65 @@ fn main() -> ExitCode {
                     // Aikahyppy on rajattu, joten kuvakaappauksen hetki ajetaan pieninä askelina.
                     for _ in 0..liput.aika_ms / 16 {
                         peli.edista(16);
+                    }
+                }
+            }
+            Some(Kaynnissa::Palikka(peli)) => {
+                if let Some(siirtoja) = liput.pelatut {
+                    peli.kasittele(Syote::Ammu);
+                    for i in 0..siirtoja {
+                        // Edellinen toisto loppuu ensin, mutta viimeinen jää kuvakaappauksen hetkelle.
+                        if i > 0 {
+                            peli.edista(60_000);
+                        }
+                        match peli.lauta.vihje() {
+                            Some((a, b)) if peli.vaihe == palikka_peli::Vaihe::Pelissa => {
+                                peli.vaihda(a, b);
+                            }
+                            _ => break,
+                        }
+                    }
+                }
+            }
+            Some(Kaynnissa::Miinaharava(peli)) => {
+                if let Some(vaikeus) = liput.vaikeus {
+                    let taso = miinaharava::Vaikeus::KAIKKI
+                        .into_iter()
+                        .find(|taso| taso.nimi() == vaikeus.nimi());
+                    peli.vaikeus = taso.unwrap_or(peli.vaikeus);
+                }
+                if liput.pelatut.is_some() || liput.pamaus {
+                    peli.kasittele(Syote::Ammu);
+                    let (korkeus, leveys) = (peli.vaikeus.korkeus(), peli.vaikeus.leveys());
+                    peli.avaa((korkeus / 2, leveys / 2));
+                    let kaikki: Vec<(usize, usize)> = (0..korkeus)
+                        .flat_map(|r| (0..leveys).map(move |s| (r, s)))
+                        .collect();
+                    let avattavat: Vec<(usize, usize)> = kaikki
+                        .iter()
+                        .copied()
+                        .filter(|&p| !peli.lauta.ruutu(p).miina && !peli.lauta.ruutu(p).auki)
+                        .take(liput.pelatut.unwrap_or(0) as usize)
+                        .collect();
+                    for p in avattavat {
+                        peli.avaa(p);
+                    }
+                    let miinat: Vec<(usize, usize)> = kaikki
+                        .iter()
+                        .copied()
+                        .filter(|&p| peli.lauta.ruutu(p).miina)
+                        .collect();
+                    // Oikea ja väärä lippu, jotta kaikki merkit näkyvät kuvassa.
+                    peli.liputa(miinat[0]);
+                    let vaara = kaikki
+                        .iter()
+                        .copied()
+                        .find(|&p| !peli.lauta.ruutu(p).miina && !peli.lauta.ruutu(p).auki);
+                    if let Some(vaara) = vaara {
+                        peli.liputa(vaara);
+                    }
+                    if liput.pamaus {
+                        peli.avaa(miinat[1]);
                     }
                 }
             }

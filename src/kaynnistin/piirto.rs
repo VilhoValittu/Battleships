@@ -2,7 +2,9 @@
 
 use super::netti::VERSIO;
 use super::{Kaynnissa, Kaynnistin, PELIT};
-use crate::pelit::{asteroidit, laivanupotus, luvut, pasianssi, silmukka, tiilirikko};
+use crate::pelit::{
+    asteroidit, laivanupotus, luvut, miinaharava, palikka, pasianssi, silmukka, tiilirikko,
+};
 use crate::yhteinen::kieli::{kaanna, muotoile};
 use crate::yhteinen::piirto::*;
 use crate::yhteinen::tulokset::Tulos;
@@ -14,8 +16,8 @@ const RUUTU_L: i32 = RUUDUN_LEVEYS as i32;
 const KORTTI_X: i32 = 48;
 const KORTTI_L: i32 = 704;
 const KORTTI_Y: i32 = 172;
-const KORTTI_K: i32 = 120;
-const KORTTI_ASKEL: i32 = KORTTI_K + 10;
+const KORTTI_K: i32 = 92;
+const KORTTI_ASKEL: i32 = KORTTI_K + 8;
 const KORTIN_NUMERO_X: i32 = 60;
 const KORTIN_NIMI: (i32, i32, i32) = (24, 36, 32);
 const KORTIN_NIMEN_PAKSUUS: i32 = 3;
@@ -42,7 +44,8 @@ const MALLIN_ALKUKOKO: f32 = 0.6;
 
 const PANEELI_X: i32 = 800;
 const PANEELI_L: i32 = 1072;
-const PANEELI_YLA: i32 = KORTTI_Y + 5 * KORTTI_ASKEL + KORTTI_K - PANEELI_KORKEUS;
+const PANEELI_YLA: i32 =
+    KORTTI_Y + (PELIT.len() as i32 - 1) * KORTTI_ASKEL + KORTTI_K - PANEELI_KORKEUS;
 const PANEELI_KORKEUS: i32 = 180;
 const PANEELI_SISENNYS: i32 = 24;
 
@@ -133,6 +136,8 @@ pub fn piirra(kaynnistin: &Kaynnistin, kehys: &mut Kehys) {
         Some(Kaynnissa::Tiilirikko(peli)) => tiilirikko::piirto::piirra(peli, kuva),
         Some(Kaynnissa::Asteroidit(peli)) => asteroidit::piirto::piirra(peli, kuva),
         Some(Kaynnissa::Silmukka(peli)) => silmukka::piirto::piirra(peli, kuva),
+        Some(Kaynnissa::Palikka(peli)) => palikka::piirto::piirra(peli, kuva),
+        Some(Kaynnissa::Miinaharava(peli)) => miinaharava::piirto::piirra(peli, kuva),
         None => {
             let mut p = Piirtaja {
                 k: Kangas::kokoinen(&mut kehys.ruutu, RUUDUN_LEVEYS, RUUDUN_KORKEUS),

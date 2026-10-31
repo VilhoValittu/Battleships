@@ -3,6 +3,8 @@
 pub enum Syote {
     Hiiri(i32, i32),
     Klikkaus(i32, i32),
+    /// Hiiren oikea nappi painui alas.
+    OikeaKlikkaus(i32, i32),
     /// Hiiren nappi nousi: vedetty kortti putoaa.
     Vapautus(i32, i32),
     Nuoli(i8, i8),

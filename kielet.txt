@@ -13,6 +13,8 @@ peli.pasianssi = Pasianssi
 peli.tiilirikko = Laatan murskain
 peli.asteroidit = Asteroidit
 peli.silmukka = Mato8000
+peli.palikka = Palikka8000
+peli.miinaharava = Miinaharava
 
 valikko.banneri = **** PELIKONE ****
 valikko.ohje = Väli: pelaa. M: äänet. Esc: lopeta.
@@ -25,6 +27,8 @@ valikko.pasianssi = Klassinen pasianssi, kolme tasoa.
 valikko.tiilirikko = Riko tiilet, pidä pallo kentällä.
 valikko.asteroidit = Ammu kivet ennen kuin ne osuvat.
 valikko.silmukka = Kierrä mato itikoiden ympärille.
+valikko.palikka = Vaihda palikoita, kolme samaa suoraan.
+valikko.miinaharava = Avaa ruudut, älä osu miinaan.
 
 yhteinen.netti_top = NETTI TOP
 yhteinen.top3 = TOP 3
@@ -191,6 +195,37 @@ silmukka.kulta_ilmestyi = Kultaomena! Nopeasti, se katoaa pian.
 silmukka.uusi_taso = Taso {}!
 silmukka.saalis = Saalis {}: +{} pistettä!
 
+palikka.banneri = **** PALIKKA8000 ****
+palikka.tervetuloa = Tervetuloa Palikka8000-peliin.
+palikka.ohje_1 = Vaihda kaksi vierekkäistä palikkaa niin, että syntyy kolme samaa suoraan. Putoavat palikat voivat jatkaa ketjua.
+palikka.ohje_2 = Neljästä syntyy pommi, viiden suorasta kaikkipalikka. Peli päättyy, kun siirtoja ei enää ole.
+palikka.nappain_hiiri = Hiiri: klikkaa tai raahaa palikkaa.
+palikka.nappain_nuolet = Nuolet ja väli: valitse ja vaihda.
+palikka.ohje = Vaihda: klikkaa, raahaa tai nuolet.
+palikka.taso = TASO
+palikka.huono = Tuosta ei synny suoraa!
+palikka.siirto = +{} pistettä!
+palikka.ketju = Ketju {}: +{} pistettä!
+palikka.uusi_taso = Taso {}! Pisteet kasvavat.
+palikka.ei_siirtoja = Ei enää siirtoja. Pisteet: {}.
+
+miinaharava.banneri = **** MIINAHARAVA ****
+miinaharava.tervetuloa = Tervetuloa pelaamaan miinaharavaa.
+miinaharava.ohje_1 = Numero kertoo, montako miinaa on ruudun ympärillä. Avaa kaikki ruudut, joissa ei ole miinaa.
+miinaharava.ohje_2 = Ensimmäinen avaus on aina turvallinen.
+miinaharava.nappain_hiiri = Hiiri: vasen avaa, oikea liputtaa.
+miinaharava.nappain_nuolet = Nuolet, väli avaa, F liputtaa.
+miinaharava.ohje = Vasen avaa, oikea tai F liputtaa.
+miinaharava.kuvaus = {}x{} ruutua, {} miinaa.
+miinaharava.miinat = MIINAT
+miinaharava.aika = AIKA
+miinaharava.aloita = Avaa ensimmäinen ruutu.
+miinaharava.pamaus = Pum! Astuit miinaan.
+miinaharava.tappio = OSUIT MIINAAN!
+miinaharava.ennatys = Uusi ennätys: {} s!
+miinaharava.aika_viesti = Aika: {} s.
+
+
 [en]
 peli.pelikone = Game Machine
 peli.laivanupotus = Battleships
@@ -199,6 +234,8 @@ peli.pasianssi = Solitaire
 peli.tiilirikko = Laatan murskain
 peli.asteroidit = Asteroids
 peli.silmukka = Mato8000
+peli.palikka = Palikka8000
+peli.miinaharava = Minesweeper
 
 valikko.banneri = **** GAME MACHINE ****
 valikko.ohje = Space: play. M: sound. Esc: quit.
@@ -211,6 +248,8 @@ valikko.pasianssi = Classic solitaire, three levels.
 valikko.tiilirikko = Break the bricks, keep the ball up.
 valikko.asteroidit = Shoot the rocks before they hit.
 valikko.silmukka = Coil the worm around mosquitoes.
+valikko.palikka = Swap blocks, line up three of a kind.
+valikko.miinaharava = Open every cell, avoid the mines.
 
 yhteinen.netti_top = NET TOP 3
 yhteinen.top3 = TOP 3
@@ -376,3 +415,33 @@ silmukka.tyhja = Empty loop: the length was wasted.
 silmukka.kulta_ilmestyi = Golden apple! Quick, it fades soon.
 silmukka.uusi_taso = Level {}!
 silmukka.saalis = Catch {}: +{} points!
+
+palikka.banneri = **** PALIKKA8000 ****
+palikka.tervetuloa = Welcome to Palikka8000.
+palikka.ohje_1 = Swap two neighbouring blocks to line up three of a kind. Falling blocks can continue the chain.
+palikka.ohje_2 = Four make a bomb, five in a row a wild block. The game ends when no moves are left.
+palikka.nappain_hiiri = Mouse: click or drag a block.
+palikka.nappain_nuolet = Arrows and space: select and swap.
+palikka.ohje = Swap: click, drag or arrows.
+palikka.taso = LEVEL
+palikka.huono = That makes no line!
+palikka.siirto = +{} points!
+palikka.ketju = Chain {}: +{} points!
+palikka.uusi_taso = Level {}! Scores grow.
+palikka.ei_siirtoja = No moves left. Score: {}.
+
+miinaharava.banneri = **** MINESWEEPER ****
+miinaharava.tervetuloa = Welcome to Minesweeper.
+miinaharava.ohje_1 = A number tells how many mines touch the cell. Open every cell without a mine.
+miinaharava.ohje_2 = Your first open is always safe.
+miinaharava.nappain_hiiri = Mouse: left opens, right flags.
+miinaharava.nappain_nuolet = Arrows, space opens, F flags.
+miinaharava.ohje = Left opens, right or F flags.
+miinaharava.kuvaus = {}x{} cells, {} mines.
+miinaharava.miinat = MINES
+miinaharava.aika = TIME
+miinaharava.aloita = Open your first cell.
+miinaharava.pamaus = Boom! You hit a mine.
+miinaharava.tappio = YOU HIT A MINE!
+miinaharava.ennatys = New record: {} s!
+miinaharava.aika_viesti = Time: {} s.

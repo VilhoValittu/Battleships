@@ -3,6 +3,8 @@
 pub mod asteroidit;
 pub mod laivanupotus;
 pub mod luvut;
+pub mod miinaharava;
+pub mod palikka;
 pub mod pasianssi;
 pub mod silmukka;
 pub mod tiilirikko;

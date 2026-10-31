@@ -2,7 +2,7 @@
 
 [Suomeksi](README.md) | **English**
 
-Bored? Six old-school games in one small window, dressed up in C64 and Amiga style. No account, no ads, nothing to learn. Open it, pick a game and let the time pass.
+Bored? Eight old-school games in one small window, dressed up in C64 and Amiga style. No account, no ads, nothing to learn. Open it, pick a game and let the time pass.
 
 Runs even on a potato.
 
@@ -37,6 +37,16 @@ A lonely ship, endless rocks. Big rocks split into smaller ones, flying saucers 
 A worm game where hitting yourself is the whole idea. A hit closes a loop, and everything caught inside it is yours. The loop uses up the worm's length, though, so eat some apples now and then. The more you catch at once, the bigger the multiplier. Watch out for walls and mosquitoes.
 
 *Arrows, WASD or mouse.*
+
+### Palikka8000
+Swap two neighbouring blocks, and three of a kind in a row disappear. The new ones falling from above may keep the chain going, and every link multiplies the score. Four make a bomb, and five in a row make a wild block that takes every block of its neighbour's colour with it. New colours arrive as the levels rise, and the game ends when no move is left.
+
+*Mouse, or arrows and space.*
+
+### Minesweeper
+The other office classic. A number tells how many mines touch the cell, and the rest is up to you. The first open is always safe, so you can't blame your first explosion on bad luck. Three levels, each with its own best time.
+
+*Left mouse opens and right flags, or arrows, space and F.*
 
 ## Good to know
 

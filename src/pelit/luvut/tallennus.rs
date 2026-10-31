@@ -55,6 +55,14 @@ pub struct Tallennus {
     pub silmukan_parhaat: Vec<Tulos>,
     /// Silmukan tulokset, jotka eivät ole vielä päässeet nettilistalle.
     pub silmukan_jono: Vec<Tulos>,
+    /// Palikan paras tulos. Vanhassa tallennuksessa nolla.
+    pub palikka: u32,
+    /// Palikan top 3, järjestys kuten `parhaat`.
+    pub palikan_parhaat: Vec<Tulos>,
+    /// Palikan tulokset, jotka eivät ole vielä päässeet nettilistalle.
+    pub palikan_jono: Vec<Tulos>,
+    /// Miinaharavan parhaat ajat sekunteina tasoittain. Nolla tarkoittaa, ettei tasoa ole läpäisty.
+    pub miinaajat: [u32; 3],
 }
 
 fn luku(teksti: &str) -> Option<u32> {
@@ -73,16 +81,29 @@ fn ruudut(teksti: &str) -> Option<Ruudut> {
     osat.next().is_none().then_some(ruudut)
 }
 
+fn miinaajat(teksti: &str) -> Option<[u32; 3]> {
+    let mut ajat = [0; 3];
+    let mut osat = teksti.split(',');
+    for aika in &mut ajat {
+        *aika = luku(osat.next()?)?;
+    }
+    osat.next().is_none().then_some(ajat)
+}
+
 impl Tallennus {
     pub fn tekstiksi(&self) -> String {
         let mut teksti = format!(
-            "{OTSAKE}\nparas {}\nhiljaa {}\nkieli {}\ntiilirikko {}\nasteroidit {}\nsilmukka {}\n",
+            "{OTSAKE}\nparas {}\nhiljaa {}\nkieli {}\ntiilirikko {}\nasteroidit {}\nsilmukka {}\npalikka {}\nmiinaajat {},{},{}\n",
             self.paras,
             self.hiljaa as u8,
             self.kieli.koodi(),
             self.tiilirikko,
             self.asteroidit,
             self.silmukka,
+            self.palikka,
+            self.miinaajat[0],
+            self.miinaajat[1],
+            self.miinaajat[2],
         );
         for tulos in &self.parhaat {
             teksti += &format!("top {} {}\n", tulos.pisteet, tulos.nimi);
@@ -107,6 +128,12 @@ impl Tallennus {
         }
         for tulos in &self.silmukan_jono {
             teksti += &format!("silmukkajono {} {}\n", tulos.pisteet, tulos.nimi);
+        }
+        for tulos in &self.palikan_parhaat {
+            teksti += &format!("palikkatop {} {}\n", tulos.pisteet, tulos.nimi);
+        }
+        for tulos in &self.palikan_jono {
+            teksti += &format!("palikkajono {} {}\n", tulos.pisteet, tulos.nimi);
         }
         if let Some(kesken) = &self.kesken {
             let luvut: Vec<String> = kesken.ruudut.iter().flatten().map(u32::to_string).collect();
@@ -133,7 +160,9 @@ impl Tallennus {
         let (mut luvut_jono, mut tiilirikon_jono) = (Vec::new(), Vec::new());
         let (mut asteroidien_parhaat, mut asteroidien_jono) = (Vec::new(), Vec::new());
         let (mut silmukan_parhaat, mut silmukan_jono) = (Vec::new(), Vec::new());
-        let (mut tiilirikko, mut asteroidit, mut silmukka) = (None, None, None);
+        let (mut palikan_parhaat, mut palikan_jono) = (Vec::new(), Vec::new());
+        let (mut tiilirikko, mut asteroidit, mut silmukka, mut palikka) = (None, None, None, None);
+        let mut ajat = None;
         for rivi in rivit {
             match rivi.split_once(' ') {
                 Some(("paras", arvo)) => paras = luku(arvo),
@@ -142,6 +171,8 @@ impl Tallennus {
                 Some(("tiilirikko", arvo)) => tiilirikko = luku(arvo),
                 Some(("asteroidit", arvo)) => asteroidit = luku(arvo),
                 Some(("silmukka", arvo)) => silmukka = luku(arvo),
+                Some(("palikka", arvo)) => palikka = luku(arvo),
+                Some(("miinaajat", arvo)) => ajat = miinaajat(arvo),
                 Some(("top", arvo)) => {
                     if let Some(tulos) = tulos_tekstista(arvo) {
                         lisaa_tulos(&mut parhaat, tulos);
@@ -182,6 +213,16 @@ impl Tallennus {
                         lisaa_tulos(&mut silmukan_jono, tulos);
                     }
                 }
+                Some(("palikkatop", arvo)) => {
+                    if let Some(tulos) = tulos_tekstista(arvo) {
+                        lisaa_tulos(&mut palikan_parhaat, tulos);
+                    }
+                }
+                Some(("palikkajono", arvo)) => {
+                    if let Some(tulos) = tulos_tekstista(arvo) {
+                        lisaa_tulos(&mut palikan_jono, tulos);
+                    }
+                }
                 Some(("lauta", arvo)) => lauta = ruudut(arvo),
                 Some(("pisteet", arvo)) => pisteet = luku(arvo),
                 Some(("siirrot", arvo)) => siirrot = luku(arvo),
@@ -218,6 +259,10 @@ impl Tallennus {
             silmukka: silmukka.unwrap_or(0),
             silmukan_parhaat,
             silmukan_jono,
+            palikka: palikka.unwrap_or(0),
+            palikan_parhaat,
+            palikan_jono,
+            miinaajat: ajat.unwrap_or_default(),
         }
     }
 }
@@ -317,6 +362,16 @@ mod tests {
                 nimi: "ITIKKA".to_string(),
                 pisteet: 2500,
             }],
+            palikka: 700,
+            palikan_parhaat: vec![Tulos {
+                nimi: "KIVI".to_string(),
+                pisteet: 700,
+            }],
+            palikan_jono: vec![Tulos {
+                nimi: "KIVI".to_string(),
+                pisteet: 700,
+            }],
+            miinaajat: [12, 0, 345],
         }
     }
 
@@ -340,6 +395,10 @@ mod tests {
             silmukka: 0,
             silmukan_parhaat: Vec::new(),
             silmukan_jono: Vec::new(),
+            palikka: 0,
+            palikan_parhaat: Vec::new(),
+            palikan_jono: Vec::new(),
+            miinaajat: [0; 3],
         };
         assert_eq!(Tallennus::tekstista(&t.tekstiksi()), t);
     }
@@ -369,7 +428,19 @@ mod tests {
         assert_eq!(t.tiilirikko, 0);
         assert_eq!(t.asteroidit, 0);
         assert_eq!(t.silmukka, 0);
+        assert_eq!(t.palikka, 0);
+        assert_eq!(t.miinaajat, [0; 3]);
         assert!(t.parhaat.is_empty());
+    }
+
+    #[test]
+    fn kelvottomat_miina_ajat_hylataan() {
+        let hyva = "klassikot8000 1\nmiinaajat 1,2,3\n";
+        assert_eq!(Tallennus::tekstista(hyva).miinaajat, [1, 2, 3]);
+        for huono in ["1,2", "1,2,3,4", "a,b,c", "-1,2,3", "1,2,4000000000"] {
+            let t = Tallennus::tekstista(&hyva.replace("1,2,3", huono));
+            assert_eq!(t.miinaajat, [0; 3], "{huono}");
+        }
     }
 
     #[test]

@@ -8,6 +8,10 @@ pub mod asteroidit;
 pub mod laivanupotus;
 #[path = "pelit/luvut/logiikka.rs"]
 pub mod luvut;
+#[path = "pelit/miinaharava/logiikka.rs"]
+pub mod miinaharava;
+#[path = "pelit/palikka/logiikka.rs"]
+pub mod palikka;
 #[path = "pelit/pasianssi/logiikka.rs"]
 pub mod pasianssi;
 #[path = "pelit/silmukka/logiikka.rs"]

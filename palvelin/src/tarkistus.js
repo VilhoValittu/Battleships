@@ -1,7 +1,13 @@
 // Pelin suurin tulos. Tiilirikossa tiilistä saa tuplapisteillä enintään 17540 ja aikabonuksista
-// 15000 pistettä. 2048:n teoreettinen huippu on 3 932 100 pistettä. Asteroidit ja Silmukka
-// rajaavat tuloksen itse lukuun 999 999.
-export const PELIT = { luvut: 4000000, tiilirikko: 33000, asteroidit: 1000000, silmukka: 1000000 };
+// 15000 pistettä. 2048:n teoreettinen huippu on 3 932 100 pistettä. Asteroidit, Silmukka ja
+// Palikka rajaavat tuloksen itse lukuun 999 999.
+export const PELIT = {
+  luvut: 4000000,
+  tiilirikko: 33000,
+  asteroidit: 1000000,
+  silmukka: 1000000,
+  palikka: 1000000,
+};
 
 const RIVI = /^([1-9][0-9]{0,8}) ([A-ZÄÖ0-9]{1,8})$/u;
 

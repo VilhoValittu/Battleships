@@ -5,6 +5,7 @@ pub mod netti;
 pub mod piirto;
 
 use klassikot8000::laivanupotus::Vaikeus;
+use klassikot8000::miinaharava;
 use klassikot8000::pasianssi;
 
 use self::netti::{Nettipeli, Pyynto, Vastaus};
@@ -15,6 +16,10 @@ use crate::pelit::laivanupotus::piirto::alkumalli as laivamalli;
 use crate::pelit::luvut::peli::Luvut;
 use crate::pelit::luvut::piirto::lukupino;
 use crate::pelit::luvut::tallennus::Tallennus;
+use crate::pelit::miinaharava::peli::Miinaharava;
+use crate::pelit::miinaharava::piirto::miinamalli;
+use crate::pelit::palikka::peli::Palikkapeli;
+use crate::pelit::palikka::piirto::jalokivi;
 use crate::pelit::pasianssi::peli::{self as pasianssi_peli, Pasianssi};
 use crate::pelit::pasianssi::piirto::korttipinot;
 use crate::pelit::silmukka::peli::Silmukka;
@@ -41,6 +46,11 @@ pub enum KuvanAvain {
         sekunnit: u32,
         vilkku: u32,
     },
+    /// Vuoropeli, jonka kuva muuttuu syötteestä tai pelin omassa tahdissa.
+    Vuoro {
+        syotteita: u32,
+        askel: u32,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,6 +61,8 @@ pub enum Laji {
     Tiilirikko,
     Asteroidit,
     Silmukka,
+    Palikka,
+    Miinaharava,
 }
 
 pub struct Kortti {
@@ -60,7 +72,7 @@ pub struct Kortti {
     pub malli: fn() -> Vec<Tahko>,
 }
 
-pub const PELIT: [Kortti; 6] = [
+pub const PELIT: [Kortti; 8] = [
     Kortti {
         laji: Laji::Laivanupotus,
         nimi: "peli.laivanupotus",
@@ -97,6 +109,18 @@ pub const PELIT: [Kortti; 6] = [
         kuvaus: "valikko.silmukka",
         malli: ouroboros,
     },
+    Kortti {
+        laji: Laji::Palikka,
+        nimi: "peli.palikka",
+        kuvaus: "valikko.palikka",
+        malli: jalokivi,
+    },
+    Kortti {
+        laji: Laji::Miinaharava,
+        nimi: "peli.miinaharava",
+        kuvaus: "valikko.miinaharava",
+        malli: miinamalli,
+    },
 ];
 
 pub enum Kaynnissa {
@@ -106,6 +130,8 @@ pub enum Kaynnissa {
     Tiilirikko(Box<Tiilirikko>),
     Asteroidit(Box<Asteroidit>),
     Silmukka(Box<Silmukka>),
+    Palikka(Box<Palikkapeli>),
+    Miinaharava(Box<Miinaharava>),
 }
 
 /// Pelin valinta ja käynnissä oleva peli. Asetukset säilyvät, kun peli vaihtuu.
@@ -134,10 +160,12 @@ pub struct Kaynnistin {
     netti_tiilirikko: Option<Vec<Tulos>>,
     netti_asteroidit: Option<Vec<Tulos>>,
     netti_silmukka: Option<Vec<Tulos>>,
+    netti_palikka: Option<Vec<Tulos>>,
     /// Uusin julkaistu versio, jos se on uudempi kuin tämä ohjelma.
     uusi_versio: Option<String>,
     vaikeus: Vaikeus,
     pasianssin_vaikeus: pasianssi::Vaikeus,
+    miinaharavan_vaikeus: miinaharava::Vaikeus,
     siemen: u64,
 }
 
@@ -160,9 +188,11 @@ impl Kaynnistin {
             netti_tiilirikko: None,
             netti_asteroidit: None,
             netti_silmukka: None,
+            netti_palikka: None,
             uusi_versio: None,
             vaikeus: Vaikeus::Normaali,
             pasianssin_vaikeus: pasianssi::Vaikeus::Normaali,
+            miinaharavan_vaikeus: miinaharava::Vaikeus::Helppo,
             siemen,
         }
     }
@@ -175,14 +205,15 @@ impl Kaynnistin {
         }
     }
 
-    /// Valitun pelin omat parhaat. Laivanupotuksella ja pasianssilla ei ole pistelistaa.
+    /// Valitun pelin omat parhaat. Laivanupotuksella, pasianssilla ja miinaharavalla ei ole pistelistaa.
     pub fn valitun_parhaat(&self) -> Option<&[Tulos]> {
         match PELIT[self.valittu].laji {
             Laji::Luvut => Some(&self.tallennus.parhaat),
             Laji::Tiilirikko => Some(&self.tallennus.tiilirikon_parhaat),
             Laji::Asteroidit => Some(&self.tallennus.asteroidien_parhaat),
             Laji::Silmukka => Some(&self.tallennus.silmukan_parhaat),
-            Laji::Laivanupotus | Laji::Pasianssi => None,
+            Laji::Palikka => Some(&self.tallennus.palikan_parhaat),
+            Laji::Laivanupotus | Laji::Pasianssi | Laji::Miinaharava => None,
         }
     }
 
@@ -215,6 +246,16 @@ impl Kaynnistin {
                         vilkku,
                     })
             }
+            Some(Kaynnissa::Palikka(peli)) => peli.kuvan_askel().map(|askel| KuvanAvain::Vuoro {
+                syotteita: self.syotteita,
+                askel,
+            }),
+            Some(Kaynnissa::Miinaharava(peli)) => {
+                peli.kuvan_askel().map(|askel| KuvanAvain::Vuoro {
+                    syotteita: self.syotteita,
+                    askel,
+                })
+            }
             Some(_) => None,
         }
     }
@@ -227,6 +268,8 @@ impl Kaynnistin {
             Some(Kaynnissa::Tiilirikko(_)) => "peli.tiilirikko",
             Some(Kaynnissa::Asteroidit(_)) => "peli.asteroidit",
             Some(Kaynnissa::Silmukka(_)) => "peli.silmukka",
+            Some(Kaynnissa::Palikka(_)) => "peli.palikka",
+            Some(Kaynnissa::Miinaharava(_)) => "peli.miinaharava",
             None => "peli.pelikone",
         })
     }
@@ -244,6 +287,8 @@ impl Kaynnistin {
             Some(Kaynnissa::Silmukka(peli)) => {
                 !matches!(peli.vaihe, crate::pelit::silmukka::peli::Vaihe::Alku)
             }
+            // Palikat liikkuvat vain vaihdon jälkeen, muuten lauta seisoo.
+            Some(Kaynnissa::Palikka(peli)) => peli.animoi(),
             _ => false,
         }
     }
@@ -342,6 +387,22 @@ impl Kaynnistin {
                 self.pyynnot.push(Pyynto::Hae(Nettipeli::Silmukka));
                 Kaynnissa::Silmukka(Box::new(peli))
             }
+            Laji::Palikka => {
+                let mut peli = Palikkapeli::new(siemen);
+                peli.paras = self.tallennus.palikka;
+                peli.parhaat = self.tallennus.palikan_parhaat.clone();
+                peli.netti_parhaat = self.netti_palikka.clone();
+                peli.aanet_paalla = self.aanet_paalla;
+                self.pyynnot.push(Pyynto::Hae(Nettipeli::Palikka));
+                Kaynnissa::Palikka(Box::new(peli))
+            }
+            Laji::Miinaharava => {
+                let mut peli = Miinaharava::new(siemen);
+                peli.vaikeus = self.miinaharavan_vaikeus;
+                peli.ajat = self.tallennus.miinaajat;
+                peli.aanet_paalla = self.aanet_paalla;
+                Kaynnissa::Miinaharava(Box::new(peli))
+            }
         });
     }
 
@@ -355,6 +416,7 @@ impl Kaynnistin {
             (Nettipeli::Tiilirikko, &tallennus.tiilirikon_jono),
             (Nettipeli::Asteroidit, &tallennus.asteroidien_jono),
             (Nettipeli::Silmukka, &tallennus.silmukan_jono),
+            (Nettipeli::Palikka, &tallennus.palikan_jono),
         ] {
             let tulokset = jono.iter().cloned();
             self.pyynnot
@@ -390,12 +452,19 @@ impl Kaynnistin {
                 }
                 self.netti_silmukka = Some(lista);
             }
+            Vastaus::Lista(Nettipeli::Palikka, lista) => {
+                if let Some(Kaynnissa::Palikka(peli)) = &mut self.peli {
+                    peli.netti_parhaat = Some(lista.clone());
+                }
+                self.netti_palikka = Some(lista);
+            }
             Vastaus::Lahetetty(peli, tulos) => {
                 let jono = match peli {
                     Nettipeli::Luvut => &mut self.tallennus.luvut_jono,
                     Nettipeli::Tiilirikko => &mut self.tallennus.tiilirikon_jono,
                     Nettipeli::Asteroidit => &mut self.tallennus.asteroidien_jono,
                     Nettipeli::Silmukka => &mut self.tallennus.silmukan_jono,
+                    Nettipeli::Palikka => &mut self.tallennus.palikan_jono,
                 };
                 jono.retain(|t| *t != tulos);
                 self.tallenna = true;
@@ -449,6 +518,18 @@ impl Kaynnistin {
                         .push(Pyynto::Laheta(Nettipeli::Silmukka, tulos));
                 }
             }
+            Some(Kaynnissa::Palikka(peli)) => {
+                self.tallennus.palikka = peli.paras;
+                self.tallennus.palikan_parhaat = peli.parhaat.clone();
+                self.netti_palikka = peli.netti_parhaat.clone();
+                if let Some(tulos) = peli.lahetys.take() {
+                    lisaa_tulos(&mut self.tallennus.palikan_jono, tulos.clone());
+                    self.pyynnot.push(Pyynto::Laheta(Nettipeli::Palikka, tulos));
+                }
+            }
+            Some(Kaynnissa::Miinaharava(peli)) => {
+                self.tallennus.miinaajat = peli.ajat;
+            }
             _ => {}
         }
     }
@@ -466,6 +547,10 @@ impl Kaynnistin {
                 peli.vahvista_nimi();
             }
             Some(Kaynnissa::Silmukka(peli)) => {
+                peli.poistu();
+                peli.vahvista_nimi();
+            }
+            Some(Kaynnissa::Palikka(peli)) => {
                 peli.poistu();
                 peli.vahvista_nimi();
             }
@@ -504,6 +589,15 @@ impl Kaynnistin {
                     self.tallenna = true;
                 }
             }
+            Some(Kaynnissa::Palikka(peli)) => {
+                peli.edista(ms);
+                // Sama kuin Tiilirikossa: peli päättyy ajan kuluessa eikä syötteeseen.
+                if std::mem::take(&mut peli.uusi_tulos) {
+                    self.paivita_tallennus();
+                    self.tallenna = true;
+                }
+            }
+            Some(Kaynnissa::Miinaharava(peli)) => peli.edista(ms),
             None => {}
         }
     }
@@ -516,6 +610,8 @@ impl Kaynnistin {
             Some(Kaynnissa::Tiilirikko(peli)) => std::mem::take(&mut peli.aanijono),
             Some(Kaynnissa::Asteroidit(peli)) => std::mem::take(&mut peli.aanijono),
             Some(Kaynnissa::Silmukka(peli)) => std::mem::take(&mut peli.aanijono),
+            Some(Kaynnissa::Palikka(peli)) => std::mem::take(&mut peli.aanijono),
+            Some(Kaynnissa::Miinaharava(peli)) => std::mem::take(&mut peli.aanijono),
             None => Vec::new(),
         }
     }
@@ -530,6 +626,8 @@ impl Kaynnistin {
             Some(Kaynnissa::Tiilirikko(peli)) => std::mem::take(&mut peli.uusi_tulos),
             Some(Kaynnissa::Asteroidit(peli)) => std::mem::take(&mut peli.uusi_tulos),
             Some(Kaynnissa::Silmukka(peli)) => std::mem::take(&mut peli.uusi_tulos),
+            Some(Kaynnissa::Palikka(peli)) => std::mem::take(&mut peli.uusi_tulos),
+            Some(Kaynnissa::Miinaharava(peli)) => std::mem::take(&mut peli.uusi_tulos),
             _ => false,
         };
         if uusi_tulos || self.aanet_paalla != aanet_ennen || kieli::nykyinen() != kieli_ennen {
@@ -570,6 +668,17 @@ impl Kaynnistin {
             Some(Kaynnissa::Silmukka(peli)) => {
                 peli.kasittele(syote);
                 self.aanet_paalla = peli.aanet_paalla;
+                peli.lopeta
+            }
+            Some(Kaynnissa::Palikka(peli)) => {
+                peli.kasittele(syote);
+                self.aanet_paalla = peli.aanet_paalla;
+                peli.lopeta
+            }
+            Some(Kaynnissa::Miinaharava(peli)) => {
+                peli.kasittele(syote);
+                self.aanet_paalla = peli.aanet_paalla;
+                self.miinaharavan_vaikeus = peli.vaikeus;
                 peli.lopeta
             }
             None => {
@@ -697,6 +806,10 @@ mod tests {
         k.kasittele(Syote::Numero(0));
         k.kasittele(Syote::Numero(9));
         assert_eq!(k.valittu, 5);
+        k.kasittele(Syote::Nuoli(1, 0));
+        k.kasittele(Syote::Nuoli(1, 0));
+        k.kasittele(Syote::Nuoli(1, 0));
+        assert_eq!(k.valittu, 7);
 
         let (x, y) = piirto::kortin_keskipiste(0);
         k.kasittele(Syote::Hiiri(x, y));
@@ -729,6 +842,23 @@ mod tests {
         assert!(matches!(k.peli, Some(Kaynnissa::Silmukka(_))));
         assert_eq!(k.otsikko(), "Mato8000");
         assert!(!k.nuolet_toistuvat());
+        k.kasittele(Syote::Peru);
+
+        let (x, y) = piirto::kortin_keskipiste(6);
+        k.kasittele(Syote::Klikkaus(x, y));
+        assert!(matches!(k.peli, Some(Kaynnissa::Palikka(_))));
+        assert_eq!(k.otsikko(), "Palikka8000");
+        assert!(k.nuolet_toistuvat());
+        k.kasittele(Syote::Peru);
+
+        let (x, y) = piirto::kortin_keskipiste(7);
+        k.kasittele(Syote::Klikkaus(x, y));
+        assert!(matches!(k.peli, Some(Kaynnissa::Miinaharava(_))));
+        assert_eq!(k.otsikko(), "Miinaharava");
+        k.kasittele(Syote::Peru);
+
+        k.kasittele(Syote::Numero(8));
+        assert_eq!(k.valittu, 7);
     }
 
     #[test]
@@ -841,6 +971,106 @@ mod tests {
         assert_eq!(k.valitun_parhaat().unwrap().len(), 1);
         k.kasittele(Syote::Numero(3));
         assert!(k.valitun_parhaat().is_none());
+    }
+
+    #[test]
+    fn palikan_tulos_tallentuu_jonottaa_ja_palautuu() {
+        let mut k = Kaynnistin::new(1);
+        k.kaynnista(Laji::Palikka);
+        assert_eq!(
+            std::mem::take(&mut k.pyynnot),
+            [Pyynto::Hae(Nettipeli::Palikka)]
+        );
+        k.kasittele(Syote::Ammu);
+        let Some(Kaynnissa::Palikka(peli)) = &mut k.peli else {
+            panic!("palikka ei ole käynnissä");
+        };
+        peli.lauta.pisteet = 350;
+        peli.paras = 350;
+        peli.lauta.ohi = true;
+        k.edista(1);
+        assert!(k.tallenna);
+        assert_eq!(k.tallennus.palikka, 350);
+        k.kasittele(Syote::Kirjain('A'));
+        k.kasittele(Syote::Ammu);
+
+        let tulos = Tulos {
+            nimi: "A".to_string(),
+            pisteet: 350,
+        };
+        assert_eq!(
+            std::mem::take(&mut k.pyynnot),
+            [Pyynto::Laheta(Nettipeli::Palikka, tulos.clone())]
+        );
+
+        let mut uusi = Kaynnistin::new(2);
+        uusi.lataa(Tallennus::tekstista(&k.tallennus.tekstiksi()));
+        assert_eq!(
+            uusi.pyynnot,
+            [Pyynto::Laheta(Nettipeli::Palikka, tulos.clone())]
+        );
+        uusi.vastaanota(Vastaus::Lahetetty(Nettipeli::Palikka, tulos));
+        assert!(uusi.tallennus.palikan_jono.is_empty());
+        uusi.kaynnista(Laji::Palikka);
+        let Some(Kaynnissa::Palikka(peli)) = &uusi.peli else {
+            panic!("palikka ei ole käynnissä");
+        };
+        assert_eq!(peli.paras, 350);
+        assert_eq!(peli.parhaat[0].nimi, "A");
+    }
+
+    #[test]
+    fn palikan_avain_vaihtuu_vain_toistossa_ja_vilkussa() {
+        let mut k = Kaynnistin::new(1);
+        k.kaynnista(Laji::Palikka);
+        assert_eq!(k.kuvan_avain(true), None);
+        k.kasittele(Syote::Ammu);
+        assert!(!k.toimintapeli());
+        let lepo = k.kuvan_avain(true);
+        assert!(lepo.is_some());
+        k.edista(1);
+        assert_eq!(k.kuvan_avain(true), lepo);
+
+        let Some(Kaynnissa::Palikka(peli)) = &mut k.peli else {
+            panic!("palikka ei ole käynnissä");
+        };
+        let (a, b) = peli.lauta.vihje().unwrap();
+        peli.vaihda(a, b);
+        // toisto saa sulavan päivityksen, muuten taajuus pysyy matalana
+        assert!(k.toimintapeli());
+        let toisto = k.kuvan_avain(true);
+        k.edista(1);
+        assert_ne!(k.kuvan_avain(true), toisto);
+    }
+
+    #[test]
+    fn miinaharavan_taso_ja_ennatys_sailyvat() {
+        let mut k = Kaynnistin::new(1);
+        k.kaynnista(Laji::Miinaharava);
+        k.kasittele(Syote::Numero(2));
+        k.kasittele(Syote::Peru);
+        k.kaynnista(Laji::Miinaharava);
+        k.kasittele(Syote::Ammu);
+        let Some(Kaynnissa::Miinaharava(peli)) = &mut k.peli else {
+            panic!("miinaharava ei ole käynnissä");
+        };
+        assert_eq!(peli.lauta.vaikeus, miinaharava::Vaikeus::Normaali);
+        peli.lauta = miinaharava::Miinakentta::miinoista(miinaharava::Vaikeus::Normaali, &[(0, 0)]);
+        peli.avaa((1, 1));
+        peli.edista(12_000);
+        peli.avaa((15, 15));
+        assert_eq!(peli.vaihe, crate::pelit::miinaharava::peli::Vaihe::Voitto);
+        k.kasittele(Syote::Hiiri(0, 0));
+        assert!(k.tallenna);
+        assert_eq!(k.tallennus.miinaajat, [0, 12, 0]);
+
+        let mut uusi = Kaynnistin::new(2);
+        uusi.lataa(Tallennus::tekstista(&k.tallennus.tekstiksi()));
+        uusi.kaynnista(Laji::Miinaharava);
+        let Some(Kaynnissa::Miinaharava(peli)) = &uusi.peli else {
+            panic!("miinaharava ei ole käynnissä");
+        };
+        assert_eq!(peli.ajat, [0, 12, 0]);
     }
 
     #[test]
@@ -1331,6 +1561,8 @@ mod tests {
             Laji::Tiilirikko,
             Laji::Asteroidit,
             Laji::Silmukka,
+            Laji::Palikka,
+            Laji::Miinaharava,
         ] {
             k.kaynnista(laji);
             k.edista(100);
