@@ -113,10 +113,12 @@ pub fn kortin_keskipiste(i: usize) -> (i32, i32) {
 }
 
 /// Piirtää esillä olevan näkymän ruudulle. Pelien klassiset näkymät kulkevat välikuvan kautta.
-pub fn piirra(kaynnistin: &Kaynnistin, ruutu: &mut [u32], kuva: &mut [u32]) {
+pub fn piirra(kaynnistin: &Kaynnistin, kehys: &mut Kehys) {
+    let kuva = &mut kehys.kuva;
     match &kaynnistin.peli {
         Some(Kaynnissa::Pasianssi(peli)) if peli.vaihe != pasianssi::peli::Vaihe::Alku => {
-            return pasianssi::piirto::piirra(peli, ruutu);
+            pasianssi::piirto::piirra(peli, &mut kehys.ruutu);
+            return kehys.piirretty_suoraan();
         }
         Some(Kaynnissa::Pasianssi(peli)) => pasianssi::piirto::piirra_alku(peli, kuva),
         Some(Kaynnissa::Laivanupotus(peli)) => laivanupotus::piirto::piirra(peli, kuva),
@@ -126,16 +128,16 @@ pub fn piirra(kaynnistin: &Kaynnistin, ruutu: &mut [u32], kuva: &mut [u32]) {
         Some(Kaynnissa::Silmukka(peli)) => silmukka::piirto::piirra(peli, kuva),
         None => {
             let mut p = Piirtaja {
-                k: Kangas::kokoinen(ruutu, RUUDUN_LEVEYS, RUUDUN_KORKEUS),
+                k: Kangas::kokoinen(&mut kehys.ruutu, RUUDUN_LEVEYS, RUUDUN_KORKEUS),
                 kello: kaynnistin.kello_ms,
             };
             p.valikko(kaynnistin);
             p.aanikytkin(kaynnistin.aanet_paalla);
             p.nappi(kielikytkimen_x(), KIELI_Y, KIELIKYTKIN, VALKOINEN, MUSTA);
-            return;
+            return kehys.piirretty_suoraan();
         }
     }
-    skaalaa_ruudulle(kuva, ruutu);
+    kehys.venyta();
 }
 
 impl Piirtaja<'_> {

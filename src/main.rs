@@ -42,7 +42,9 @@ use pelit::luvut::tallennus;
 use pelit::pasianssi::peli as pasianssi_peli;
 use yhteinen::aanet::{Mikseri, NAYTETAAJUUS};
 use yhteinen::kieli;
-use yhteinen::piirto::{Ikkunakuva, KORKEUS, LEVEYS, RUUDUN_KORKEUS, RUUDUN_LEVEYS, Sovitus};
+use yhteinen::piirto::{Ikkunakuva, Kehys, Sovitus};
+#[cfg(debug_assertions)]
+use yhteinen::piirto::{RUUDUN_KORKEUS, RUUDUN_LEVEYS};
 use yhteinen::syote::Syote;
 
 const PAIVITYKSIA_SEKUNNISSA: usize = 30;
@@ -157,8 +159,7 @@ fn vaihda_netin_kanssa(kaynnistin: &mut Kaynnistin, netti: Option<&Netti>) {
 
 fn pelisilmukka(
     mut kaynnistin: Kaynnistin,
-    ruutu: &mut [u32],
-    kuva: &mut [u32],
+    kehys: &mut Kehys,
     polku: Option<&Path>,
     netti: Option<Netti>,
 ) -> Result<(), minifb::Error> {
@@ -183,7 +184,7 @@ fn pelisilmukka(
     let mut edellinen = Instant::now();
     let mut hiiri = (-1, -1);
     let mut nappi_alhaalla = false;
-    let mut valikon_tila = None;
+    let mut kuvan_tila = None;
 
     while ikkuna.is_open() && !kaynnistin.lopeta {
         for nappain in ikkuna.get_keys_pressed(KeyRepeat::Yes) {
@@ -260,18 +261,20 @@ fn pelisilmukka(
         kaynnistin.edista(kulunut);
         edellinen += Duration::from_millis(kulunut as u64);
 
-        // Valikkoa ei piirretä, kun sen tila ja ikkunan koko ovat ennallaan.
+        // Näkymää ei piirretä, kun sen tila ja ikkunan koko ovat ennallaan.
         let tila = kaynnistin
-            .valikon_avain(ikkuna.is_active())
+            .kuvan_avain(ikkuna.is_active())
             .map(|avain| (avain, ikkuna_l, ikkuna_k));
-        let ennallaan = tila.is_some() && tila == valikon_tila;
-        valikon_tila = tila;
+        let ennallaan = tila.is_some() && tila == kuvan_tila;
+        kuvan_tila = tila;
         if !ennallaan {
-            piirto::piirra(&kaynnistin, ruutu, kuva);
+            piirto::piirra(&kaynnistin, kehys);
         }
         // Windows piirtää peitosta paljastuneen ikkunan itse edellisestä puskurista, joten
         // muuttumatonta kuvaa ei tarvitse lähettää uudelleen.
-        if !ennallaan && ikkunakuva.sovita(ruutu, ikkuna_l, ikkuna_k, sovitus) {
+        if !ennallaan
+            && ikkunakuva.sovita(&kehys.ruutu, &kehys.muuttuneet, ikkuna_l, ikkuna_k, sovitus)
+        {
             ikkuna.update_with_buffer(&ikkunakuva.pikselit, ikkuna_l, ikkuna_k)?;
         } else {
             ikkuna.update();
@@ -286,8 +289,7 @@ fn pelisilmukka(
 }
 
 fn main() -> ExitCode {
-    let mut ruutu = vec![0u32; RUUDUN_LEVEYS * RUUDUN_KORKEUS];
-    let mut kuva = vec![0u32; LEVEYS * KORKEUS];
+    let mut kehys = Kehys::default();
     if let Some(polku) = kieli::oletuspolku() {
         kieli::lue_tiedosto(&polku);
     }
@@ -460,8 +462,9 @@ fn main() -> ExitCode {
             if liput.rengas.is_none() {
                 kaynnistin.edista(liput.aika_ms);
             }
-            piirto::piirra(&kaynnistin, &mut ruutu, &mut kuva);
-            return match kehitys::tallenna_png(&polku, &ruutu, RUUDUN_LEVEYS, RUUDUN_KORKEUS) {
+            piirto::piirra(&kaynnistin, &mut kehys);
+            return match kehitys::tallenna_png(&polku, &kehys.ruutu, RUUDUN_LEVEYS, RUUDUN_KORKEUS)
+            {
                 Ok(()) => ExitCode::SUCCESS,
                 Err(virhe) => {
                     eprintln!("{polku}: {virhe}");
@@ -487,7 +490,7 @@ fn main() -> ExitCode {
         )
     };
 
-    match pelisilmukka(kaynnistin, &mut ruutu, &mut kuva, polku.as_deref(), netti) {
+    match pelisilmukka(kaynnistin, &mut kehys, polku.as_deref(), netti) {
         Ok(()) => ExitCode::SUCCESS,
         Err(virhe) => {
             eprintln!("{virhe}");

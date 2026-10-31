@@ -4,6 +4,7 @@ use klassikot8000::pasianssi::{Kohde, Lahde, Lauta, SARAKKEITA, Vaikeus};
 use super::piirto::{self, Kohta};
 use crate::yhteinen::aanet::Aani;
 use crate::yhteinen::kieli::kaanna;
+use crate::yhteinen::piirto::VILKKU_MS;
 use crate::yhteinen::syote::Syote;
 
 const TUPLAKLIKKAUS_MS: u32 = 400;
@@ -111,6 +112,23 @@ impl Pasianssi {
         self.kello_ms = self.kello_ms.saturating_add(ms);
         if self.vaihe == Vaihe::Pelissa {
             self.peliaika_ms = self.peliaika_ms.saturating_add(ms);
+        }
+    }
+
+    /// Kuvassa näkyvät ajat: peliaika sekunteina ja kursorin vilkku. `None` tarkoittaa, että
+    /// kuva elää joka ruudussa. Muuten pelinäkymä muuttuu vain syötteestä.
+    pub fn ajan_avain(&self) -> Option<(u32, u32)> {
+        match self.vaihe {
+            Vaihe::Alku | Vaihe::Voitto => None,
+            Vaihe::Pelissa | Vaihe::Tappio => {
+                let vilkkuu = self.kursori_nakyy && self.vaihe == Vaihe::Pelissa;
+                let vilkku = if vilkkuu {
+                    self.kello_ms / VILKKU_MS
+                } else {
+                    0
+                };
+                Some((self.peliaika_ms / 1000, vilkku))
+            }
         }
     }
 

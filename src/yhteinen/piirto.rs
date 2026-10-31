@@ -73,7 +73,7 @@ const AANI_Y: i32 = 6;
 const AANI_K: i32 = 30;
 
 const KAISTOJA: i32 = 16;
-const VILKKU_MS: u32 = 400;
+pub const VILKKU_MS: u32 = 400;
 
 // Alkuruutujen viimeinen rivi: "Paina välilyöntiä..."
 pub const ALOITUS_Y: i32 = 708;
@@ -120,26 +120,76 @@ pub fn napin_leveys(avain: &str) -> i32 {
     kaanna(avain).chars().count() as i32 * MERKKI + 24
 }
 
-/// Venyttää klassisen kuvan ruudulle. Lähimmän pikselin menetelmä säilyttää
-/// kovat reunat, ja sama rivi kopioidaan laskematta uudelleen.
-pub fn skaalaa_ruudulle(kuva: &[u32], ruutu: &mut [u32]) {
-    let lahde_x: [u16; SKAALATTU_LEVEYS] =
-        std::array::from_fn(|x| (x * SKAALA_NIMITTAJA / SKAALA_OSOITTAJA) as u16);
-    let mut edellinen = None;
-    for y in 0..RUUDUN_KORKEUS {
-        let rivi = y * RUUDUN_LEVEYS;
-        let lahde_y = y * SKAALA_NIMITTAJA / SKAALA_OSOITTAJA;
-        if edellinen == Some(lahde_y) {
-            ruutu.copy_within(rivi - RUUDUN_LEVEYS..rivi, rivi);
-            continue;
+/// Ruudun piirtopuskurit. Klassinen kuva verrataan edelliseen ennen venytystä, koska pieni
+/// kuva on nopea verrata ja useimmat sen riveistä säilyvät ruudusta toiseen.
+pub struct Kehys {
+    pub ruutu: Vec<u32>,
+    pub kuva: Vec<u32>,
+    edellinen_kuva: Vec<u32>,
+    /// Ruudun rivit, jotka ovat voineet muuttua edellisestä piirrosta.
+    pub muuttuneet: Vec<bool>,
+    /// Ruudulla on edellisen klassisen kuvan venytys.
+    venytetty: bool,
+}
+
+impl Default for Kehys {
+    fn default() -> Self {
+        Self {
+            ruutu: vec![0; RUUDUN_LEVEYS * RUUDUN_KORKEUS],
+            kuva: vec![0; LEVEYS * KORKEUS],
+            edellinen_kuva: vec![0; LEVEYS * KORKEUS],
+            muuttuneet: vec![true; RUUDUN_KORKEUS],
+            venytetty: false,
         }
-        edellinen = Some(lahde_y);
-        let kohde = &mut ruutu[rivi..rivi + RUUDUN_LEVEYS];
-        kohde.fill(REUNA);
-        let lahde = &kuva[lahde_y * LEVEYS..(lahde_y + 1) * LEVEYS];
-        for (pikseli, &x) in kohde[SKAALATTU_X..].iter_mut().zip(&lahde_x) {
-            *pikseli = lahde[x as usize];
+    }
+}
+
+impl Kehys {
+    /// Venyttää klassisen kuvan muuttuneet rivit ruudulle. Lähimmän pikselin menetelmä
+    /// säilyttää kovat reunat, ja sama rivi kopioidaan laskematta uudelleen.
+    pub fn venyta(&mut self) {
+        let mut kuvan_rivit = [false; KORKEUS];
+        for ((muuttui, uusi), vanha) in kuvan_rivit
+            .iter_mut()
+            .zip(self.kuva.chunks_exact(LEVEYS))
+            .zip(self.edellinen_kuva.chunks_exact_mut(LEVEYS))
+        {
+            *muuttui = uusi != &*vanha;
+            if *muuttui {
+                vanha.copy_from_slice(uusi);
+            }
         }
+        let kaikki = !self.venytetty;
+        self.venytetty = true;
+        let lahde_x: [u16; SKAALATTU_LEVEYS] =
+            std::array::from_fn(|x| (x * SKAALA_NIMITTAJA / SKAALA_OSOITTAJA) as u16);
+        let mut edellinen = None;
+        for y in 0..RUUDUN_KORKEUS {
+            let lahde_y = y * SKAALA_NIMITTAJA / SKAALA_OSOITTAJA;
+            let muuttui = kaikki || kuvan_rivit[lahde_y];
+            self.muuttuneet[y] = muuttui;
+            if !muuttui {
+                continue;
+            }
+            let rivi = y * RUUDUN_LEVEYS;
+            if edellinen == Some(lahde_y) {
+                self.ruutu.copy_within(rivi - RUUDUN_LEVEYS..rivi, rivi);
+                continue;
+            }
+            edellinen = Some(lahde_y);
+            let kohde = &mut self.ruutu[rivi..rivi + RUUDUN_LEVEYS];
+            kohde.fill(REUNA);
+            let lahde = &self.kuva[lahde_y * LEVEYS..(lahde_y + 1) * LEVEYS];
+            for (pikseli, &x) in kohde[SKAALATTU_X..].iter_mut().zip(&lahde_x) {
+                *pikseli = lahde[x as usize];
+            }
+        }
+    }
+
+    /// Näkymä piirsi suoraan ruudulle, joten mikä tahansa rivi on voinut muuttua.
+    pub fn piirretty_suoraan(&mut self) {
+        self.venytetty = false;
+        self.muuttuneet.fill(true);
     }
 }
 
@@ -200,18 +250,21 @@ fn lahdevali(i: usize, kohde: usize, lahde: usize) -> (usize, usize) {
 pub struct Ikkunakuva {
     pub pikselit: Vec<u32>,
     edellinen: Vec<u32>,
-    muuttuneet: Vec<bool>,
+    /// Kunkin ruudun rivin muuttunut pikseliväli.
+    muuttuneet: Vec<Option<(usize, usize)>>,
     sarakkeet: Vec<(usize, usize)>,
     koko: Option<(usize, usize, Sovitus)>,
 }
 
 impl Ikkunakuva {
     /// Skaalaa ruudun ikkunan kokoiseksi. Pienennys laskee keskiarvon, jotta ohuet viivat
-    /// säilyvät; Windowsin oma venytys hävittäisi ne. Vain muuttuneet rivit lasketaan, ja
-    /// sama rivi kopioidaan laskematta uudelleen. Palauttaa tiedon, muuttuiko kuva.
+    /// säilyvät; Windowsin oma venytys hävittäisi ne. Vain `ehdokkaat`-riveiltä etsitään
+    /// muutoksia, ja vain muuttuneet kohdat lasketaan. Sama rivi kopioidaan laskematta
+    /// uudelleen. Palauttaa tiedon, muuttuiko kuva.
     pub fn sovita(
         &mut self,
         ruutu: &[u32],
+        ehdokkaat: &[bool],
         ikkuna_l: usize,
         ikkuna_k: usize,
         sovitus: Sovitus,
@@ -229,38 +282,45 @@ impl Ikkunakuva {
             self.edellinen.extend_from_slice(ruutu);
         }
         self.muuttuneet.clear();
-        // Yleensä vain pieni kohta muuttuu, joten lasketaan vain sen sarakkeet.
-        let mut muutos: Option<(usize, usize)> = None;
-        for (uusi, vanha) in ruutu
+        for ((uusi, vanha), &ehdokas) in ruutu
             .chunks_exact(RUUDUN_LEVEYS)
             .zip(self.edellinen.chunks_exact_mut(RUUDUN_LEVEYS))
+            .zip(ehdokkaat)
         {
-            let eroaa = |(a, b): (&u32, &u32)| a != b;
-            let muuttunut = uusi != &*vanha;
-            if muuttunut {
+            let muutos = (ehdokas && uusi != &*vanha).then(|| {
+                let eroaa = |(a, b): (&u32, &u32)| a != b;
                 let alku = uusi.iter().zip(&*vanha).position(eroaa).unwrap_or(0);
                 let loppu = uusi.iter().zip(&*vanha).rposition(eroaa).unwrap_or(0) + 1;
-                muutos = Some(muutos.map_or((alku, loppu), |m| (m.0.min(alku), m.1.max(loppu))));
                 vanha.copy_from_slice(uusi);
-            }
-            self.muuttuneet.push(muuttunut);
+                (alku, loppu)
+            });
+            self.muuttuneet.push(muutos);
         }
-        let (s0, s1) = match muutos {
-            _ if kaikki => (0, sovitus.l),
-            Some((alku, loppu)) => (
-                self.sarakkeet.partition_point(|s| s.1 <= alku),
-                self.sarakkeet.partition_point(|s| s.0 < loppu),
-            ),
-            None => return false,
-        };
+        if !kaikki && self.muuttuneet.iter().all(Option::is_none) {
+            return false;
+        }
 
         let ikkuna = &mut self.pikselit;
         let mut edellinen = None;
         for y in 0..sovitus.k {
             let rivit = lahdevali(y, sovitus.k, RUUDUN_KORKEUS);
-            if !kaikki && !self.muuttuneet[rivit.0..rivit.1].contains(&true) {
-                continue;
-            }
+            // Pallo ja maila muuttavat eri kohtia, joten sarakkeet rajataan riveittäin.
+            let (s0, s1) = if kaikki {
+                (0, sovitus.l)
+            } else {
+                let Some((alku, loppu)) = self.muuttuneet[rivit.0..rivit.1]
+                    .iter()
+                    .flatten()
+                    .copied()
+                    .reduce(|a, b| (a.0.min(b.0), a.1.max(b.1)))
+                else {
+                    continue;
+                };
+                (
+                    self.sarakkeet.partition_point(|s| s.1 <= alku),
+                    self.sarakkeet.partition_point(|s| s.0 < loppu),
+                )
+            };
             let alku = (sovitus.y + y) * ikkuna_l + sovitus.x;
             if edellinen == Some(rivit) {
                 let yla = alku - ikkuna_l;
@@ -689,6 +749,8 @@ pub fn alkuohje_mahtuu(osat: &[&str], rivit: &[&str], raja_y: i32) {
 mod tests {
     use super::*;
 
+    const KAIKKI_RIVIT: [bool; RUUDUN_KORKEUS] = [true; RUUDUN_KORKEUS];
+
     #[test]
     pub fn rivitys_katkaisee_sanavalista_ja_kasittelee_aakkoset() {
         let teksti = "Vastustaja ampui B10: OSUMA! Lentotukialus upposi!";
@@ -703,9 +765,12 @@ mod tests {
 
     #[test]
     fn skaalaus_tayttaa_ruudun_ja_hiiri_osuu_samaan_pikseliin() {
-        let kuva: Vec<u32> = (0..LEVEYS * KORKEUS).map(|i| i as u32 + 1).collect();
-        let mut ruutu = vec![0; RUUDUN_LEVEYS * RUUDUN_KORKEUS];
-        skaalaa_ruudulle(&kuva, &mut ruutu);
+        let mut kehys = Kehys::default();
+        for (i, pikseli) in kehys.kuva.iter_mut().enumerate() {
+            *pikseli = i as u32 + 1;
+        }
+        kehys.venyta();
+        let (kuva, ruutu) = (&kehys.kuva, &kehys.ruutu);
         assert_eq!(ruutu[0], REUNA);
         assert_eq!(ruutu[RUUDUN_LEVEYS * RUUDUN_KORKEUS - 1], REUNA);
         for (x, y) in [(285, 0), (700, 300), (1634, 1079), (1000, 1079)] {
@@ -715,6 +780,35 @@ mod tests {
         }
         assert!(ruudulta_kuvaan(0, 0).0 < 0);
         assert!(ruudulta_kuvaan(1700, 0).0 >= LEVEYS as i32);
+    }
+
+    #[test]
+    fn muuttuneiden_rivien_venytys_vastaa_kokonaan_laskettua() {
+        let mut kehys = Kehys::default();
+        kehys.kuva.fill(0x123456);
+        kehys.venyta();
+        assert!(kehys.muuttuneet.iter().all(|&m| m));
+
+        kehys.venyta();
+        assert!(!kehys.muuttuneet.contains(&true));
+
+        kehys.kuva[300 * LEVEYS + 500] = 0xABCDEF;
+        kehys.venyta();
+        let mut uusi = Kehys::default();
+        uusi.kuva.copy_from_slice(&kehys.kuva);
+        uusi.venyta();
+        assert!(kehys.ruutu == uusi.ruutu);
+        // Kuvan rivi 300 venyy ruudun riveille 422 ja 423 eikä muualle.
+        assert!(kehys.muuttuneet[422] && kehys.muuttuneet[423]);
+        assert_eq!(kehys.muuttuneet.iter().filter(|&&m| m).count(), 2);
+
+        // Suora piirto sotkee ruudun, joten seuraava venytys laskee kaiken.
+        kehys.ruutu.fill(0);
+        kehys.piirretty_suoraan();
+        assert!(kehys.muuttuneet.iter().all(|&m| m));
+        kehys.venyta();
+        assert!(kehys.muuttuneet.iter().all(|&m| m));
+        assert!(kehys.ruutu == uusi.ruutu);
     }
 
     #[test]
@@ -767,7 +861,7 @@ mod tests {
         let sovitus = Sovitus::new(l, k);
         assert_eq!(sovitus.k, 540);
         let mut kuva = Ikkunakuva::default();
-        kuva.sovita(&ruutu, l, k, sovitus);
+        kuva.sovita(&ruutu, &KAIKKI_RIVIT, l, k, sovitus);
         let ikkuna = &kuva.pikselit;
         assert_eq!(ikkuna[0], REUNA);
         assert_eq!(ikkuna[l * k - 1], REUNA);
@@ -777,7 +871,7 @@ mod tests {
 
         // sama koko on suora kopio
         let sama = Sovitus::new(RUUDUN_LEVEYS, RUUDUN_KORKEUS);
-        kuva.sovita(&ruutu, RUUDUN_LEVEYS, RUUDUN_KORKEUS, sama);
+        kuva.sovita(&ruutu, &KAIKKI_RIVIT, RUUDUN_LEVEYS, RUUDUN_KORKEUS, sama);
         assert_eq!(kuva.pikselit, ruutu);
     }
 
@@ -786,14 +880,32 @@ mod tests {
         let mut ruutu = vec![0; RUUDUN_LEVEYS * RUUDUN_KORKEUS];
         let mut kuva = Ikkunakuva::default();
         let sovitus = Sovitus::new(960, 700);
-        assert!(kuva.sovita(&ruutu, 960, 700, sovitus));
-        assert!(!kuva.sovita(&ruutu, 960, 700, sovitus));
+        let kaikki = &KAIKKI_RIVIT;
+        assert!(kuva.sovita(&ruutu, kaikki, 960, 700, sovitus));
+        assert!(!kuva.sovita(&ruutu, kaikki, 960, 700, sovitus));
         ruutu[5] = 1;
-        assert!(kuva.sovita(&ruutu, 960, 700, sovitus));
-        assert!(!kuva.sovita(&ruutu, 960, 700, sovitus));
+        assert!(kuva.sovita(&ruutu, kaikki, 960, 700, sovitus));
+        assert!(!kuva.sovita(&ruutu, kaikki, 960, 700, sovitus));
         // uusi ikkunan koko piirtää kaiken, vaikka kuva olisi sama
         let suurempi = Sovitus::new(1000, 700);
-        assert!(kuva.sovita(&ruutu, 1000, 700, suurempi));
+        assert!(kuva.sovita(&ruutu, kaikki, 1000, 700, suurempi));
+    }
+
+    #[test]
+    fn sovitus_etsii_muutoksia_vain_ehdokasriveilta() {
+        let mut ruutu = vec![0; RUUDUN_LEVEYS * RUUDUN_KORKEUS];
+        let mut kuva = Ikkunakuva::default();
+        let sovitus = Sovitus::new(960, 700);
+        kuva.sovita(&ruutu, &KAIKKI_RIVIT, 960, 700, sovitus);
+        ruutu[5] = 1;
+        assert!(!kuva.sovita(&ruutu, &[false; RUUDUN_KORKEUS], 960, 700, sovitus));
+        assert!(kuva.sovita(&ruutu, &KAIKKI_RIVIT, 960, 700, sovitus));
+        // Uusi koko laskee kaiken ehdokkaista välittämättä.
+        let suurempi = Sovitus::new(1000, 700);
+        assert!(kuva.sovita(&ruutu, &[false; RUUDUN_KORKEUS], 1000, 700, suurempi));
+        let mut uusi = Ikkunakuva::default();
+        uusi.sovita(&ruutu, &KAIKKI_RIVIT, 1000, 700, suurempi);
+        assert!(kuva.pikselit == uusi.pikselit);
     }
 
     #[test]
@@ -805,14 +917,21 @@ mod tests {
         // pienennys, palkit, suurennus ja takaisin ensimmäiseen kokoon
         for (l, k) in [(1760, 990), (960, 700), (2400, 1200), (1760, 990)] {
             let sovitus = Sovitus::new(l, k);
-            kuva.sovita(&ruutu, l, k, sovitus);
+            kuva.sovita(&ruutu, &KAIKKI_RIVIT, l, k, sovitus);
             for (x, y) in [(0, 0), (1919, 1079), (700, 500), (701, 501)] {
                 ruutu[y * RUUDUN_LEVEYS + x] ^= 0x00FF00;
-                kuva.sovita(&ruutu, l, k, sovitus);
+                kuva.sovita(&ruutu, &KAIKKI_RIVIT, l, k, sovitus);
                 let mut uusi = Ikkunakuva::default();
-                uusi.sovita(&ruutu, l, k, sovitus);
+                uusi.sovita(&ruutu, &KAIKKI_RIVIT, l, k, sovitus);
                 assert!(kuva.pikselit == uusi.pikselit, "{l}x{k} ({x}, {y})");
             }
+            // Eri kohdat muuttuvat samassa ruudussa: pallo ylhäällä, maila alhaalla.
+            ruutu[100 * RUUDUN_LEVEYS + 50] ^= 0x00FF00;
+            ruutu[900 * RUUDUN_LEVEYS + 1800] ^= 0x00FF00;
+            kuva.sovita(&ruutu, &KAIKKI_RIVIT, l, k, sovitus);
+            let mut uusi = Ikkunakuva::default();
+            uusi.sovita(&ruutu, &KAIKKI_RIVIT, l, k, sovitus);
+            assert!(kuva.pikselit == uusi.pikselit, "{l}x{k}");
         }
     }
 }

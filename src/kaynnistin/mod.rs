@@ -32,6 +32,17 @@ use crate::yhteinen::vektori::Tahko;
 /// kierros riittää hitaaseen pyörintään ja puolittaa ruudun lähettämisen.
 const VALIKON_ASKEL_MS: u32 = 66;
 
+/// Kaikki, mistä paikallaan pysyvän näkymän kuva riippuu.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum KuvanAvain {
+    Valikko(usize, bool, Kieli, u32),
+    Pasianssi {
+        syotteita: u32,
+        sekunnit: u32,
+        vilkku: u32,
+    },
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Laji {
     Laivanupotus,
@@ -116,6 +127,8 @@ pub struct Kaynnistin {
     pub tallenna: bool,
     /// Pyynnöt, jotka `main.rs` välittää verkkosäikeelle.
     pub pyynnot: Vec<Pyynto>,
+    /// Käsiteltyjen syötteiden määrä: kuva voi muuttua minkä tahansa syötteen jälkeen.
+    syotteita: u32,
     /// Nettilistat, kun palvelin on vastannut.
     netti_luvut: Option<Vec<Tulos>>,
     netti_tiilirikko: Option<Vec<Tulos>>,
@@ -140,6 +153,7 @@ impl Kaynnistin {
             tallennus: Tallennus::default(),
             tallenna: false,
             pyynnot: Vec::new(),
+            syotteita: 0,
             netti_luvut: None,
             netti_tiilirikko: None,
             netti_asteroidit: None,
@@ -169,19 +183,36 @@ impl Kaynnistin {
         }
     }
 
-    /// Kaikki, mistä valikon kuva riippuu, tai `None` pelin aikana. Kun avain pysyy samana,
-    /// valikkoa ei tarvitse piirtää. Taustalla oleva ikkuna ei animoi.
-    pub fn valikon_avain(&self, aktiivinen: bool) -> Option<(usize, bool, Kieli, u32)> {
-        let kasvaa = self.kello_ms.saturating_sub(self.valittu_ms) < piirto::MALLIN_KASVU_MS;
-        let askel = match (aktiivinen, kasvaa) {
-            (false, _) => 0,
-            // lyhyt kasvu näytetään sulavasti silmukan tahdissa
-            (true, true) => self.kello_ms,
-            (true, false) => self.kello_ms / VALIKON_ASKEL_MS,
-        };
-        self.peli
-            .is_none()
-            .then_some((self.valittu, self.aanet_paalla, kieli::nykyinen(), askel))
+    /// Kaikki, mistä näkymän kuva riippuu, tai `None`, kun kuva elää joka ruudussa. Kun avain
+    /// pysyy samana, näkymää ei tarvitse piirtää. Taustalla oleva valikko ei animoi.
+    pub fn kuvan_avain(&self, aktiivinen: bool) -> Option<KuvanAvain> {
+        match &self.peli {
+            None => {
+                let kasvaa =
+                    self.kello_ms.saturating_sub(self.valittu_ms) < piirto::MALLIN_KASVU_MS;
+                let askel = match (aktiivinen, kasvaa) {
+                    (false, _) => 0,
+                    // lyhyt kasvu näytetään sulavasti silmukan tahdissa
+                    (true, true) => self.kello_ms,
+                    (true, false) => self.kello_ms / VALIKON_ASKEL_MS,
+                };
+                Some(KuvanAvain::Valikko(
+                    self.valittu,
+                    self.aanet_paalla,
+                    kieli::nykyinen(),
+                    askel,
+                ))
+            }
+            Some(Kaynnissa::Pasianssi(peli)) => {
+                peli.ajan_avain()
+                    .map(|(sekunnit, vilkku)| KuvanAvain::Pasianssi {
+                        syotteita: self.syotteita,
+                        sekunnit,
+                        vilkku,
+                    })
+            }
+            Some(_) => None,
+        }
     }
 
     pub fn otsikko(&self) -> &'static str {
@@ -476,6 +507,7 @@ impl Kaynnistin {
     }
 
     pub fn kasittele(&mut self, syote: Syote) {
+        self.syotteita = self.syotteita.wrapping_add(1);
         let aanet_ennen = self.aanet_paalla;
         let kieli_ennen = kieli::nykyinen();
         self.kasittele_nakyma(syote);
@@ -588,7 +620,7 @@ mod tests {
     use super::*;
     use crate::pelit::laivanupotus::peli::Vaihe;
     use crate::pelit::luvut::peli as luvut;
-    use crate::yhteinen::piirto::{KORKEUS, LEVEYS, RUUDUN_KORKEUS, RUUDUN_LEVEYS};
+    use crate::yhteinen::piirto::{Kehys, VILKKU_MS};
     use klassikot8000::laivanupotus::{KOKO, Ruutu};
     use klassikot8000::luvut::Lukulauta;
 
@@ -705,27 +737,71 @@ mod tests {
     fn valikon_avain_vaihtuu_vain_kun_kuva_voi_muuttua() {
         let mut k = Kaynnistin::new(1);
         // kasvun aikana kuva vaihtuu joka kierroksella
-        let kasvussa = k.valikon_avain(true);
+        let kasvussa = k.kuvan_avain(true);
         k.edista(1);
-        assert_ne!(k.valikon_avain(true), kasvussa);
+        assert_ne!(k.kuvan_avain(true), kasvussa);
 
         k.edista(10 * VALIKON_ASKEL_MS - 1);
-        let alku = k.valikon_avain(true);
+        let alku = k.kuvan_avain(true);
         assert!(alku.is_some());
         k.edista(VALIKON_ASKEL_MS - 1);
-        assert_eq!(k.valikon_avain(true), alku);
+        assert_eq!(k.kuvan_avain(true), alku);
         k.edista(1);
-        assert_ne!(k.valikon_avain(true), alku);
+        assert_ne!(k.kuvan_avain(true), alku);
 
         // taustalla kello ei näy kuvassa, mutta hiiren valinta ja asetukset näkyvät
-        let taustalla = k.valikon_avain(false);
+        let taustalla = k.kuvan_avain(false);
         k.edista(10 * VALIKON_ASKEL_MS);
-        assert_eq!(k.valikon_avain(false), taustalla);
+        assert_eq!(k.kuvan_avain(false), taustalla);
         k.kasittele(Syote::Numero(2));
-        assert_ne!(k.valikon_avain(false), taustalla);
+        assert_ne!(k.kuvan_avain(false), taustalla);
 
         k.kasittele(Syote::Ammu);
-        assert_eq!(k.valikon_avain(true), None);
+        assert_eq!(k.kuvan_avain(true), None);
+    }
+
+    #[test]
+    fn pasianssin_avain_vaihtuu_syotteesta_kellosta_ja_vilkusta() {
+        let mut k = Kaynnistin::new(1);
+        k.kaynnista(Laji::Pasianssi);
+        // alkuruudun malli pyörii
+        assert_eq!(k.kuvan_avain(true), None);
+        k.kasittele(Syote::Ammu);
+        let Some(Kaynnissa::Pasianssi(peli)) = &mut k.peli else {
+            panic!("pasianssi ei käynnistynyt");
+        };
+        assert_eq!(peli.vaihe, pasianssi_peli::Vaihe::Pelissa);
+
+        // ilman kursoria vain näkyvä peliaika muuttaa kuvaa
+        let alku = k.kuvan_avain(true);
+        assert!(alku.is_some());
+        k.edista(999);
+        assert_eq!(k.kuvan_avain(true), alku);
+        k.edista(1);
+        assert_ne!(k.kuvan_avain(true), alku);
+
+        let ennen = k.kuvan_avain(true);
+        k.kasittele(Syote::Hiiri(5, 5));
+        assert_ne!(k.kuvan_avain(true), ennen);
+
+        // näkyvä kursori vilkkuu samassa tahdissa kuin se piirretään
+        k.kasittele(Syote::Nuoli(0, 1));
+        let Some(Kaynnissa::Pasianssi(peli)) = &k.peli else {
+            panic!("pasianssi loppui");
+        };
+        assert!(peli.kursori_nakyy);
+        let alku_ms = peli.kello_ms;
+        let seuraava_vilkku = (alku_ms / VILKKU_MS + 1) * VILKKU_MS;
+        let ennen = k.kuvan_avain(true);
+        k.edista(seuraava_vilkku - alku_ms);
+        assert_ne!(k.kuvan_avain(true), ennen);
+
+        // voittojuhla liikkuu joka ruudussa
+        let Some(Kaynnissa::Pasianssi(peli)) = &mut k.peli else {
+            panic!("pasianssi loppui");
+        };
+        peli.vaihe = pasianssi_peli::Vaihe::Voitto;
+        assert_eq!(k.kuvan_avain(true), None);
     }
 
     #[test]
@@ -1226,10 +1302,9 @@ mod tests {
 
     #[test]
     fn nakymat_piirtyvat_kaatumatta() {
-        let mut ruutu = vec![0; RUUDUN_LEVEYS * RUUDUN_KORKEUS];
-        let mut kuva = vec![0; LEVEYS * KORKEUS];
+        let mut kehys = Kehys::default();
         let mut k = Kaynnistin::new(1);
-        piirto::piirra(&k, &mut ruutu, &mut kuva);
+        piirto::piirra(&k, &mut kehys);
         for laji in [
             Laji::Laivanupotus,
             Laji::Luvut,
@@ -1240,9 +1315,9 @@ mod tests {
         ] {
             k.kaynnista(laji);
             k.edista(100);
-            piirto::piirra(&k, &mut ruutu, &mut kuva);
+            piirto::piirra(&k, &mut kehys);
             k.kasittele(Syote::Ammu);
-            piirto::piirra(&k, &mut ruutu, &mut kuva);
+            piirto::piirra(&k, &mut kehys);
         }
     }
 }
