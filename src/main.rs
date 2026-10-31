@@ -32,7 +32,7 @@ use klassikot8000::pasianssi::{self, KUNINGAS, Kortti, Maa};
 #[cfg(debug_assertions)]
 use klassikot8000::silmukka::{Laji, Otus, Suunta};
 #[cfg(debug_assertions)]
-use klassikot8000::tiilirikko::Tiilipeli;
+use klassikot8000::tiilirikko::{self, Tiilipeli};
 #[cfg(debug_assertions)]
 use pelit::laivanupotus::peli::Vaihe;
 #[cfg(debug_assertions)]
@@ -391,8 +391,28 @@ fn main() -> ExitCode {
             Some(Kaynnissa::Tiilirikko(peli)) => {
                 if let Some(kentta) = liput.kentta {
                     peli.kasittele(Syote::Ammu);
-                    peli.lauta = Tiilipeli::new(kentta);
+                    peli.lauta = Tiilipeli::new(kentta, &mut Arpa::new(liput.siemen.unwrap_or(1)));
                     peli.kasittele(Syote::Ammu);
+                    if liput.toinen_pallo {
+                        let lauta = &mut peli.lauta;
+                        let rivi = (0..tiilirikko::RIVEJA)
+                            .rfind(|&r| lauta.pallotiilet[r].contains(&true))
+                            .unwrap_or(0);
+                        let sarake = (0..tiilirikko::SARAKKEITA)
+                            .find(|&s| lauta.pallotiilet[rivi][s])
+                            .unwrap_or(0);
+                        // Alemmat tiilet pois, ettei pallo osu niihin ensin.
+                        for alempi in &mut lauta.tiilet[rivi + 1..] {
+                            alempi[sarake] = 0;
+                        }
+                        lauta.pallot[0].paikka = (
+                            (sarake as f32 + 0.5) * tiilirikko::TIILI_L,
+                            tiilirikko::TIILET_Y
+                                + (rivi + 1) as f32 * tiilirikko::TIILI_K
+                                + tiilirikko::PALLON_SADE
+                                + 0.5,
+                        );
+                    }
                     // Aikahyppy on rajattu, joten kuvakaappauksen hetki ajetaan pieninä askelina.
                     for _ in 0..liput.aika_ms / 16 {
                         peli.edista(16);

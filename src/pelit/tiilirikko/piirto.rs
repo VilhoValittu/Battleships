@@ -1,8 +1,8 @@
 //! Tiilirikon näkymät.
 
 use klassikot8000::tiilirikko::{
-    self, KENTTIA, MAILA_K, MAILA_L, MAILA_Y, PALLON_SADE, RIVEJA, SARAKKEITA, TIILET_Y, TIILI_K,
-    TIILI_L, Tila,
+    self, KENTTIA, MAILA_K, MAILA_Y, PALLON_SADE, RIVEJA, SARAKKEITA, TIILET_Y, TIILI_K, TIILI_L,
+    Tila,
 };
 
 use super::peli::{KIPINA_MS, Nappi, Tiilirikko, Vaihe};
@@ -41,13 +41,14 @@ const NAPIT: [(Nappi, &str, i32); 2] = [
     ),
 ];
 
-const ALKU_OSAT: [&str; 6] = [
+const ALKU_OSAT: [&str; 7] = [
     "tiilirikko.tervetuloa",
     "yhteinen.ohjeet",
     "tiilirikko.ohje_1",
     "tiilirikko.ohje_2",
     "tiilirikko.ohje_3",
     "tiilirikko.ohje_4",
+    "tiilirikko.ohje_5",
 ];
 const ALKU_RIVIT: [&str; 4] = [
     "tiilirikko.nappain_hiiri",
@@ -146,11 +147,19 @@ impl Piirtaja<'_> {
                     continue;
                 }
                 let (x, y) = tiilen_paikka(rivi, sarake);
+                let pallotiili = peli.lauta.pallotiilet[rivi][sarake];
+                let vari = if pallotiili { VALKOINEN } else { vari };
                 self.k.laatikko(x + 1, y + 1, l - 2, k - 2, vari);
                 self.k
                     .laatikko(x + 1, y + 1, l - 2, 3, sekoita(vari, VALKOINEN, 0.5));
                 self.k
                     .laatikko(x + 1, y + k - 4, l - 2, 3, sekoita(vari, MUSTA, 0.4));
+                // Pallotiilen keskellä on pallon kokoinen merkki.
+                if pallotiili {
+                    let sivu = 2 * PALLON_SADE as i32;
+                    self.k
+                        .laatikko(x + (l - sivu) / 2, y + (k - sivu) / 2, sivu, sivu, MUSTA);
+                }
                 // Kestävän tiilen keskellä näkyy yksi niitti jokaista lisäosumaa kohti.
                 for niitti in 1..kesto as i32 {
                     let nx = x + l / 2 + (2 * niitti - kesto as i32) * 9 - 4;
@@ -168,24 +177,23 @@ impl Piirtaja<'_> {
 
     fn maila_ja_pallo(&mut self, peli: &Tiilirikko) {
         let lauta = &peli.lauta;
-        let (l, k) = (MAILA_L as i32, MAILA_K as i32);
-        let x = KENTTA_X + (lauta.maila_x - MAILA_L / 2.0) as i32;
+        let (l, k) = (lauta.maila_l() as i32, MAILA_K as i32);
+        let x = KENTTA_X + (lauta.maila_x - lauta.maila_l() / 2.0) as i32;
         let y = KENTTA_Y + MAILA_Y as i32;
         self.k.laatikko(x, y, l, k, KANSI);
         self.k.laatikko(x, y, l, 3, VALKOINEN);
         self.k.laatikko(x, y, 12, k, WB_ORANSSI);
         self.k.laatikko(x + l - 12, y, 12, k, WB_ORANSSI);
 
-        if lauta.tila == Tila::Ohi {
-            return;
-        }
         let sivu = 2 * PALLON_SADE as i32;
-        let px = KENTTA_X + (lauta.pallo.0 - PALLON_SADE) as i32;
-        let py = KENTTA_Y + (lauta.pallo.1 - PALLON_SADE) as i32;
-        // Pallon alapuoli voi pudota kentän alle, mutta paneelin päälle se ei piirry.
-        let korkeus = sivu.min(KENTTA_Y + KENTTA_K - py);
-        if korkeus > 0 {
-            self.k.laatikko(px, py, sivu, korkeus, VALKOINEN);
+        for pallo in &lauta.pallot {
+            let px = KENTTA_X + (pallo.paikka.0 - PALLON_SADE) as i32;
+            let py = KENTTA_Y + (pallo.paikka.1 - PALLON_SADE) as i32;
+            // Pallon alapuoli voi pudota kentän alle, mutta paneelin päälle se ei piirry.
+            let korkeus = sivu.min(KENTTA_Y + KENTTA_K - py);
+            if korkeus > 0 {
+                self.k.laatikko(px, py, sivu, korkeus, VALKOINEN);
+            }
         }
     }
 
@@ -297,6 +305,8 @@ mod tests {
                 kaanna(OHJE).to_string(),
                 kaanna(LAUKAISU).to_string(),
                 kaanna(TAUON_OHJE).to_string(),
+                kaanna("tiilirikko.uusi_pallo").to_string(),
+                kaanna("tiilirikko.toinen_meni").to_string(),
                 muotoile("tiilirikko.pallo_meni", &[&3]),
                 muotoile("tiilirikko.kentta_lapi", &[&5000]),
                 muotoile("tiilirikko.loppubonus", &[&5000, &99999]),

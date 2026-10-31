@@ -877,8 +877,8 @@ mod tests {
         };
         peli.paras = 70;
         peli.lauta.elamat = 1;
-        peli.lauta.pallo = (300.0, 600.0);
-        peli.lauta.nopeus = (0.0, 300.0);
+        peli.lauta.pallot[0].paikka = (300.0, 600.0);
+        peli.lauta.pallot[0].nopeus = (0.0, 300.0);
         k.edista(5);
         assert!(k.tallenna);
         assert_eq!(k.tallennus.tiilirikko, 70);
@@ -903,8 +903,8 @@ mod tests {
             };
             peli.lauta.pisteet = 70;
             peli.lauta.elamat = 1;
-            peli.lauta.pallo = (300.0, 600.0);
-            peli.lauta.nopeus = (0.0, 300.0);
+            peli.lauta.pallot[0].paikka = (300.0, 600.0);
+            peli.lauta.pallot[0].nopeus = (0.0, 300.0);
             k.edista(5);
         };
 
@@ -947,8 +947,8 @@ mod tests {
         assert_eq!(peli.netti_parhaat, Some(Vec::new()));
         peli.lauta.pisteet = 70;
         peli.lauta.elamat = 1;
-        peli.lauta.pallo = (300.0, 600.0);
-        peli.lauta.nopeus = (0.0, 300.0);
+        peli.lauta.pallot[0].paikka = (300.0, 600.0);
+        peli.lauta.pallot[0].nopeus = (0.0, 300.0);
         k.edista(5);
         k.kasittele(Syote::Kirjain('A'));
         k.kasittele(Syote::Ammu);

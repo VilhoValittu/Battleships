@@ -36,6 +36,8 @@ pub struct Liput {
     pub jumissa: bool,
     /// Tiilirikko: aloittaa tästä kentästä (nollasta alkaen) pallo lennossa.
     pub kentta: Option<usize>,
+    /// Tiilirikko: pallo lähtee `--stage`-kentän alimman pallotiilen alta.
+    pub toinen_pallo: bool,
     /// Asteroidit: aloittaa tästä aallosta (nollasta alkaen) ja lentää `aika_ms` paikallaan.
     pub aalto: Option<usize>,
     /// Silmukka: aloittaa valmiista renkaasta, jonka sisällä on näin monta itikkaa.
@@ -86,6 +88,7 @@ pub fn lue_liput() -> Result<Liput, String> {
         voitto: false,
         jumissa: false,
         kentta: None,
+        toinen_pallo: false,
         aalto: None,
         rengas: None,
         aika_ms: OLETUSAIKA_MS,
@@ -124,6 +127,7 @@ pub fn lue_liput() -> Result<Liput, String> {
             "--win" => liput.voitto = arvo == "1",
             "--stuck" => liput.jumissa = arvo == "1",
             "--stage" => liput.kentta = Some(arvo.parse().map_err(|_| "--stage: ei luku")?),
+            "--second-ball" => liput.toinen_pallo = arvo == "1",
             "--wave" => liput.aalto = Some(arvo.parse().map_err(|_| "--wave: ei luku")?),
             "--ring" => liput.rengas = Some(arvo.parse().map_err(|_| "--ring: ei luku")?),
             "--board" => {

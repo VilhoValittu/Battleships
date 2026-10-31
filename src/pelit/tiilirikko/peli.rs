@@ -3,7 +3,7 @@ use klassikot8000::tiilirikko::{ASKEL_MS, Tapahtuma, Tiilipeli, Tila};
 
 use super::piirto;
 use crate::yhteinen::aanet::Aani;
-use crate::yhteinen::kieli::muotoile;
+use crate::yhteinen::kieli::{kaanna, muotoile};
 use crate::yhteinen::piirto::aanikytkimella;
 use crate::yhteinen::syote::Syote;
 use crate::yhteinen::tulokset::{Tulos, lisaa_tulos, mahtuu_parhaisiin, muokkaa_nimea, ota_nimi};
@@ -61,9 +61,10 @@ pub struct Tiilirikko {
 
 impl Tiilirikko {
     pub fn new(siemen: u64) -> Self {
+        let mut arpa = Arpa::new(siemen);
         Self {
             vaihe: Vaihe::Alku,
-            lauta: Tiilipeli::new(0),
+            lauta: Tiilipeli::new(0, &mut arpa),
             paras: 0,
             parhaat: Vec::new(),
             netti_parhaat: None,
@@ -79,7 +80,7 @@ impl Tiilirikko {
             ohjaus: 0,
             kertyma_ms: 0,
             loppu: Vaihe::Tappio,
-            arpa: Arpa::new(siemen),
+            arpa,
         }
     }
 
@@ -99,7 +100,7 @@ impl Tiilirikko {
         self.kertyma_ms = (self.kertyma_ms + ms).min(SUURIN_KURO_MS);
         while self.kertyma_ms >= ASKEL_MS && self.vaihe == Vaihe::Pelissa {
             self.kertyma_ms -= ASKEL_MS;
-            for tapahtuma in self.lauta.askel(self.ohjaus) {
+            for tapahtuma in self.lauta.askel(self.ohjaus, &mut self.arpa) {
                 self.kasittele_tapahtuma(tapahtuma);
             }
         }
@@ -118,6 +119,14 @@ impl Tiilirikko {
                 if rikki {
                     self.kipinat.push((rivi, sarake, self.kello_ms));
                 }
+            }
+            Tapahtuma::UusiPallo => {
+                self.aanijono.push((Aani::Yhdistys, 0));
+                self.viesti = kaanna("tiilirikko.uusi_pallo").to_string();
+            }
+            Tapahtuma::ToinenMeni => {
+                self.aanijono.push((Aani::Puhkus, 0));
+                self.viesti = kaanna("tiilirikko.toinen_meni").to_string();
             }
             Tapahtuma::Menetys => {
                 self.aanijono.push((Aani::Rajahdys, 0));
@@ -179,7 +188,7 @@ impl Tiilirikko {
     }
 
     fn aloita_alusta(&mut self) {
-        self.lauta = Tiilipeli::new(0);
+        self.lauta = Tiilipeli::new(0, &mut self.arpa);
         self.vaihe = Vaihe::Pelissa;
         self.viesti.clear();
         self.kipinat.clear();
@@ -271,8 +280,8 @@ mod tests {
         peli.lauta.pisteet = pisteet;
         peli.paras = pisteet;
         peli.lauta.elamat = 1;
-        peli.lauta.pallo = (LEVEYS / 2.0, KORKEUS + 8.0);
-        peli.lauta.nopeus = (0.0, 300.0);
+        peli.lauta.pallot[0].paikka = (LEVEYS / 2.0, KORKEUS + 8.0);
+        peli.lauta.pallot[0].nopeus = (0.0, 300.0);
         peli.aanijono.clear();
         peli
     }
@@ -301,19 +310,19 @@ mod tests {
         peli.ohjaus = 1;
         peli.edista(50);
         assert!(peli.lauta.maila_x > MAILA_L / 2.0);
-        assert_eq!(peli.lauta.pallo.0, peli.lauta.maila_x);
+        assert_eq!(peli.lauta.pallot[0].paikka.0, peli.lauta.maila_x);
     }
 
     #[test]
     fn tauko_pysayttaa_pallon_ja_jatkuu_samasta() {
         let mut peli = lennossa();
         peli.kasittele(Syote::Kirjain('P'));
-        let paikka = peli.lauta.pallo;
+        let paikka = peli.lauta.pallot[0].paikka;
         peli.edista(100);
-        assert_eq!(peli.lauta.pallo, paikka);
+        assert_eq!(peli.lauta.pallot[0].paikka, paikka);
         peli.kasittele(Syote::Kirjain('P'));
         peli.edista(100);
-        assert_ne!(peli.lauta.pallo, paikka);
+        assert_ne!(peli.lauta.pallot[0].paikka, paikka);
 
         peli.keskeyta();
         assert_eq!(peli.vaihe, Vaihe::Tauko);
@@ -330,9 +339,9 @@ mod tests {
     #[test]
     fn iso_aikahyppy_ei_siirra_palloa_kerralla_pitkalle() {
         let mut peli = lennossa();
-        let alku = peli.lauta.pallo;
+        let alku = peli.lauta.pallot[0].paikka;
         peli.edista(60_000);
-        let matka = (peli.lauta.pallo.1 - alku.1).abs();
+        let matka = (peli.lauta.pallot[0].paikka.1 - alku.1).abs();
         assert!(matka < 100.0, "{matka}");
     }
 
@@ -445,12 +454,12 @@ mod tests {
     fn viimeisen_kentan_voitto_palaa_nimen_jalkeen_voittoon_ja_bonus_nostaa_parasta() {
         let mut peli = Tiilirikko::new(1);
         peli.kasittele(Syote::Ammu);
-        peli.lauta = Tiilipeli::new(KENTTIA - 1);
+        peli.lauta = Tiilipeli::new(KENTTIA - 1, &mut Arpa::new(1));
         peli.kasittele(Syote::Ammu);
         peli.lauta.tiilet = [[0; SARAKKEITA]; RIVEJA];
         peli.lauta.tiilet[0][0] = 1;
-        peli.lauta.pallo = (30.0, 80.0);
-        peli.lauta.nopeus = (0.0, -300.0);
+        peli.lauta.pallot[0].paikka = (30.0, 80.0);
+        peli.lauta.pallot[0].nopeus = (0.0, -300.0);
         peli.edista(ASKEL_MS);
         assert_eq!(peli.vaihe, Vaihe::Nimi);
         assert!(peli.lauta.pisteet > 1000);
@@ -468,8 +477,9 @@ mod tests {
         peli.lauta.tiilet = [[0; SARAKKEITA]; RIVEJA];
         peli.lauta.tiilet[0][0] = 1;
         peli.lauta.tiilet[7][10] = 1;
-        peli.lauta.pallo = (30.0, 80.0);
-        peli.lauta.nopeus = (0.0, -300.0);
+        peli.lauta.pallotiilet = [[false; SARAKKEITA]; RIVEJA];
+        peli.lauta.pallot[0].paikka = (30.0, 80.0);
+        peli.lauta.pallot[0].nopeus = (0.0, -300.0);
         peli.aanijono.clear();
         peli.edista(ASKEL_MS);
         assert_eq!(peli.kipinat.len(), 1);
@@ -477,6 +487,31 @@ mod tests {
         assert_eq!(peli.paras, 10);
         peli.edista(KIPINA_MS);
         assert!(peli.kipinat.is_empty());
+    }
+
+    #[test]
+    fn toinen_pallo_kertoo_tulostaan_ja_menetys_ei_vie_elamaa() {
+        let mut peli = lennossa();
+        peli.lauta.tiilet = [[0; SARAKKEITA]; RIVEJA];
+        peli.lauta.tiilet[0][0] = 1;
+        peli.lauta.tiilet[7][10] = 1;
+        peli.lauta.pallotiilet[0][0] = true;
+        peli.lauta.pallot[0].paikka = (30.0, 80.0);
+        peli.lauta.pallot[0].nopeus = (0.0, -300.0);
+        peli.aanijono.clear();
+        peli.edista(ASKEL_MS);
+        assert_eq!(peli.lauta.pallot.len(), 2);
+        assert_eq!(peli.aanijono, [(Aani::Tiili, 0), (Aani::Yhdistys, 0)]);
+        assert_eq!(peli.viesti, kaanna("tiilirikko.uusi_pallo"));
+
+        peli.lauta.pallot[1].paikka = (LEVEYS / 2.0, KORKEUS + 8.0);
+        peli.lauta.pallot[1].nopeus = (0.0, 300.0);
+        peli.aanijono.clear();
+        peli.edista(ASKEL_MS);
+        assert_eq!(peli.lauta.pallot.len(), 1);
+        assert_eq!(peli.lauta.elamat, klassikot8000::tiilirikko::ELAMIA);
+        assert_eq!(peli.aanijono, [(Aani::Puhkus, 0)]);
+        assert_eq!(peli.viesti, kaanna("tiilirikko.toinen_meni"));
     }
 
     #[test]
