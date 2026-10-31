@@ -25,6 +25,8 @@ const PARHAAT_L: i32 = LEVEYS as i32 - 12 - SARAKE_X;
 const OHJE: &str = "luvut.ohje";
 const EI_LIIKU: &str = "luvut.ei_liiku";
 const UUSI_PELI: &str = "luvut.uusi_peli";
+const UUSI_PELI_NAPPI: &str = "luvut.uusi_nappi";
+const UUSI_PELI_Y: i32 = ALOITUS_Y - NAPPI_K - 6;
 const JATKA: &str = "luvut.jatka";
 const VOITTO: &str = "luvut.voitto";
 const TAPPIO: &str = "yhteinen.peli_paattyi";
@@ -91,6 +93,25 @@ pub fn nappi_pisteesta(x: i32, y: i32) -> Option<Nappi> {
 pub fn napin_keskipiste(nappi: Nappi) -> (i32, i32) {
     let (_, teksti, x) = NAPIT.iter().find(|n| n.0 == nappi).copied().unwrap();
     (x + napin_leveys(teksti) / 2, NAPPI_Y + NAPPI_K / 2)
+}
+
+/// Tallennetun pelin rinnalla oleva nappi on alkuruudun oikeassa laidassa.
+fn uuden_pelin_x() -> i32 {
+    LEVEYS as i32 - 12 - napin_leveys(UUSI_PELI_NAPPI)
+}
+
+pub fn uusi_peli_pisteessa(x: i32, y: i32) -> bool {
+    let leveys = napin_leveys(UUSI_PELI_NAPPI);
+    (uuden_pelin_x()..uuden_pelin_x() + leveys).contains(&x)
+        && (UUSI_PELI_Y..UUSI_PELI_Y + NAPPI_K).contains(&y)
+}
+
+#[cfg(test)]
+pub fn uuden_pelin_keskipiste() -> (i32, i32) {
+    (
+        uuden_pelin_x() + napin_leveys(UUSI_PELI_NAPPI) / 2,
+        UUSI_PELI_Y + NAPPI_K / 2,
+    )
 }
 
 /// Piste laudan reunan keskellä: sinne piirretään myös hiiren suuntanuoli.
@@ -180,6 +201,8 @@ impl Piirtaja<'_> {
         let y = self.alkuohje(&ALKU_OSAT, &ALKU_RIVIT);
         if jatkuu {
             self.teksti(48, y, kaanna(UUSI_PELI), KELTAINEN);
+            let x = uuden_pelin_x();
+            self.nappi(x, UUSI_PELI_Y, UUSI_PELI_NAPPI, VALKOINEN, WB_SININEN);
         }
         self.aloituskehote(if jatkuu { JATKA } else { ALOITUS });
     }
@@ -449,7 +472,11 @@ mod tests {
             let siirto = muotoile("luvut.siirto_pisteet", &[&99999, &99999]);
             assert!(siirto.chars().count() <= RIVILLE_MERKKEJA, "{siirto}");
             assert!(kaanna(JATKA).chars().count() <= 36);
-            assert!(kaanna(UUSI_PELI).chars().count() <= 36);
+            // Nappi ei saa osua sen vieressä oleviin riveihin.
+            for avain in [UUSI_PELI, "yhteinen.aanet_kytkin", "yhteinen.takaisin"] {
+                let leveys = kaanna(avain).chars().count() as i32 * MERKKI;
+                assert!(48 + leveys < uuden_pelin_x(), "{avain}");
+            }
             assert!(kaanna(VOITTO).chars().count() as i32 * TULOS.2 < LEVEYS as i32 - TEKSTI_X);
         });
         // Tallennetun pelin rivi tulee näppäinohjeiden jälkeen.

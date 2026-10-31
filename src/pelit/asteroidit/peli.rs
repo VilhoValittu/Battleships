@@ -61,6 +61,8 @@ pub struct Asteroidit {
     pub aanijono: Vec<(Aani, u32)>,
     pub kello_ms: u32,
     pub ohjaus: Ohjaus,
+    /// Pelaaja poistuu kesken pelin: peli seisoo, ja nimen jälkeen palataan valikkoon.
+    poistuu: bool,
     kertyma_ms: u32,
     moottori_ms: u32,
     lautanen_ms: u32,
@@ -86,6 +88,7 @@ impl Asteroidit {
             aanijono: Vec::new(),
             kello_ms: 0,
             ohjaus: Ohjaus::default(),
+            poistuu: false,
             kertyma_ms: 0,
             moottori_ms: 0,
             lautanen_ms: 0,
@@ -113,7 +116,7 @@ impl Asteroidit {
         self.rajahdykset
             .retain(|r| kello < r.alku.saturating_add(RAJAHDYS_MS));
         // Kivet ajelehtivat vielä pelin päätyttyä.
-        if matches!(self.vaihe, Vaihe::Alku | Vaihe::Tauko) {
+        if self.poistuu || matches!(self.vaihe, Vaihe::Alku | Vaihe::Tauko) {
             return;
         }
         self.jatkuvat_aanet(ms);
@@ -208,6 +211,19 @@ impl Asteroidit {
         self.lahetys = Some(tulos);
         self.uusi_tulos = true;
         self.vaihe = Vaihe::Tappio;
+        self.lopeta = self.poistuu;
+    }
+
+    /// Esc tai ikkunan sulkeminen kesken pelin: listalle yltävä tulos ei saa kadota.
+    pub fn poistu(&mut self) {
+        let kesken = matches!(self.vaihe, Vaihe::Pelissa | Vaihe::Tauko);
+        if kesken && mahtuu_parhaisiin(self.nakyva_lista(), self.lauta.pisteet) {
+            self.nimi.clear();
+            self.poistuu = true;
+            self.vaihe = Vaihe::Nimi;
+        } else {
+            self.lopeta = true;
+        }
     }
 
     fn kasittele_nimi(&mut self, syote: Syote) {
@@ -242,7 +258,7 @@ impl Asteroidit {
             return;
         }
         if syote == Syote::Peru {
-            self.lopeta = true;
+            self.poistu();
             return;
         }
         let kytkimella = matches!(syote, Syote::Klikkaus(x, y) if aanikytkimella(x, y));
@@ -490,6 +506,44 @@ mod tests {
         assert_eq!(peli.parhaat[0].nimi, "NIMETÖN");
         peli.vahvista_nimi();
         assert_eq!(peli.parhaat.len(), 1);
+    }
+
+    #[test]
+    fn esc_kesken_pelin_kysyy_nimen_ja_pysayttaa_pelin() {
+        let mut peli = paattyva(500);
+        peli.kasittele(Syote::Peru);
+        assert_eq!(peli.vaihe, Vaihe::Nimi);
+        assert!(!peli.lopeta);
+        // Kivi aluksen päällä ei saa päättää peliä nimen kirjoituksen aikana.
+        peli.edista(1000);
+        assert_eq!(peli.lauta.pisteet, 500);
+        assert_eq!(peli.lauta.elamat, 1);
+
+        peli.kasittele(Syote::Kirjain('B'));
+        peli.kasittele(Syote::Ammu);
+        assert!(peli.lopeta);
+        assert_eq!(peli.parhaat[0].nimi, "B");
+        assert_eq!(peli.lahetys.as_ref().unwrap().pisteet, 500);
+    }
+
+    #[test]
+    fn listalle_yltamaton_tulos_poistuu_heti_ja_sulkeminen_kirjaa_oletusnimella() {
+        let mut peli = paattyva(500);
+        peli.netti_parhaat = Some(vec![
+            Tulos {
+                nimi: "A".to_string(),
+                pisteet: 1000,
+            };
+            3
+        ]);
+        peli.kasittele(Syote::Peru);
+        assert!(peli.lopeta);
+        assert_eq!(peli.lahetys, None);
+
+        let mut peli = paattyva(500);
+        peli.poistu();
+        peli.vahvista_nimi();
+        assert_eq!(peli.parhaat[0].nimi, "NIMETÖN");
     }
 
     #[test]

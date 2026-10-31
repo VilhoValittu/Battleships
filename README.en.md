@@ -9,7 +9,7 @@ Runs even on a potato.
 ## Games
 
 ### Battleships
-You against the computer. Each side has five ships, and you take turns firing until one fleet lies on the bottom. Who sails home to their family?
+You against the computer. Each side has five ships, and you take turns firing until one fleet lies on the bottom. Ships never touch, not even at corners, so the waters around a sunk ship get marked on the board. Who sails home to their family?
 
 *Mouse, or arrows and space.*
 
@@ -29,9 +29,9 @@ Keep the ball in play and break the bricks. Five stages, three balls, and a fast
 *Mouse or arrows, launch with space or a click.*
 
 ### Asteroids
-A lonely ship, endless rocks. Big rocks split into smaller ones, flying saucers shoot back, and when things get impossible you can always jump blindly somewhere else. You have three ships, and every 10,000 points gives you a new one.
+A lonely ship, endless rocks. Big rocks split into smaller ones, flying saucers shoot back, and when things get impossible you can always jump blindly somewhere else. You have three ships. 10,000 points gives you a new one, and each one after that costs more than the last.
 
-*Arrows or mouse, space fires, H jumps.*
+*Arrows or mouse, right mouse button thrusts, space fires, H jumps.*
 
 ### Mato8000
 A worm game where hitting yourself is the whole idea. A hit closes a loop, and everything caught inside it is yours. The loop uses up the worm's length, though, so eat some apples now and then. The more you catch at once, the bigger the multiplier. Watch out for walls and mosquitoes.
@@ -40,7 +40,7 @@ A worm game where hitting yourself is the whole idea. A hit closes a loop, and e
 
 ## Good to know
 
-- `Esc` returns from a game to the menu, `P` pauses the action games, `M` mutes the sound and `L` in the menu switches the language between Finnish and English.
+- `Esc` returns from a game to the menu, and a good score from an unfinished game still reaches the list. `P` pauses the action games, `M` mutes the sound and `L` in the menu switches the language between Finnish and English.
 - All games except Battleships and Solitaire also have an online Top 3. Without a connection the games play just as well.
 
 ## Get playing

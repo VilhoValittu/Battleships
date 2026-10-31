@@ -16,6 +16,8 @@ pub const SUOJA_MS: u32 = 2500;
 pub const ODOTUS_MS: u32 = 1500;
 pub const AALLON_TAUKO_MS: u32 = 2000;
 pub const LISAELAMAN_VALI: u32 = 10_000;
+/// Myöhäinen aalto tuottaa pisteitä nopeasti, joten jokainen lisäalus maksaa edellistä enemmän.
+pub const LISAELAMAN_KASVU: u32 = 5_000;
 pub const PIENEN_LAUTASEN_RAJA: u32 = 5000;
 /// Kuusi numeroa mahtuu sivupalkkiin, ja nettilista hylkää tätä suuremmat tulokset.
 pub const SUURIN_PISTEMAARA: u32 = 999_999;
@@ -38,6 +40,9 @@ const KIVEN_VAUHTI_AALLOSTA: f32 = 4.0;
 const KIVEN_SUURIN_VAUHTI: f32 = 170.0;
 const SIRPALEEN_KIIHDYTYS: f32 = 1.3;
 const LAUTASEN_VIIVE_MS: (usize, usize) = (15_000, 25_000);
+// Kivien määrä ja vauhti tulevat vastaan, joten myöhemmillä aalloilla lautaset yltyvät.
+const LAUTASEN_VIIVE_AALLOSTA_MS: u32 = 1000;
+const LAUTASEN_VIIVE_VAHIN_MS: u32 = 6000;
 const LAUTASEN_KAANTO_MS: u32 = 1200;
 const LAUTASEN_LAUKAUS_MS: u32 = 1100;
 const LAUTASEN_AMMUKSEN_VAUHTI: f32 = 300.0;
@@ -187,10 +192,18 @@ pub struct Avaruus {
     aallon_viive_ms: u32,
     hyppy_ms: u32,
     seuraava_lisaelama: u32,
+    lisaelaman_vali: u32,
 }
 
 fn arvo_vali(arpa: &mut Arpa, (ala, yla): (usize, usize)) -> usize {
     ala + arpa.alle(yla - ala)
+}
+
+fn lautasen_viive(aalto: usize, arpa: &mut Arpa) -> u32 {
+    let lyhennys = (aalto as u32).saturating_mul(LAUTASEN_VIIVE_AALLOSTA_MS);
+    (arvo_vali(arpa, LAUTASEN_VIIVE_MS) as u32)
+        .saturating_sub(lyhennys)
+        .max(LAUTASEN_VIIVE_VAHIN_MS)
 }
 
 fn arvo_kulma(arpa: &mut Arpa) -> f32 {
@@ -235,11 +248,12 @@ impl Avaruus {
             aalto,
             tyontaa: false,
             suoja_ms: 0,
-            lautasen_viive_ms: arvo_vali(arpa, LAUTASEN_VIIVE_MS) as u32,
+            lautasen_viive_ms: lautasen_viive(aalto, arpa),
             odotus_ms: 0,
             aallon_viive_ms: AALLON_TAUKO_MS,
             hyppy_ms: 0,
             seuraava_lisaelama: LISAELAMAN_VALI,
+            lisaelaman_vali: LISAELAMAN_VALI,
         };
         peli.luo_aalto(arpa);
         peli
@@ -401,7 +415,7 @@ impl Avaruus {
         lautanen.jaljella_ms = lautanen.jaljella_ms.saturating_sub(ASKEL_MS);
         if lautanen.jaljella_ms == 0 {
             self.lautanen = None;
-            self.lautasen_viive_ms = arvo_vali(arpa, LAUTASEN_VIIVE_MS) as u32;
+            self.lautasen_viive_ms = lautasen_viive(self.aalto, arpa);
             return;
         }
         lautanen.kaantyy_ms = lautanen.kaantyy_ms.saturating_sub(ASKEL_MS);
@@ -452,7 +466,8 @@ impl Avaruus {
     fn lisaa_pisteet(&mut self, maara: u32, tapahtumat: &mut Vec<Tapahtuma>) {
         self.pisteet = (self.pisteet + maara).min(SUURIN_PISTEMAARA);
         if self.pisteet >= self.seuraava_lisaelama {
-            self.seuraava_lisaelama += LISAELAMAN_VALI;
+            self.lisaelaman_vali += LISAELAMAN_KASVU;
+            self.seuraava_lisaelama += self.lisaelaman_vali;
             self.elamat += 1;
             tapahtumat.push(Tapahtuma::Lisaelama);
         }
@@ -476,7 +491,7 @@ impl Avaruus {
 
     fn tuhoa_lautanen(&mut self, lautanen: Lautanen, arpa: &mut Arpa, t: &mut Vec<Tapahtuma>) {
         self.lautanen = None;
-        self.lautasen_viive_ms = arvo_vali(arpa, LAUTASEN_VIIVE_MS) as u32;
+        self.lautasen_viive_ms = lautasen_viive(self.aalto, arpa);
         self.lisaa_pisteet(lautanen.pisteet(), t);
         t.push(Tapahtuma::LautanenTuhoutui {
             paikka: lautanen.paikka,

@@ -452,9 +452,18 @@ impl Kaynnistin {
     pub fn viimeistele(&mut self) {
         match &mut self.peli {
             Some(Kaynnissa::Luvut(peli)) => peli.vahvista_nimi(),
-            Some(Kaynnissa::Tiilirikko(peli)) => peli.vahvista_nimi(),
-            Some(Kaynnissa::Asteroidit(peli)) => peli.vahvista_nimi(),
-            Some(Kaynnissa::Silmukka(peli)) => peli.vahvista_nimi(),
+            Some(Kaynnissa::Tiilirikko(peli)) => {
+                peli.poistu();
+                peli.vahvista_nimi();
+            }
+            Some(Kaynnissa::Asteroidit(peli)) => {
+                peli.poistu();
+                peli.vahvista_nimi();
+            }
+            Some(Kaynnissa::Silmukka(peli)) => {
+                peli.poistu();
+                peli.vahvista_nimi();
+            }
             _ => {}
         }
         self.paivita_tallennus();

@@ -53,6 +53,8 @@ pub struct Tiilirikko {
     pub kello_ms: u32,
     /// Pohjassa olevien nuolten suunta: -1, 0 tai 1.
     pub ohjaus: i8,
+    /// Pelaaja poistuu kesken pelin: nimen jälkeen palataan valikkoon.
+    poistuu: bool,
     kertyma_ms: u32,
     /// Vaihe, johon nimimerkin jälkeen palataan: voitto tai tappio.
     loppu: Vaihe,
@@ -78,6 +80,7 @@ impl Tiilirikko {
             aanijono: Vec::new(),
             kello_ms: 0,
             ohjaus: 0,
+            poistuu: false,
             kertyma_ms: 0,
             loppu: Vaihe::Tappio,
             arpa,
@@ -176,6 +179,19 @@ impl Tiilirikko {
         self.lahetys = Some(tulos);
         self.uusi_tulos = true;
         self.vaihe = self.loppu;
+        self.lopeta = self.poistuu;
+    }
+
+    /// Esc tai ikkunan sulkeminen kesken pelin: listalle yltävä tulos ei saa kadota.
+    pub fn poistu(&mut self) {
+        let kesken = matches!(self.vaihe, Vaihe::Pelissa | Vaihe::Tauko);
+        if kesken && mahtuu_parhaisiin(self.nakyva_lista(), self.lauta.pisteet) {
+            self.nimi.clear();
+            self.poistuu = true;
+            self.vaihe = Vaihe::Nimi;
+        } else {
+            self.lopeta = true;
+        }
     }
 
     fn kasittele_nimi(&mut self, syote: Syote) {
@@ -210,7 +226,7 @@ impl Tiilirikko {
             return;
         }
         if syote == Syote::Peru {
-            self.lopeta = true;
+            self.poistu();
             return;
         }
         let kytkimella = matches!(syote, Syote::Klikkaus(x, y) if aanikytkimella(x, y));
@@ -512,6 +528,42 @@ mod tests {
         assert_eq!(peli.lauta.elamat, klassikot8000::tiilirikko::ELAMIA);
         assert_eq!(peli.aanijono, [(Aani::Puhkus, 0)]);
         assert_eq!(peli.viesti, kaanna("tiilirikko.toinen_meni"));
+    }
+
+    #[test]
+    fn esc_kesken_pelin_kysyy_nimen_ja_pysayttaa_pelin() {
+        let mut peli = paattyva(500);
+        peli.kasittele(Syote::Peru);
+        assert_eq!(peli.vaihe, Vaihe::Nimi);
+        assert!(!peli.lopeta);
+        peli.edista(1000);
+        assert_eq!(peli.lauta.elamat, 1);
+
+        peli.kasittele(Syote::Kirjain('B'));
+        peli.kasittele(Syote::Ammu);
+        assert!(peli.lopeta);
+        assert_eq!(peli.parhaat[0].nimi, "B");
+        assert_eq!(peli.lahetys.as_ref().unwrap().pisteet, 500);
+    }
+
+    #[test]
+    fn listalle_yltamaton_tulos_poistuu_heti_ja_sulkeminen_kirjaa_oletusnimella() {
+        let mut peli = paattyva(500);
+        peli.netti_parhaat = Some(vec![
+            Tulos {
+                nimi: "A".to_string(),
+                pisteet: 1000,
+            };
+            3
+        ]);
+        peli.kasittele(Syote::Peru);
+        assert!(peli.lopeta);
+        assert_eq!(peli.lahetys, None);
+
+        let mut peli = paattyva(500);
+        peli.poistu();
+        peli.vahvista_nimi();
+        assert_eq!(peli.parhaat[0].nimi, "NIMETÖN");
     }
 
     #[test]

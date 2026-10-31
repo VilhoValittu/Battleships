@@ -57,7 +57,7 @@ yhteinen.taso_3 = 3 Vaikea
 laivanupotus.banneri = **** LAIVANUPOTUS ****
 laivanupotus.tervetuloa = Tervetuloa pelaamaan laivanupotusta.
 laivanupotus.ohje_1 = Kummallakin on 10x10 ruudukossa 5 laivaa (pituudet 5, 4, 3, 3 ja 2).
-laivanupotus.ohje_2 = Ammutte vuorotellen. Voittaja on se, joka upottaa ensin vastustajan kaikki laivat.
+laivanupotus.ohje_2 = Ammutte vuorotellen, kunnes toisen laivat ovat pohjassa. Laivat eivät kosketa, eivät edes kulmittain.
 laivanupotus.nappain_hiiri = Hiiri: osoita ja klikkaa ruutua.
 laivanupotus.nappain_nuolet = Nuolet, A-J ja 1-0: valitse ruutu.
 laivanupotus.nappain_ammu = Välilyönti tai Enter: ammu.
@@ -87,7 +87,8 @@ luvut.nappain_nuolet = Nuolet: siirrä lukuja.
 luvut.nappain_hiiri = Hiiri: klikkaa laudan reunaa.
 luvut.ohje = Siirrä: nuolet tai klikkaa lautaa.
 luvut.ei_liiku = Ei liiku tuohon suuntaan!
-luvut.uusi_peli = Tallennettu peli: K = uusi peli.
+luvut.uusi_peli = Tallennettu peli odottaa.
+luvut.uusi_nappi = K = Uusi
 luvut.jatka = Jatka: välilyönti tai klikkaa.
 luvut.voitto = ****HIHIHIHIII SAIT 2048!****
 luvut.jatka_nappi = J = Jatka
@@ -155,9 +156,9 @@ tiilirikko.loppubonus = Aikabonus +{}. Pisteet: {}.
 asteroidit.banneri = **** ASTEROIDIT ****
 asteroidit.tervetuloa = Tervetuloa pelaamaan Asteroideja.
 asteroidit.ohje_1 = Ammu kivet ja lentävät lautaset. Iso kivi hajoaa kahdeksi pienemmäksi.
-asteroidit.ohje_2 = Aluksia on kolme, ja joka 10000. piste tuo uuden.
+asteroidit.ohje_2 = Aluksia on kolme. 10000 pistettä tuo uuden, ja seuraava maksaa enemmän.
 asteroidit.nappain_kaanto = Vasen, oikea tai hiiri: käännä.
-asteroidit.nappain_tyonto = Ylös: kiihdytä.
+asteroidit.nappain_tyonto = Ylös tai hiiren oikea: kiihdytä.
 asteroidit.nappain_ammu = Välilyönti tai klikkaus: ammu.
 asteroidit.nappain_muut = H: hyppy. P: tauko. M: äänet.
 asteroidit.ohje = Nuolet, H = hyppy, P = tauko.
@@ -185,7 +186,7 @@ silmukka.kultaomena = Kultaomena!
 silmukka.muna_litistyi = Muna litistyi ennen kuoriutumista.
 silmukka.tyhja = Tyhjä silmukka: pituus kului hukkaan.
 silmukka.kulta_ilmestyi = Kultaomena! Nopeasti, se katoaa pian.
-silmukka.uusi_taso = Taso {}: mato kiihtyy, parvi kasvaa.
+silmukka.uusi_taso = Taso {}!
 silmukka.saalis = Saalis {}: +{} pistettä!
 
 [en]
@@ -240,7 +241,7 @@ yhteinen.taso_3 = 3 Hard
 laivanupotus.banneri = **** BATTLESHIPS ****
 laivanupotus.tervetuloa = Welcome to Battleships.
 laivanupotus.ohje_1 = Both sides have 5 ships on a 10x10 grid (lengths 5, 4, 3, 3 and 2).
-laivanupotus.ohje_2 = You take turns firing. The first to sink all enemy ships wins.
+laivanupotus.ohje_2 = You take turns firing until one fleet is sunk. Ships never touch, not even at corners.
 laivanupotus.nappain_hiiri = Mouse: point and click a square.
 laivanupotus.nappain_nuolet = Arrows, A-J and 1-0: pick a square.
 laivanupotus.nappain_ammu = Space or Enter: fire.
@@ -270,7 +271,8 @@ luvut.nappain_nuolet = Arrows: move the numbers.
 luvut.nappain_hiiri = Mouse: click the board's edge.
 luvut.ohje = Move: arrows or click the board.
 luvut.ei_liiku = Nothing moves that way!
-luvut.uusi_peli = Saved game: K = new game.
+luvut.uusi_peli = A saved game is waiting.
+luvut.uusi_nappi = K = New
 luvut.jatka = Continue: press space or click.
 luvut.voitto = ****HIHIHIHIII YOU GOT 2048!****
 luvut.jatka_nappi = J = Go on
@@ -338,9 +340,9 @@ tiilirikko.loppubonus = Time bonus +{}. Score: {}.
 asteroidit.banneri = **** ASTEROIDS ****
 asteroidit.tervetuloa = Welcome to Asteroids.
 asteroidit.ohje_1 = Shoot the rocks and flying saucers. A big rock splits into two smaller ones.
-asteroidit.ohje_2 = You have three ships, and every 10000 points gives a new one.
+asteroidit.ohje_2 = You have three ships. 10000 points gives a new one, and the next costs more.
 asteroidit.nappain_kaanto = Left, right or mouse: turn.
-asteroidit.nappain_tyonto = Up: thrust.
+asteroidit.nappain_tyonto = Up or right mouse: thrust.
 asteroidit.nappain_ammu = Space or click: fire.
 asteroidit.nappain_muut = H: jump. P: pause. M: sound.
 asteroidit.ohje = Arrows, H = jump, P = pause.
@@ -368,5 +370,5 @@ silmukka.kultaomena = Golden apple!
 silmukka.muna_litistyi = Egg squashed before it hatched.
 silmukka.tyhja = Empty loop: the length was wasted.
 silmukka.kulta_ilmestyi = Golden apple! Quick, it fades soon.
-silmukka.uusi_taso = Level {}: faster worm, bigger swarm.
+silmukka.uusi_taso = Level {}!
 silmukka.saalis = Catch {}: +{} points!

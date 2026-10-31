@@ -1,6 +1,6 @@
 use klassikot8000::Arpa;
 use klassikot8000::laivanupotus::{
-    KOKO, Laivasto, Laukaustulos, Ruutu, SARAKKEET, Vaikeus, vastustaja,
+    KOKO, Laivasto, Laukaustulos, Ruudut, Ruutu, SARAKKEET, Vaikeus, vastustaja,
 };
 
 use super::piirto;
@@ -100,6 +100,21 @@ impl Peli {
             .any(|t| t.omalle && self.kello_ms < t.osuma_ms())
     }
 
+    /// Vastustajan laudan ruudut uponneiden laivojen ympärillä: laivat eivät kosketa toisiaan,
+    /// joten niissä ei voi olla mitään. Ympäristö paljastuu vasta, kun laukaus on osunut.
+    pub fn varmasti_tyhjat(&self) -> Ruudut {
+        let mut tyhjat = Ruudut::default();
+        for laiva in self.vastustaja.laivat() {
+            let ilmassa = self.tehosteet.iter().any(|t| {
+                !t.omalle && laiva.ruudut.sisaltaa(t.ruutu) && self.kello_ms < t.osuma_ms()
+            });
+            if self.vastustaja.on_upotettu(laiva) && !ilmassa {
+                tyhjat = tyhjat.yhdiste(laiva.ruudut.ymparys());
+            }
+        }
+        tyhjat.erotus(self.vastustaja.ammutut())
+    }
+
     fn aloita_alusta(&mut self) {
         self.vaihe = Vaihe::Alku;
         self.oma = Laivasto::satunnainen(&mut self.arpa);
@@ -166,7 +181,9 @@ impl Peli {
                     return false;
                 };
                 self.kursori = ruutu;
-                self.ammu(ruutu);
+                if !self.vastaus_kesken() {
+                    self.ammu(ruutu);
+                }
                 return true;
             }
             Syote::Nuoli(drivi, dsarake) => Ruutu {
@@ -184,6 +201,8 @@ impl Peli {
                 rivi: (numero + 9) % 10,
                 ..self.kursori
             },
+            // Uusi laukaus odottaa vastustajan vuoroa, muuten sen tulos jäisi näkemättä.
+            Syote::Ammu if self.vastaus_kesken() => return false,
             Syote::Ammu => {
                 self.ammu(self.kursori);
                 return true;
@@ -348,9 +367,49 @@ mod tests {
     fn sama_ruutu_antaa_huomautuksen_eika_kierrosta() {
         let mut peli = pelissa(1);
         peli.kasittele(Syote::Ammu);
+        peli.edista(VASTAUS_VIIVE_MS + TULOS_VIIVE_MS);
         peli.kasittele(Syote::Ammu);
         assert!(peli.ammuttu_jo);
         assert_eq!(peli.oma.ammutut().maara(), 1);
+    }
+
+    #[test]
+    fn uusi_laukaus_odottaa_vastustajan_vuoroa() {
+        let mut peli = pelissa(1);
+        peli.kasittele(Syote::Ammu);
+        peli.kasittele(Syote::Nuoli(0, 1));
+        assert!(!peli.kasittele(Syote::Ammu));
+        let (x, y) = piirto::ruudun_keskipiste(Ruutu { rivi: 5, sarake: 5 });
+        peli.kasittele(Syote::Klikkaus(x, y));
+        assert_eq!(peli.vastustaja.ammutut().maara(), 1);
+        assert_eq!(peli.oma.ammutut().maara(), 1);
+
+        peli.edista(VASTAUS_VIIVE_MS + TULOS_VIIVE_MS);
+        assert!(peli.kasittele(Syote::Ammu));
+        assert_eq!(peli.vastustaja.ammutut().maara(), 2);
+    }
+
+    #[test]
+    fn uponneen_laivan_ymparys_merkitaan_vasta_osuman_jalkeen() {
+        let mut peli = pelissa(1);
+        assert_eq!(peli.varmasti_tyhjat().maara(), 0);
+        let laiva = peli.vastustaja.laivat()[4];
+        let ruudut: Vec<_> = (0..KOKO * KOKO)
+            .filter_map(|i| Ruutu::new(i / KOKO, i % KOKO))
+            .filter(|&r| laiva.ruudut.sisaltaa(r))
+            .collect();
+        peli.ammu(ruudut[0]);
+        peli.ammu(ruudut[1]);
+        assert_eq!(peli.varmasti_tyhjat().maara(), 0);
+
+        peli.edista(TULOS_VIIVE_MS);
+        let tyhjat = peli.varmasti_tyhjat();
+        assert!(tyhjat.maara() > 0);
+        assert!(!tyhjat.leikkaako(laiva.ruudut));
+        assert!(tyhjat.on_osajoukko(laiva.ruudut.ymparys()));
+        for muu in peli.vastustaja.laivat() {
+            assert!(!tyhjat.leikkaako(muu.ruudut));
+        }
     }
 
     #[test]

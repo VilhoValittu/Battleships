@@ -22,6 +22,9 @@ const SAALIIN_KASVU: u32 = 2;
 // Silmukan jälkeen madossa on aina tarpeeksi pituutta seuraavan alkuun.
 const VAHIN_PITUUS: usize = 5;
 const OTUKSIA_ENINTAAN: usize = 16;
+// Nopeudet ovat lattiassa tällä tasolla, joten siitä eteenpäin vaikeus tulee parvesta.
+const PARVEN_KASVU_TASO: u32 = 13;
+const PARVI_ENINTAAN: usize = 30;
 // Itikka lentää hetken ja laskeutuu lepäämään: levossa sen ehtii kiertää.
 const LENNON_ASKELIA: u32 = 9;
 pub const LEPO_MS: u32 = 2200;
@@ -29,6 +32,7 @@ pub const LEPO_MS: u32 = 2200;
 const VALI_PAASTA: i32 = 7;
 const PAARMAN_ENSI_TASO: u32 = 3;
 const PAARMA_JOKA: u32 = 3;
+const PAARMA_JOKA_LOPUSSA: u32 = 2;
 const KULLAN_VALI_MS: (usize, usize) = (18_000, 30_000);
 // Näin pitkälle suoraan edessä oleva oma vartalo näytetään tulevana silmukkana.
 const ENNUSTEEN_MATKA: usize = 12;
@@ -411,7 +415,7 @@ impl Niitty {
         self.muninta_ms = self.muninta_ms.saturating_sub(ASKEL_MS);
         if self.muninta_ms == 0 {
             self.muninta_ms = munintavali(self.taso);
-            if self.otukset.len() < OTUKSIA_ENINTAAN {
+            if self.otukset.len() < otuksia_enintaan(self.taso) {
                 self.muni(arpa);
             }
         }
@@ -472,7 +476,12 @@ impl Niitty {
             return;
         };
         self.munia += 1;
-        let laji = if self.taso >= PAARMAN_ENSI_TASO && self.munia.is_multiple_of(PAARMA_JOKA) {
+        let joka = if self.taso >= PARVEN_KASVU_TASO {
+            PAARMA_JOKA_LOPUSSA
+        } else {
+            PAARMA_JOKA
+        };
+        let laji = if self.taso >= PAARMAN_ENSI_TASO && self.munia.is_multiple_of(joka) {
             Laji::Paarma
         } else {
             Laji::Itikka
@@ -772,6 +781,11 @@ pub fn sisapuoli(silmukka: &[Ruutu]) -> Vec<Ruutu> {
         }
     }
     sisus
+}
+
+/// Parven katto kasvaa yhdellä tasoa kohti, kun nopeudet eivät enää kasva.
+pub fn otuksia_enintaan(taso: u32) -> usize {
+    (OTUKSIA_ENINTAAN + taso.saturating_sub(PARVEN_KASVU_TASO) as usize).min(PARVI_ENINTAAN)
 }
 
 fn maton_jakso(taso: u32) -> u32 {

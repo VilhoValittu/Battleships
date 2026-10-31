@@ -213,7 +213,9 @@ impl Luvut {
         }
         match self.vaihe {
             Vaihe::Alku => {
-                if self.jatkuu && syote == Syote::Kirjain('K') {
+                let uusi = syote == Syote::Kirjain('K')
+                    || matches!(syote, Syote::Klikkaus(x, y) if piirto::uusi_peli_pisteessa(x, y));
+                if self.jatkuu && uusi {
                     self.hylkaa_ja_aloita();
                 } else if matches!(syote, Syote::Ammu | Syote::Klikkaus(..)) {
                     self.vaihe = Vaihe::Pelissa;
@@ -379,6 +381,33 @@ mod tests {
         assert_eq!(luvut.siirtoja, 0);
         assert_eq!(luvut.paras, 500);
         assert_eq!(luvut.kesken(), None);
+    }
+
+    #[test]
+    fn uuden_pelin_nappi_hylkaa_tallennetun_ja_muu_klikkaus_jatkaa() {
+        let kesken = Kesken {
+            ruudut: [[64, 0, 0, 0], [0; 4], [0; 4], [0; 4]],
+            pisteet: 0,
+            siirrot: 9,
+            jatkettu: false,
+        };
+        let (x, y) = piirto::uuden_pelin_keskipiste();
+
+        let mut luvut = Luvut::new(1);
+        luvut.palauta(kesken);
+        luvut.kasittele(Syote::Klikkaus(x, y));
+        assert_eq!(luvut.vaihe, Vaihe::Alku);
+        assert!(!luvut.jatkuu);
+        assert_eq!(luvut.siirtoja, 0);
+        // Ilman tallennusta nappia ei ole, joten sama klikkaus aloittaa pelin.
+        luvut.kasittele(Syote::Klikkaus(x, y));
+        assert_eq!(luvut.vaihe, Vaihe::Pelissa);
+
+        let mut luvut = Luvut::new(1);
+        luvut.palauta(kesken);
+        luvut.kasittele(Syote::Klikkaus(0, 0));
+        assert_eq!(luvut.vaihe, Vaihe::Pelissa);
+        assert_eq!(luvut.siirtoja, 9);
     }
 
     #[test]

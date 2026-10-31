@@ -225,7 +225,7 @@ fn pelisilmukka(
         kaynnistin.aseta_ohjaus(
             ikkuna.is_key_down(Key::Left),
             ikkuna.is_key_down(Key::Right),
-            ikkuna.is_key_down(Key::Up),
+            ikkuna.is_key_down(Key::Up) || ikkuna.get_mouse_down(MouseButton::Right),
         );
         if !ikkuna.is_active() {
             kaynnistin.keskeyta();

@@ -9,7 +9,7 @@ Pyörii vaikka perunalla.
 ## Pelit
 
 ### Laivanupotus
-Sinä vastaan tietokone. Kummallakin on viisi laivaa, ja ammutte vuorotellen, kunnes toisen laivasto makaa pohjassa. Kumpi purjehtii kotiin perheensä luo?
+Sinä vastaan tietokone. Kummallakin on viisi laivaa, ja ammutte vuorotellen, kunnes toisen laivasto makaa pohjassa. Laivat eivät kosketa toisiaan edes kulmittain, joten uponneen laivan ympärys merkitään laudalle. Kumpi purjehtii kotiin perheensä luo?
 
 *Hiiri tai nuolet ja välilyönti.*
 
@@ -29,9 +29,9 @@ Pidä pallo kentällä ja riko tiilet. Viisi kenttää, kolme palloa, ja nopeast
 *Hiiri tai nuolet, laukaisu välilyönnillä tai klikkauksella.*
 
 ### Asteroidit
-Yksinäinen alus, loputtomasti kiviä. Iso kivi hajoaa pienemmiksi, lentävät lautaset ampuvat takaisin, ja kun tilanne käy mahdottomaksi, voit aina hypätä sokkona jonnekin muualle. Aluksia on kolme, ja joka 10 000. piste tuo uuden.
+Yksinäinen alus, loputtomasti kiviä. Iso kivi hajoaa pienemmiksi, lentävät lautaset ampuvat takaisin, ja kun tilanne käy mahdottomaksi, voit aina hypätä sokkona jonnekin muualle. Aluksia on kolme. 10 000 pistettä tuo uuden, ja jokainen seuraava maksaa edellistä enemmän.
 
-*Nuolet tai hiiri, välilyönti ampuu, H hyppää.*
+*Nuolet tai hiiri, hiiren oikea kiihdyttää, välilyönti ampuu, H hyppää.*
 
 ### Mato8000
 Matopeli, jossa itseensä törmääminen on koko idea. Osuma sulkee silmukan, ja kaikki sen sisään jäänyt on saalista. Silmukka kuluttaa kuitenkin madon pituutta, joten omenoita kannattaa syödä välillä. Mitä enemmän saat kerralla, sitä moninkertaisemmat pisteet. Varo seiniä ja itikoita.
@@ -40,7 +40,7 @@ Matopeli, jossa itseensä törmääminen on koko idea. Osuma sulkee silmukan, ja
 
 ## Hyvä tietää
 
-- `Esc` palaa pelistä valikkoon, `P` pysäyttää toimintapelit, `M` vaimentaa äänet ja `L` vaihtaa valikossa kielen suomen ja englannin välillä.
+- `Esc` palaa pelistä valikkoon, ja kesken jäänyt hyvä tulos pääsee silti listalle. `P` pysäyttää toimintapelit, `M` vaimentaa äänet ja `L` vaihtaa valikossa kielen suomen ja englannin välillä.
 - Laivanupotusta ja Pasianssia lukuun ottamatta peleissä on Top 3 -lista myös netissä. Ilman nettiä pelaat ihan yhtä hyvin.
 
 ## Pelaamaan

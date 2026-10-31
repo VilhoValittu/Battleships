@@ -265,12 +265,20 @@ impl Piirtaja<'_> {
                 self.laiva(x0, laiva);
             }
         }
+        let tyhjat = if omalle {
+            Default::default()
+        } else {
+            peli.varmasti_tyhjat()
+        };
         for rivi in 0..KOKO {
             for sarake in 0..KOKO {
                 if let Some(ruutu) = Ruutu::new(rivi, sarake) {
                     let ammuttu = laivasto.ammutut().sisaltaa(ruutu);
                     if ammuttu && !peli.odottaa_osumaa(omalle, ruutu) {
                         self.laukaus(x0, ruutu, laivasto.on_laiva(ruutu));
+                    } else if tyhjat.sisaltaa(ruutu) {
+                        let keski = solun_keskipiste(x0, ruutu);
+                        self.k.laatikko(keski.0 - 2, keski.1 - 2, 5, 5, HUTI);
                     }
                 }
             }

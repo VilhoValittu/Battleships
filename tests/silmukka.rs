@@ -3,7 +3,7 @@ use std::collections::VecDeque;
 use klassikot8000::Arpa;
 use klassikot8000::silmukka::{
     ALKUPITUUS, ASKEL_MS, Herkku, Kohde, LEPO_MS, Laji, Niitty, Otus, RIVEJA, Ruutu, SARAKKEITA,
-    Suunta, Tapahtuma, kentalla, saaliin_pisteet, sisapuoli,
+    Suunta, Tapahtuma, kentalla, otuksia_enintaan, saaliin_pisteet, sisapuoli,
 };
 
 /// Rengas vasemmasta yläkulmasta myötäpäivään. Pää jää kahden ruudun päähän sulkeutumisesta,
@@ -582,6 +582,14 @@ fn varova_suunta(n: &Niitty) -> Suunta {
 }
 
 #[test]
+fn parvi_kasvaa_vasta_nopeuksien_jalkeen_ja_katto_tulee_vastaan() {
+    assert_eq!(otuksia_enintaan(1), 16);
+    assert_eq!(otuksia_enintaan(13), 16);
+    assert_eq!(otuksia_enintaan(14), 17);
+    assert_eq!(otuksia_enintaan(1000), 30);
+}
+
+#[test]
 fn pitka_peli_pitaa_saannot_voimassa_ja_paattyy_aikanaan() {
     for siemen in 0..40 {
         let mut arpa = Arpa::new(siemen);
@@ -599,7 +607,7 @@ fn pitka_peli_pitaa_saannot_voimassa_ja_paattyy_aikanaan() {
             }
             tarkista_mato(&n);
             assert!(n.mato.len() >= 2);
-            assert!(n.otukset.len() <= 16);
+            assert!(n.otukset.len() <= otuksia_enintaan(n.taso));
             askeleet += 1;
             assert!(askeleet < 20_000_000, "siemen {siemen}: peli ei pääty");
         }

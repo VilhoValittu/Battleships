@@ -1,8 +1,8 @@
 use klassikot8000::Arpa;
 use klassikot8000::asteroidit::{
     AALLON_TAUKO_MS, ALUKSEN_SADE, ASKEL_MS, Ammus, Avaruus, ELAMIA, KORKEUS, Kivi, Koko, LEVEYS,
-    LISAELAMAN_VALI, ODOTUS_MS, OMIA_AMMUKSIA, Ohjaus, PIENEN_LAUTASEN_RAJA, SUOJA_MS,
-    SUURIN_PISTEMAARA, Tapahtuma, Tila, etaisyys,
+    LISAELAMAN_KASVU, LISAELAMAN_VALI, ODOTUS_MS, OMIA_AMMUKSIA, Ohjaus, PIENEN_LAUTASEN_RAJA,
+    SUOJA_MS, SUURIN_PISTEMAARA, Tapahtuma, Tila, etaisyys,
 };
 
 fn kivi(paikka: (f32, f32), koko: Koko) -> Kivi {
@@ -225,6 +225,14 @@ fn raja_tuo_lisaelaman_kerran_ja_pisteet_eivat_ylita_kattoa() {
     assert_eq!(peli.elamat, ELAMIA + 1);
     assert!(!osuma(&mut peli, &mut arpa).contains(&Tapahtuma::Lisaelama));
 
+    // Toinen lisäalus maksaa ensimmäistä enemmän.
+    let toinen = 2 * LISAELAMAN_VALI + LISAELAMAN_KASVU;
+    peli.pisteet = toinen - 101;
+    assert!(!osuma(&mut peli, &mut arpa).contains(&Tapahtuma::Lisaelama));
+    peli.pisteet = toinen - 100;
+    assert!(osuma(&mut peli, &mut arpa).contains(&Tapahtuma::Lisaelama));
+    assert_eq!(peli.elamat, ELAMIA + 2);
+
     peli.pisteet = SUURIN_PISTEMAARA - 1;
     osuma(&mut peli, &mut arpa);
     assert_eq!(peli.pisteet, SUURIN_PISTEMAARA);
@@ -316,6 +324,18 @@ fn lautanen_ylittaa_kentan_ampuu_ja_poistuu() {
     assert!(ampui);
     assert!(peli.lautanen.is_none());
     assert!(peli.lautasen_viive_ms > 0);
+}
+
+#[test]
+fn lautaset_yltyvat_aaltojen_myota_rajaan_asti() {
+    for siemen in 0..100 {
+        let mut arpa = Arpa::new(siemen);
+        let alku = Avaruus::new(0, &mut arpa).lautasen_viive_ms;
+        assert!((15_000..25_000).contains(&alku));
+        let myohemmin = Avaruus::new(5, &mut arpa).lautasen_viive_ms;
+        assert!((10_000..20_000).contains(&myohemmin));
+        assert_eq!(Avaruus::new(40, &mut arpa).lautasen_viive_ms, 6000);
+    }
 }
 
 #[test]
