@@ -22,7 +22,7 @@ Se tuttu Klondike, jonka kanssa on kulutettu tuhansia työpäiviä. Kolme vaikeu
 *Hiiri tai nuolet ja välilyönti.*
 
 ### Laatan murskain
-Pidä pallo kentällä ja riko tiilet. Viisi kenttää, kolme palloa, ja nopeasta läpäisystä saa lisäpisteitä. Valkoinen tiili tuo toisen pallon ja kasvattaa mailaa, mikä on juuri niin hyvä kuin miltä se kuulostaa.
+Pidä pallo kentällä ja riko tiilet. Viisi kenttää, kolme palloa, ja nopeasta läpäisystä saa lisäpisteitä. Valkoinen tiili tuo toisen pallon ja kasvattaa mailaa, ja niin kauan kuin molemmat pallot ovat kentällä, tiilistä saa tuplapisteet. Kahden pallon vahtiminen on juuri niin vaikeaa kuin miltä se kuulostaa.
 
 *Hiiri tai nuolet, laukaisu välilyönnillä tai klikkauksella.*
 

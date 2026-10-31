@@ -374,7 +374,8 @@ impl Tiilipeli {
         let tiili = &mut self.tiilet[rivi][sarake];
         *tiili -= 1;
         let rikki = *tiili == 0;
-        self.pisteet += PISTEET_OSUMASTA * (self.kentta as u32 + 1);
+        // Kahta palloa on vaikeampi hallita, joten kumpikin kertoo osuman pisteet.
+        self.pisteet += PISTEET_OSUMASTA * (self.kentta as u32 + 1) * self.pallot.len() as u32;
         tapahtumat.push(Tapahtuma::Tiili {
             rivi,
             sarake,

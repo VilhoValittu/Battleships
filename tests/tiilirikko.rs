@@ -359,6 +359,63 @@ fn pallotiili_tuo_toisen_pallon_ja_leventaa_mailan() {
 }
 
 #[test]
+fn kahdella_pallolla_tiiliosuma_antaa_tuplapisteet() {
+    let mut peli = pallotiilella();
+    // Toisen pallon tuova osuma lasketaan vielä yhdellä pallolla.
+    riko_ensimmainen(&mut peli);
+    assert_eq!(peli.pisteet, 10);
+
+    let osu = |peli: &mut Tiilipeli| {
+        peli.tiilet[3][5] = 1;
+        peli.pallot[0].paikka = (5.5 * TIILI_L, TIILET_Y + 4.0 * TIILI_K + PALLON_SADE + 0.5);
+        peli.pallot[0].nopeus = (0.0, -300.0);
+        if let Some(toinen) = peli.pallot.get_mut(1) {
+            toinen.paikka = (100.0, 300.0);
+        }
+        peli.askel(0, &mut Arpa::new(1));
+    };
+    osu(&mut peli);
+    assert_eq!(peli.pisteet, 30);
+
+    // Kerroin päättyy, kun toinen pallo putoaa.
+    assert_eq!(pudota(&mut peli, 1), [Tapahtuma::ToinenMeni]);
+    osu(&mut peli);
+    assert_eq!(peli.pisteet, 40);
+}
+
+#[test]
+fn tuplapisteet_kasvavat_kentan_kertoimella_mutta_aikabonus_ei_tuplaannu() {
+    let mut peli = pallotiilella();
+    riko_ensimmainen(&mut peli);
+    let ennen = peli.pisteet;
+
+    peli.tiilet = [[0; SARAKKEITA]; RIVEJA];
+    peli.tiilet[0][0] = 1;
+    let tapahtumat = riko_ensimmainen(&mut peli);
+    let Some(Tapahtuma::KenttaLapi { bonus }) = tapahtumat.last().copied() else {
+        panic!("{tapahtumat:?}");
+    };
+    assert_eq!(peli.pisteet, ennen + 20 + bonus);
+
+    // Toisella kentällä osuma on valmiiksi kaksinkertainen, ja kaksi palloa tuplaa sen.
+    let mut peli = Tiilipeli::new(1, &mut Arpa::new(1));
+    peli.laukaise(&mut Arpa::new(1));
+    peli.tiilet = [[0; SARAKKEITA]; RIVEJA];
+    peli.pallotiilet = [[false; SARAKKEITA]; RIVEJA];
+    peli.tiilet[0][0] = 1;
+    peli.tiilet[7][10] = 1;
+    peli.pallotiilet[0][0] = true;
+    riko_ensimmainen(&mut peli);
+    assert_eq!(peli.pisteet, 20);
+    peli.tiilet[3][5] = 1;
+    peli.pallot[1].paikka = (100.0, 300.0);
+    peli.pallot[0].paikka = (5.5 * TIILI_L, TIILET_Y + 4.0 * TIILI_K + PALLON_SADE + 0.5);
+    peli.pallot[0].nopeus = (0.0, -300.0);
+    peli.askel(0, &mut Arpa::new(1));
+    assert_eq!(peli.pisteet, 60);
+}
+
+#[test]
 fn tavallinen_ja_kestava_tiili_eivat_tuo_palloa() {
     let mut peli = pallotiilella();
     peli.pallotiilet[0][0] = false;
