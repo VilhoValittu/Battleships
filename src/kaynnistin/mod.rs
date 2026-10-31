@@ -17,7 +17,7 @@ use crate::pelit::silmukka::peli::Silmukka;
 use crate::pelit::tiilirikko::peli::Tiilirikko;
 use crate::yhteinen::aanet::Aani;
 use crate::yhteinen::kieli::{self, kaanna};
-use crate::yhteinen::piirto::{aanikytkimella, ruudulta_kuvaan};
+use crate::yhteinen::piirto::ruudulta_kuvaan;
 use crate::yhteinen::syote::Syote;
 use crate::yhteinen::tulokset::{Tulos, lisaa_tulos};
 
@@ -178,6 +178,7 @@ impl Kaynnistin {
     /// Muuttaa ruudun pikselin sen näkymän koordinaateiksi, joka on nyt esillä.
     pub fn nakyman_piste(&self, x: i32, y: i32) -> (i32, i32) {
         match &self.peli {
+            None => (x, y),
             Some(Kaynnissa::Pasianssi(peli)) if peli.vaihe != pasianssi_peli::Vaihe::Alku => (x, y),
             _ => ruudulta_kuvaan(x, y),
         }
@@ -472,7 +473,7 @@ impl Kaynnistin {
     }
 
     fn kasittele_valikko(&mut self, syote: Syote) {
-        let kytkimella = matches!(syote, Syote::Klikkaus(x, y) if aanikytkimella(x, y));
+        let kytkimella = matches!(syote, Syote::Klikkaus(x, y) if piirto::aanikytkimella(x, y));
         if syote == Syote::VaihdaAanet || kytkimella {
             self.aanet_paalla = !self.aanet_paalla;
             return;
@@ -522,9 +523,7 @@ mod tests {
     use super::*;
     use crate::pelit::laivanupotus::peli::Vaihe;
     use crate::pelit::luvut::peli as luvut;
-    use crate::yhteinen::piirto::{
-        KORKEUS, LEVEYS, RUUDUN_KORKEUS, RUUDUN_LEVEYS, aanikytkimen_keskipiste,
-    };
+    use crate::yhteinen::piirto::{KORKEUS, LEVEYS, RUUDUN_KORKEUS, RUUDUN_LEVEYS};
     use klassikot8000::laivanupotus::{KOKO, Ruutu};
     use klassikot8000::luvut::Lukulauta;
 
@@ -918,7 +917,7 @@ mod tests {
     #[test]
     fn pasianssin_taso_sailyy_ja_hiiri_muuntuu_nakyman_mukaan() {
         let mut k = Kaynnistin::new(1);
-        assert_eq!(k.nakyman_piste(285, 0), (0, 0));
+        assert_eq!(k.nakyman_piste(285, 7), (285, 7));
         k.kaynnista(Laji::Pasianssi);
         assert_eq!(k.nakyman_piste(285, 0), (0, 0));
         k.kasittele(Syote::Numero(3));
@@ -937,7 +936,7 @@ mod tests {
     #[test]
     fn asetukset_sailyvat_kun_peli_vaihtuu_ja_laivasto_ei_toistu() {
         let mut k = Kaynnistin::new(1);
-        let (x, y) = aanikytkimen_keskipiste();
+        let (x, y) = piirto::aanikytkimen_keskipiste();
         k.kasittele(Syote::Klikkaus(x, y));
         assert!(!k.aanet_paalla);
         assert!(k.peli.is_none());

@@ -86,6 +86,19 @@ impl Kangas<'_> {
         self.viiva((alku.0, alku.1 + 1), (loppu.0, loppu.1 + 1), vari);
     }
 
+    /// Viiva, jonka paksuus on `paksuus` pikseliä kumpaankin suuntaan.
+    pub fn levea_viiva(&mut self, alku: (i32, i32), loppu: (i32, i32), paksuus: i32, vari: u32) {
+        for dx in 0..paksuus {
+            for dy in 0..paksuus {
+                self.viiva(
+                    (alku.0 + dx, alku.1 + dy),
+                    (loppu.0 + dx, loppu.1 + dy),
+                    vari,
+                );
+            }
+        }
+    }
+
     /// Täyttää monikulmion vaakaviivoin, parillis-pariton-säännöllä.
     pub fn monikulmio(&mut self, pisteet: &[(i32, i32)], vari: u32) {
         let ylin = pisteet.iter().map(|p| p.1).min().unwrap_or(0).max(0);

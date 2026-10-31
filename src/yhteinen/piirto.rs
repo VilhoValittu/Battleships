@@ -87,8 +87,14 @@ const MAISEMA_ALA_Y: i32 = 348;
 pub const OHJE_Y: i32 = 360;
 const MERI_RIVEJA: i32 = 10;
 const MERI_SARAKKEITA: i32 = 14;
-const LAIVAN_KIERTO: f32 = 0.0006;
+pub const LAIVAN_KIERTO: f32 = 0.0006;
 const LAIVAN_KOKO: f32 = 33.0;
+const ALKUMAISEMA: Maisema = Maisema {
+    horisontti: HORISONTTI_Y,
+    ala_y: MAISEMA_ALA_Y,
+    katoamis_x: LEVEYS as i32 / 2,
+    vyory: true,
+};
 
 // (merkin leveys, merkin korkeus, askel) vektorifontille
 pub const SUURI: (i32, i32, i32) = (30, 45, 39);
@@ -202,8 +208,14 @@ pub struct Ikkunakuva {
 impl Ikkunakuva {
     /// Skaalaa ruudun ikkunan kokoiseksi. Pienennys laskee keskiarvon, jotta ohuet viivat
     /// säilyvät; Windowsin oma venytys hävittäisi ne. Vain muuttuneet rivit lasketaan, ja
-    /// sama rivi kopioidaan laskematta uudelleen.
-    pub fn sovita(&mut self, ruutu: &[u32], ikkuna_l: usize, ikkuna_k: usize, sovitus: Sovitus) {
+    /// sama rivi kopioidaan laskematta uudelleen. Palauttaa tiedon, muuttuiko kuva.
+    pub fn sovita(
+        &mut self,
+        ruutu: &[u32],
+        ikkuna_l: usize,
+        ikkuna_k: usize,
+        sovitus: Sovitus,
+    ) -> bool {
         let koko = Some((ikkuna_l, ikkuna_k, sovitus));
         let kaikki = self.koko != koko;
         if kaikki {
@@ -217,16 +229,30 @@ impl Ikkunakuva {
             self.edellinen.extend_from_slice(ruutu);
         }
         self.muuttuneet.clear();
+        // Yleensä vain pieni kohta muuttuu, joten lasketaan vain sen sarakkeet.
+        let mut muutos: Option<(usize, usize)> = None;
         for (uusi, vanha) in ruutu
             .chunks_exact(RUUDUN_LEVEYS)
             .zip(self.edellinen.chunks_exact_mut(RUUDUN_LEVEYS))
         {
+            let eroaa = |(a, b): (&u32, &u32)| a != b;
             let muuttunut = uusi != &*vanha;
             if muuttunut {
+                let alku = uusi.iter().zip(&*vanha).position(eroaa).unwrap_or(0);
+                let loppu = uusi.iter().zip(&*vanha).rposition(eroaa).unwrap_or(0) + 1;
+                muutos = Some(muutos.map_or((alku, loppu), |m| (m.0.min(alku), m.1.max(loppu))));
                 vanha.copy_from_slice(uusi);
             }
             self.muuttuneet.push(muuttunut);
         }
+        let (s0, s1) = match muutos {
+            _ if kaikki => (0, sovitus.l),
+            Some((alku, loppu)) => (
+                self.sarakkeet.partition_point(|s| s.1 <= alku),
+                self.sarakkeet.partition_point(|s| s.0 < loppu),
+            ),
+            None => return false,
+        };
 
         let ikkuna = &mut self.pikselit;
         let mut edellinen = None;
@@ -237,12 +263,13 @@ impl Ikkunakuva {
             }
             let alku = (sovitus.y + y) * ikkuna_l + sovitus.x;
             if edellinen == Some(rivit) {
-                ikkuna.copy_within(alku - ikkuna_l..alku - ikkuna_l + sovitus.l, alku);
+                let yla = alku - ikkuna_l;
+                ikkuna.copy_within(yla + s0..yla + s1, alku + s0);
                 continue;
             }
             edellinen = Some(rivit);
-            let kohde = &mut ikkuna[alku..alku + sovitus.l];
-            for (pikseli, &(x0, x1)) in kohde.iter_mut().zip(&self.sarakkeet) {
+            let kohde = &mut ikkuna[alku + s0..alku + s1];
+            for (pikseli, &(x0, x1)) in kohde.iter_mut().zip(&self.sarakkeet[s0..s1]) {
                 let maara = ((x1 - x0) * (rivit.1 - rivit.0)) as u32;
                 if maara == 1 {
                     *pikseli = ruutu[rivit.0 * RUUDUN_LEVEYS + x0];
@@ -259,6 +286,7 @@ impl Ikkunakuva {
                 *pikseli = (r / maara) << 16 | (g / maara) << 8 | (b / maara);
             }
         }
+        true
     }
 }
 
@@ -301,6 +329,17 @@ pub fn sekoita(a: u32, b: u32, osuus: f32) -> u32 {
     kanava(16) | kanava(8) | kanava(0)
 }
 
+/// Maiseman mitat piirtoalustalla.
+#[derive(Clone, Copy)]
+pub struct Maisema {
+    pub horisontti: i32,
+    pub ala_y: i32,
+    /// Vaakasuora kohta, johon meren viivat katoavat.
+    pub katoamis_x: i32,
+    /// Vyöryvä meri muuttaa jokaisen meririvin joka ruudussa.
+    pub vyory: bool,
+}
+
 pub struct Piirtaja<'a> {
     pub k: Kangas<'a>,
     pub kello: u32,
@@ -313,14 +352,46 @@ impl Piirtaja<'_> {
 
     /// Bittikarttateksti kolminkertaisena: 40 merkkiä riville kuten C64:ssä.
     pub fn teksti(&mut self, x: i32, y: i32, teksti: &str, vari: u32) {
+        self.teksti_koossa(x, y, teksti, 3, vari);
+    }
+
+    /// Bittikarttateksti `kerroin`-kertaisena.
+    pub fn teksti_koossa(&mut self, x: i32, y: i32, teksti: &str, kerroin: i32, vari: u32) {
         for (i, merkki) in teksti.chars().enumerate() {
-            let vasen = x + i as i32 * MERKKI;
+            let vasen = x + i as i32 * kerroin * fontti::LEVEYS;
             for (rivi, bitit) in fontti::kuvio(merkki).iter().enumerate() {
                 for sarake in 0..8 {
                     if bitit >> sarake & 1 != 0 {
-                        self.k
-                            .laatikko(vasen + sarake * 3, y + rivi as i32 * 3, 3, 3, vari);
+                        let (px, py) = (vasen + sarake * kerroin, y + rivi as i32 * kerroin);
+                        self.k.laatikko(px, py, kerroin, kerroin, vari);
                     }
+                }
+            }
+        }
+    }
+
+    /// Vektoriteksti `paksuus` pikselin viivalla, isoihin otsikoihin.
+    pub fn levea_vektoriteksti(
+        &mut self,
+        x: i32,
+        y: i32,
+        teksti: &str,
+        koko: (i32, i32, i32),
+        paksuus: i32,
+        vari: u32,
+    ) {
+        for (i, merkki) in teksti.chars().enumerate() {
+            let vasen = x + i as i32 * koko.2;
+            for osa in vektorifontti::kuvio(merkki) {
+                for pari in osa.windows(2) {
+                    let piste = |(px, py): (i8, i8)| {
+                        (
+                            vasen + px as i32 * koko.0 / vektorifontti::LEVEYS,
+                            y + py as i32 * koko.1 / vektorifontti::KORKEUS,
+                        )
+                    };
+                    self.k
+                        .levea_viiva(piste(pari[0]), piste(pari[1]), paksuus, vari);
                 }
             }
         }
@@ -372,10 +443,7 @@ impl Piirtaja<'_> {
 
     /// Alkuruudun ja käynnistimen yhteinen tausta: maisema, otsikko ja C64:n reuna.
     pub fn maisema(&mut self, otsikko: &str, malli: &[vektori::Tahko]) {
-        self.liuku(0, HORISONTTI_Y, TAIVAS_YLA, TAIVAS_ALA);
-        self.tahdet();
-        self.liuku(HORISONTTI_Y, MAISEMA_ALA_Y, MERI_YLA, MERI_ALA);
-        self.meriruudukko();
+        self.maisematausta(ALKUMAISEMA);
         let keinunta = (self.kello as f32 * 0.002).sin() * 3.0;
         self.k.malli(
             malli,
@@ -410,6 +478,14 @@ impl Piirtaja<'_> {
         );
     }
 
+    /// Taivas, tähdet ja meri. Kuva voi olla mitä tahansa klassisen kuvan monikertaa.
+    pub fn maisematausta(&mut self, maisema: Maisema) {
+        self.liuku(0, maisema.horisontti, TAIVAS_YLA, TAIVAS_ALA);
+        self.tahdet(maisema.horisontti);
+        self.liuku(maisema.horisontti, maisema.ala_y, MERI_YLA, MERI_ALA);
+        self.meriruudukko(maisema);
+    }
+
     /// Alkuruudun ohjeet: `osat` rivitetään, `rivit` ovat näppäinohjeita. Palauttaa seuraavan vapaan rivin.
     pub fn alkuohje(&mut self, osat: &[&str], rivit: &[&str]) -> i32 {
         let mut y = OHJE_Y;
@@ -436,33 +512,46 @@ impl Piirtaja<'_> {
         }
     }
 
-    pub fn tahdet(&mut self) {
+    /// Klassisen kuvan pikselin koko tällä kankaalla.
+    fn kerroin(&self) -> i32 {
+        (self.k.leveys / LEVEYS) as i32
+    }
+
+    fn tahdet(&mut self, horisontti: i32) {
+        let kerroin = self.kerroin();
+        let leveys = self.k.leveys as i32;
         // kiinteä siemen: tähdet pysyvät paikoillaan ruudusta toiseen
         let mut siemen = 0x2F6Eu32;
-        for _ in 0..60 {
+        for _ in 0..60 * kerroin {
             siemen = siemen.wrapping_mul(0x9E37_79B1).rotate_left(11);
-            let x = (siemen >> 8) as i32 % LEVEYS as i32;
-            let y = (siemen & 0xFF) as i32 * (HORISONTTI_Y - 45) / 256;
-            self.k.piste(x, y, sekoita(TAIVAS_YLA, VALKOINEN, 0.8));
+            let x = (siemen >> 8) as i32 % leveys;
+            let y = (siemen & 0xFF) as i32 * (horisontti - 45) / 256;
+            let vari = sekoita(TAIVAS_YLA, VALKOINEN, 0.8);
+            self.k.laatikko(x, y, kerroin, kerroin, vari);
         }
     }
 
-    /// Perspektiiviruudukko, jonka vaakaviivat vyöryvät katsojaa kohti.
-    pub fn meriruudukko(&mut self) {
-        let korkeus = (MAISEMA_ALA_Y - HORISONTTI_Y) as f32;
-        let vaihe = (self.kello % 1600) as f32 / 1600.0;
+    /// Perspektiiviruudukko, jonka vaakaviivat vyöryvät tarvittaessa katsojaa kohti.
+    fn meriruudukko(&mut self, maisema: Maisema) {
+        let kerroin = self.kerroin();
+        let korkeus = (maisema.ala_y - maisema.horisontti) as f32;
+        let vaihe = if maisema.vyory {
+            (self.kello % 1600) as f32 / 1600.0
+        } else {
+            0.0
+        };
         for i in 0..MERI_RIVEJA {
             let t = (i as f32 + vaihe) / MERI_RIVEJA as f32;
-            let y = HORISONTTI_Y + (korkeus * t * t) as i32;
+            let y = maisema.horisontti + (korkeus * t * t) as i32;
             let vari = sekoita(MERI_YLA, MERI_VIIVA, 0.25 + 0.75 * t);
-            self.k.laatikko(0, y, LEVEYS as i32, 1, vari);
+            self.k.laatikko(0, y, self.k.leveys as i32, kerroin, vari);
         }
-        let keski = LEVEYS as i32 / 2;
+        let keski = maisema.katoamis_x;
         for i in -MERI_SARAKKEITA..=MERI_SARAKKEITA {
-            let ala_x = keski + i * 135;
-            self.k.viiva(
-                (keski + i * 12, HORISONTTI_Y),
-                (ala_x, MAISEMA_ALA_Y),
+            self.k.levea_viiva(
+                (keski + i * 12 * kerroin, maisema.horisontti),
+                (keski + i * 135 * kerroin, maisema.ala_y),
+                kerroin,
                 sekoita(MERI_YLA, MERI_VIIVA, 0.55),
             );
         }
@@ -690,6 +779,21 @@ mod tests {
         let sama = Sovitus::new(RUUDUN_LEVEYS, RUUDUN_KORKEUS);
         kuva.sovita(&ruutu, RUUDUN_LEVEYS, RUUDUN_KORKEUS, sama);
         assert_eq!(kuva.pikselit, ruutu);
+    }
+
+    #[test]
+    fn sovitus_kertoo_kuvan_muuttumisesta() {
+        let mut ruutu = vec![0; RUUDUN_LEVEYS * RUUDUN_KORKEUS];
+        let mut kuva = Ikkunakuva::default();
+        let sovitus = Sovitus::new(960, 700);
+        assert!(kuva.sovita(&ruutu, 960, 700, sovitus));
+        assert!(!kuva.sovita(&ruutu, 960, 700, sovitus));
+        ruutu[5] = 1;
+        assert!(kuva.sovita(&ruutu, 960, 700, sovitus));
+        assert!(!kuva.sovita(&ruutu, 960, 700, sovitus));
+        // uusi ikkunan koko piirtää kaiken, vaikka kuva olisi sama
+        let suurempi = Sovitus::new(1000, 700);
+        assert!(kuva.sovita(&ruutu, 1000, 700, suurempi));
     }
 
     #[test]

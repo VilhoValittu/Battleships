@@ -255,10 +255,14 @@ fn pelisilmukka(
         kaynnistin.edista(kulunut);
         edellinen += Duration::from_millis(kulunut as u64);
 
-        // Vesi ja tähtäin elävät koko ajan, joten joka päivitys piirretään kokonaan.
+        // Windows piirtää peitosta paljastuneen ikkunan itse edellisestä puskurista, joten
+        // muuttumatonta kuvaa ei tarvitse lähettää uudelleen.
         piirto::piirra(&kaynnistin, ruutu, kuva);
-        ikkunakuva.sovita(ruutu, ikkuna_l, ikkuna_k, sovitus);
-        ikkuna.update_with_buffer(&ikkunakuva.pikselit, ikkuna_l, ikkuna_k)?;
+        if ikkunakuva.sovita(ruutu, ikkuna_l, ikkuna_k, sovitus) {
+            ikkuna.update_with_buffer(&ikkunakuva.pikselit, ikkuna_l, ikkuna_k)?;
+        } else {
+            ikkuna.update();
+        }
     }
     // Ikkunan voi sulkea kesken pelin.
     kaynnistin.viimeistele();
