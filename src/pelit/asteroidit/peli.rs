@@ -3,6 +3,7 @@ use klassikot8000::asteroidit::{ASKEL_MS, Avaruus, Ohjaus, Piste, Tapahtuma, Til
 
 use super::piirto;
 use crate::yhteinen::aanet::Aani;
+use crate::yhteinen::kieli::{kaanna, muotoile};
 use crate::yhteinen::piirto::aanikytkimella;
 use crate::yhteinen::syote::Syote;
 use crate::yhteinen::tulokset::{Tulos, lisaa_tulos, mahtuu_parhaisiin, muokkaa_nimea, ota_nimi};
@@ -161,16 +162,16 @@ impl Asteroidit {
             Tapahtuma::Menetys { paikka } => {
                 self.aanijono.push((Aani::Rajahdys, 0));
                 self.rajahda(paikka, 70.0);
-                self.viesti = format!("Alus tuhoutui! Aluksia jäljellä: {}.", self.lauta.elamat);
+                self.viesti = muotoile("asteroidit.alus_tuhoutui", &[&self.lauta.elamat]);
             }
             Tapahtuma::Palasi => self.viesti.clear(),
             Tapahtuma::Lisaelama => {
                 self.aanijono.push((Aani::Yhdistys, 0));
-                self.viesti = "Lisäalus!".to_string();
+                self.viesti = kaanna("asteroidit.lisaalus").to_string();
             }
             Tapahtuma::UusiAalto => {
                 self.aanijono.push((Aani::Ovi, 0));
-                self.viesti = format!("Aalto {}!", self.lauta.aalto + 1);
+                self.viesti = muotoile("asteroidit.uusi_aalto", &[&(self.lauta.aalto + 1)]);
             }
             Tapahtuma::Ohi { paikka } => {
                 self.aanijono.push((Aani::Rajahdys, 0));
@@ -189,7 +190,7 @@ impl Asteroidit {
             Vaihe::Tappio
         };
         self.uusi_tulos = true;
-        self.viesti = format!("Pisteet: {}.", self.lauta.pisteet);
+        self.viesti = muotoile("yhteinen.tulos", &[&self.lauta.pisteet]);
     }
 
     /// Kirjaa odottavan tuloksen.

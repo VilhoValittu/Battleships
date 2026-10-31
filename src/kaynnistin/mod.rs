@@ -16,6 +16,7 @@ use crate::pelit::pasianssi::peli::{self as pasianssi_peli, Pasianssi};
 use crate::pelit::silmukka::peli::Silmukka;
 use crate::pelit::tiilirikko::peli::Tiilirikko;
 use crate::yhteinen::aanet::Aani;
+use crate::yhteinen::kieli::{self, kaanna};
 use crate::yhteinen::piirto::{aanikytkimella, ruudulta_kuvaan};
 use crate::yhteinen::syote::Syote;
 use crate::yhteinen::tulokset::{Tulos, lisaa_tulos};
@@ -39,33 +40,33 @@ pub struct Kortti {
 pub const PELIT: [Kortti; 6] = [
     Kortti {
         laji: Laji::Laivanupotus,
-        nimi: "LAIVANUPOTUS",
-        kuvaus: "Upota vastustajan laivasto.",
+        nimi: "peli.laivanupotus",
+        kuvaus: "valikko.laivanupotus",
     },
     Kortti {
         laji: Laji::Luvut,
-        nimi: "2048",
-        kuvaus: "Yhdistä luvut ja saavuta 2048.",
+        nimi: "peli.luvut",
+        kuvaus: "valikko.luvut",
     },
     Kortti {
         laji: Laji::Pasianssi,
-        nimi: "PASIANSSI",
-        kuvaus: "Klassinen pasianssi, kolme tasoa.",
+        nimi: "peli.pasianssi",
+        kuvaus: "valikko.pasianssi",
     },
     Kortti {
         laji: Laji::Tiilirikko,
-        nimi: "TIILIRIKKO",
-        kuvaus: "Riko tiilet, pidä pallo kentällä.",
+        nimi: "peli.tiilirikko",
+        kuvaus: "valikko.tiilirikko",
     },
     Kortti {
         laji: Laji::Asteroidit,
-        nimi: "ASTEROIDIT",
-        kuvaus: "Ammu kivet ennen kuin ne osuvat.",
+        nimi: "peli.asteroidit",
+        kuvaus: "valikko.asteroidit",
     },
     Kortti {
         laji: Laji::Silmukka,
-        nimi: "SILMUKKA",
-        kuvaus: "Kierrä mato itikoiden ympärille.",
+        nimi: "peli.silmukka",
+        kuvaus: "valikko.silmukka",
     },
 ];
 
@@ -126,15 +127,15 @@ impl Kaynnistin {
     }
 
     pub fn otsikko(&self) -> &'static str {
-        match self.peli {
-            Some(Kaynnissa::Laivanupotus(_)) => "Laivanupotus",
-            Some(Kaynnissa::Luvut(_)) => "2048",
-            Some(Kaynnissa::Pasianssi(_)) => "Pasianssi",
-            Some(Kaynnissa::Tiilirikko(_)) => "Tiilirikko",
-            Some(Kaynnissa::Asteroidit(_)) => "Asteroidit",
-            Some(Kaynnissa::Silmukka(_)) => "Silmukka",
-            None => "Pelikone",
-        }
+        kaanna(match self.peli {
+            Some(Kaynnissa::Laivanupotus(_)) => "peli.laivanupotus",
+            Some(Kaynnissa::Luvut(_)) => "peli.luvut",
+            Some(Kaynnissa::Pasianssi(_)) => "peli.pasianssi",
+            Some(Kaynnissa::Tiilirikko(_)) => "peli.tiilirikko",
+            Some(Kaynnissa::Asteroidit(_)) => "peli.asteroidit",
+            Some(Kaynnissa::Silmukka(_)) => "peli.silmukka",
+            None => "peli.pelikone",
+        })
     }
 
     /// Reaaliaikainen peli tarvitsee tiheämmän päivityksen kuin vuoropelit.
@@ -244,6 +245,7 @@ impl Kaynnistin {
     /// Ottaa käyttöön tiedostosta luetun tallennuksen.
     pub fn lataa(&mut self, tallennus: Tallennus) {
         self.aanet_paalla = !tallennus.hiljaa;
+        kieli::aseta(tallennus.kieli);
         // Edellisellä kerralla lähettämättä jääneet tulokset yritetään uudelleen.
         for (peli, jono) in [
             (Nettipeli::Luvut, &tallennus.luvut_jono),
@@ -300,6 +302,7 @@ impl Kaynnistin {
 
     pub fn paivita_tallennus(&mut self) {
         self.tallennus.hiljaa = !self.aanet_paalla;
+        self.tallennus.kieli = kieli::nykyinen();
         match &mut self.peli {
             Some(Kaynnissa::Luvut(peli)) => {
                 self.tallennus.paras = peli.paras;
@@ -406,6 +409,7 @@ impl Kaynnistin {
 
     pub fn kasittele(&mut self, syote: Syote) {
         let aanet_ennen = self.aanet_paalla;
+        let kieli_ennen = kieli::nykyinen();
         self.kasittele_nakyma(syote);
         let uusi_tulos = match &mut self.peli {
             Some(Kaynnissa::Luvut(peli)) => std::mem::take(&mut peli.uusi_tulos),
@@ -414,7 +418,7 @@ impl Kaynnistin {
             Some(Kaynnissa::Silmukka(peli)) => std::mem::take(&mut peli.uusi_tulos),
             _ => false,
         };
-        if uusi_tulos || self.aanet_paalla != aanet_ennen {
+        if uusi_tulos || self.aanet_paalla != aanet_ennen || kieli::nykyinen() != kieli_ennen {
             self.paivita_tallennus();
             self.tallenna = true;
         }
@@ -471,6 +475,13 @@ impl Kaynnistin {
         let kytkimella = matches!(syote, Syote::Klikkaus(x, y) if aanikytkimella(x, y));
         if syote == Syote::VaihdaAanet || kytkimella {
             self.aanet_paalla = !self.aanet_paalla;
+            return;
+        }
+        // Vain valikossa: pelien viestit on jo muotoiltu sen hetken kielellä.
+        let kielikytkimella =
+            matches!(syote, Syote::Klikkaus(x, y) if piirto::kielikytkimella(x, y));
+        if syote == Syote::Kirjain('L') || kielikytkimella {
+            kieli::aseta(kieli::nykyinen().toinen());
             return;
         }
         match syote {
@@ -594,7 +605,7 @@ mod tests {
         let (x, y) = piirto::kortin_keskipiste(3);
         k.kasittele(Syote::Klikkaus(x, y));
         assert!(matches!(k.peli, Some(Kaynnissa::Tiilirikko(_))));
-        assert_eq!(k.otsikko(), "Tiilirikko");
+        assert_eq!(k.otsikko(), "Laatan murskain");
         assert!(k.toimintapeli());
         k.kasittele(Syote::Peru);
 
@@ -608,7 +619,7 @@ mod tests {
         let (x, y) = piirto::kortin_keskipiste(5);
         k.kasittele(Syote::Klikkaus(x, y));
         assert!(matches!(k.peli, Some(Kaynnissa::Silmukka(_))));
-        assert_eq!(k.otsikko(), "Silmukka");
+        assert_eq!(k.otsikko(), "Mato8000");
         assert!(k.toimintapeli());
         assert!(!k.nuolet_toistuvat());
     }
@@ -1007,6 +1018,31 @@ mod tests {
         uusi.kasittele(Syote::VaihdaAanet);
         assert!(uusi.tallenna);
         assert!(!uusi.tallennus.hiljaa);
+    }
+
+    #[test]
+    fn kieli_vaihtuu_valikossa_tallentuu_ja_palautuu() {
+        let mut k = Kaynnistin::new(1);
+        assert_eq!(k.otsikko(), "Pelikone");
+        k.kasittele(Syote::Kirjain('L'));
+        assert_eq!(k.otsikko(), "Game Machine");
+        assert!(k.tallenna);
+        assert_eq!(k.tallennus.kieli, kieli::Kieli::Englanti);
+
+        // sama kuin ohjelman uudelleenkäynnistys: tila kulkee tekstin kautta
+        kieli::aseta(kieli::Kieli::Suomi);
+        let mut uusi = Kaynnistin::new(2);
+        uusi.lataa(Tallennus::tekstista(&k.tallennus.tekstiksi()));
+        assert_eq!(uusi.otsikko(), "Game Machine");
+
+        let (x, y) = piirto::kielikytkimen_keskipiste();
+        uusi.kasittele(Syote::Klikkaus(x, y));
+        assert_eq!(uusi.otsikko(), "Pelikone");
+
+        // pelin sisällä L ei vaihda kieltä
+        uusi.kaynnista(Laji::Laivanupotus);
+        uusi.kasittele(Syote::Kirjain('L'));
+        assert_eq!(kieli::nykyinen(), kieli::Kieli::Suomi);
     }
 
     #[test]

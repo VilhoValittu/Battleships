@@ -41,6 +41,7 @@ use pelit::luvut::tallennus;
 #[cfg(debug_assertions)]
 use pelit::pasianssi::peli as pasianssi_peli;
 use yhteinen::aanet::{Mikseri, NAYTETAAJUUS};
+use yhteinen::kieli;
 use yhteinen::piirto::{Ikkunakuva, KORKEUS, LEVEYS, RUUDUN_KORKEUS, RUUDUN_LEVEYS, Sovitus};
 use yhteinen::syote::Syote;
 
@@ -270,6 +271,9 @@ fn pelisilmukka(
 fn main() -> ExitCode {
     let mut ruutu = vec![0u32; RUUDUN_LEVEYS * RUUDUN_KORKEUS];
     let mut kuva = vec![0u32; LEVEYS * KORKEUS];
+    if let Some(polku) = kieli::oletuspolku() {
+        kieli::lue_tiedosto(&polku);
+    }
 
     #[cfg(debug_assertions)]
     let (kaynnistin, polku, netti) = {
@@ -285,6 +289,9 @@ fn main() -> ExitCode {
         let polku = liput.tallennus.as_ref().map(PathBuf::from);
         if let Some(polku) = &polku {
             kaynnistin.lataa(tallennus::lue_tiedosto(polku));
+        }
+        if let Some(kieli) = liput.kieli {
+            kieli::aseta(kieli);
         }
         if let Some(laji) = liput.laji() {
             kaynnistin.kaynnista(laji);

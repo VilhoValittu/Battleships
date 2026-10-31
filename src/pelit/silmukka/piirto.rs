@@ -10,6 +10,7 @@ use klassikot8000::silmukka::{
 use super::peli::{
     KEHU_MS, LEIJUNTA_MS, Nappi, PAMAUS_MS, Silmukka, TARINA_MS, VALAHDYS_MS, Vaihe, Valahdys,
 };
+use crate::yhteinen::kieli::kaanna;
 use crate::yhteinen::piirto::*;
 use crate::yhteinen::vektori::{Kangas, Tahko, kehapiste, kuutio, tahko4};
 
@@ -70,14 +71,30 @@ const ENNUSTEEN_SYKE: f32 = 0.008;
 const PURKU_MS: u32 = 450;
 const LEIMAHDUKSEN_VIIVE_MS: i32 = 12;
 
-const OHJE: &str = "Nuolet, WASD tai hiiri. P = tauko.";
-const TAUKO: &str = "TAUKO";
-const TAUON_OHJE: &str = "Jatka: P, välilyönti tai klikkaus.";
-const TAPPIO: &str = "PELI PÄÄTTYI!";
+const OHJE: &str = "silmukka.ohje";
+const TAUKO: &str = "yhteinen.tauko";
+const TAUON_OHJE: &str = "yhteinen.tauon_ohje";
+const TAPPIO: &str = "yhteinen.peli_paattyi";
 
 const NAPIT: [(Nappi, &str, i32); 2] = [
-    (Nappi::Uudestaan, "K = Uudestaan", NAPPI_X),
-    (Nappi::Valikko, "E = Valikko", NAPPI_X + 13 * MERKKI + 48),
+    (Nappi::Uudestaan, "yhteinen.uudestaan", NAPPI_X),
+    (
+        Nappi::Valikko,
+        "yhteinen.valikkoon",
+        NAPPI_X + 13 * MERKKI + 48,
+    ),
+];
+
+const ALKU_OSAT: [&str; 4] = [
+    "silmukka.tervetuloa",
+    "yhteinen.ohjeet",
+    "silmukka.ohje_1",
+    "silmukka.ohje_2",
+];
+const ALKU_RIVIT: [&str; 3] = [
+    "silmukka.nappain_ohjaus",
+    "yhteinen.tauko_aanet",
+    "yhteinen.takaisin",
 ];
 
 pub fn nappi_pisteesta(x: i32, y: i32) -> Option<Nappi> {
@@ -206,35 +223,11 @@ fn pallo(k: &mut Kangas, (x, y): (i32, i32), sade: i32, vari: u32) {
 
 impl Piirtaja<'_> {
     fn silmukan_alkuruutu(&mut self, peli: &Silmukka) {
-        self.maisema("**** SILMUKKA ****", &ouroboros());
+        self.maisema(kaanna("silmukka.banneri"), &ouroboros());
         let otsikko = listan_otsikko(peli.netti_parhaat.is_some());
         self.parhaat_alkuruudulla(otsikko, peli.nakyva_lista());
-        let mut y = OHJE_Y;
-        for osa in [
-            "Tervetuloa Silmukkaan.",
-            "Ohjeet:",
-            "Kun mato osuu itseensä, syntyy silmukka: kaikki sen sisään jäänyt on saalista, mutta silmukka kuluttaa madon.",
-            "Mitä enemmän kerralla, sen moninkertaisemmat pisteet. Omenat kasvattavat. Varo seiniä ja itikoita.",
-        ] {
-            for rivi in rivita(osa, 36) {
-                self.teksti(48, y, rivi, REUNA);
-                y += RIVIN_KORKEUS;
-            }
-        }
-        y += RIVIN_KORKEUS / 2;
-        for rivi in [
-            "Nuolet, WASD tai hiiri: ohjaa.",
-            "P: tauko. M: äänet.",
-            "Esc: takaisin valikkoon.",
-        ] {
-            self.teksti(48, y, rivi, VALKOINEN);
-            y += RIVIN_KORKEUS;
-        }
-        self.teksti(48, ALOITUS_Y, "Paina välilyöntiä tai klikkaa.", REUNA);
-        if self.vilkku() {
-            self.k
-                .laatikko(48 + 30 * MERKKI, ALOITUS_Y, MERKKI, MERKKI, REUNA);
-        }
+        self.alkuohje(&ALKU_OSAT, &ALKU_RIVIT);
+        self.aloituskehote(ALOITUS);
     }
 
     fn silmukan_nakyma(&mut self, peli: &Silmukka) {
@@ -271,7 +264,7 @@ impl Piirtaja<'_> {
         self.leijuvat(o, peli);
         self.kehu(peli);
         self.silmukan_kehys();
-        self.otsikkopalkki("SILMUKKA", "");
+        self.otsikkopalkki(&kaanna("peli.silmukka").to_uppercase(), "");
         self.silmukan_tilasto(peli);
         self.silmukan_paneeli(peli);
     }
@@ -664,10 +657,10 @@ impl Piirtaja<'_> {
     fn silmukan_tilasto(&mut self, peli: &Silmukka) {
         let lauta = &peli.lauta;
         for (i, (otsikko, arvo)) in [
-            ("PISTEET", lauta.pisteet.to_string()),
-            ("PARAS", peli.paras.to_string()),
-            ("TASO", lauta.taso.to_string()),
-            ("PITUUS", lauta.mato.len().to_string()),
+            (kaanna("yhteinen.pisteet"), lauta.pisteet.to_string()),
+            (kaanna("yhteinen.paras"), peli.paras.to_string()),
+            (kaanna("silmukka.taso"), lauta.taso.to_string()),
+            (kaanna("silmukka.pituus"), lauta.mato.len().to_string()),
         ]
         .into_iter()
         .enumerate()
@@ -695,13 +688,13 @@ impl Piirtaja<'_> {
         let alarivi = PANEELI_RIVI_Y + (PANEELI_RIVEJA as i32 - 1) * RIVIN_KORKEUS;
         let otsikko_y = alarivi - RIVIN_KORKEUS - 12;
         match peli.vaihe {
-            Vaihe::Pelissa => self.teksti(TEKSTI_X, alarivi, OHJE, HUTI),
+            Vaihe::Pelissa => self.teksti(TEKSTI_X, alarivi, kaanna(OHJE), HUTI),
             Vaihe::Tauko => {
-                self.vektoriteksti(TEKSTI_X, otsikko_y, TAUKO, TULOS, KELTAINEN, true);
-                self.teksti(TEKSTI_X, alarivi, TAUON_OHJE, HUTI);
+                self.vektoriteksti(TEKSTI_X, otsikko_y, kaanna(TAUKO), TULOS, KELTAINEN, true);
+                self.teksti(TEKSTI_X, alarivi, kaanna(TAUON_OHJE), HUTI);
             }
             Vaihe::Tappio => {
-                self.vektoriteksti(TEKSTI_X, otsikko_y, TAPPIO, TULOS, KELTAINEN, true);
+                self.vektoriteksti(TEKSTI_X, otsikko_y, kaanna(TAPPIO), TULOS, KELTAINEN, true);
                 for (_, teksti, x) in NAPIT {
                     self.nappi(x, NAPPI_Y, teksti, VALKOINEN, WB_SININEN);
                 }
@@ -730,6 +723,7 @@ const _: () = {
 mod tests {
     use super::*;
 
+    use crate::yhteinen::kieli::{kaikilla_kielilla, muotoile};
     use crate::yhteinen::syote::Syote;
     use klassikot8000::silmukka::Suunta;
 
@@ -740,30 +734,49 @@ mod tests {
             assert_eq!(nappi_pisteesta(x, y), Some(nappi));
         }
         assert_eq!(nappi_pisteesta(0, 0), None);
-        assert!(NAPIT[0].2 + napin_leveys(NAPIT[0].1) < NAPIT[1].2);
+        kaikilla_kielilla(|| assert!(NAPIT[0].2 + napin_leveys(NAPIT[0].1) < NAPIT[1].2));
     }
 
     #[test]
     fn tekstit_ja_kentta_mahtuvat_paikoilleen() {
-        for teksti in [
-            OHJE,
-            TAUON_OHJE,
-            "Tyhjä silmukka: pituus kului hukkaan.",
-            "Muna litistyi ennen kuoriutumista.",
-            "Kultaomena! Nopeasti, se katoaa pian.",
-            "Taso 99: mato kiihtyy, parvi kasvaa.",
-            "Saalis 19: +999999 pistettä!",
-            "Pisteet: 999999.",
-        ] {
-            assert!(teksti.chars().count() <= RIVILLE_MERKKEJA, "{teksti}");
-        }
+        kaikilla_kielilla(|| {
+            for teksti in [
+                kaanna(OHJE).to_string(),
+                kaanna(TAUON_OHJE).to_string(),
+                kaanna("silmukka.tyhja").to_string(),
+                kaanna("silmukka.muna_litistyi").to_string(),
+                kaanna("silmukka.kulta_ilmestyi").to_string(),
+                muotoile("silmukka.uusi_taso", &[&99]),
+                muotoile("silmukka.saalis", &[&19, &999999]),
+                muotoile("yhteinen.tulos", &[&999999]),
+            ] {
+                assert!(teksti.chars().count() <= RIVILLE_MERKKEJA, "{teksti}");
+            }
+            // Pisin kehu mahtuu kentän leveydelle.
+            for avain in [
+                "silmukka.kehu_2",
+                "silmukka.kehu_3",
+                "silmukka.kehu_4",
+                "silmukka.kehu_5",
+                "silmukka.kehu_7",
+                "silmukka.kehu_9",
+            ] {
+                assert!(
+                    kaanna(avain).chars().count() as i32 * SUURI.2 < KENTTA_L,
+                    "{avain}"
+                );
+            }
+            for avain in ["silmukka.taso", "silmukka.pituus"] {
+                let leveys = kaanna(avain).chars().count() as i32 * OTSIKKO.2;
+                assert!(SARAKE_X + leveys < LEVEYS as i32, "{avain}");
+            }
+        });
+        alkuohje_mahtuu(&ALKU_OSAT, &ALKU_RIVIT, ALOITUS_Y);
         const { assert!((2 + 8 + 1 + 6) * PARHAAT_KOKO.2 <= PARHAAT_L) };
         const { assert!(PARHAAT_Y + 30 + 3 * 26 < PANEELI_Y) };
         const { assert!(KENTTA_Y + KENTTA_K < PANEELI_Y) };
         assert!(SARAKE_X + "PISTEET".len() as i32 * OTSIKKO.2 < LEVEYS as i32);
         assert!(SARAKE_X + 6 * OTSIKKO.2 < LEVEYS as i32);
-        // Pisin kehu mahtuu kentän leveydelle.
-        assert!("JUHANNUSTAIKAA!".len() as i32 * SUURI.2 < KENTTA_L);
     }
 
     #[test]

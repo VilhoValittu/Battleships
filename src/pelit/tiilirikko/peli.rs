@@ -3,6 +3,7 @@ use klassikot8000::tiilirikko::{ASKEL_MS, Tapahtuma, Tiilipeli, Tila};
 
 use super::piirto;
 use crate::yhteinen::aanet::Aani;
+use crate::yhteinen::kieli::muotoile;
 use crate::yhteinen::piirto::aanikytkimella;
 use crate::yhteinen::syote::Syote;
 use crate::yhteinen::tulokset::{Tulos, lisaa_tulos, mahtuu_parhaisiin, muokkaa_nimea, ota_nimi};
@@ -120,16 +121,16 @@ impl Tiilirikko {
             }
             Tapahtuma::Menetys => {
                 self.aanijono.push((Aani::Rajahdys, 0));
-                self.viesti = format!("Pallo meni! Palloja jäljellä: {}.", self.lauta.elamat);
+                self.viesti = muotoile("tiilirikko.pallo_meni", &[&self.lauta.elamat]);
             }
             Tapahtuma::KenttaLapi { bonus } => {
                 self.aanijono.push((Aani::Yhdistys, 0));
-                self.viesti = format!("Kenttä läpi! Aikabonus +{bonus}.");
+                self.viesti = muotoile("tiilirikko.kentta_lapi", &[&bonus]);
             }
             Tapahtuma::Voitto { bonus } => {
                 self.aanijono.push((Aani::Voitto, LOPPU_VIIVE_MS));
                 self.lopeta_peli(Vaihe::Voitto);
-                self.viesti = format!("Aikabonus +{bonus}. Pisteet: {}.", self.lauta.pisteet);
+                self.viesti = muotoile("tiilirikko.loppubonus", &[&bonus, &self.lauta.pisteet]);
             }
             Tapahtuma::Ohi => {
                 self.aanijono.push((Aani::Tappio, LOPPU_VIIVE_MS));
@@ -148,7 +149,7 @@ impl Tiilirikko {
         };
         self.ohjaus = 0;
         self.uusi_tulos = true;
-        self.viesti = format!("Pisteet: {}.", self.lauta.pisteet);
+        self.viesti = muotoile("yhteinen.tulos", &[&self.lauta.pisteet]);
     }
 
     /// Kirjaa odottavan tuloksen.

@@ -4,6 +4,7 @@ use klassikot8000::luvut::{Lukulauta, Siirto, Suunta, TAVOITE};
 use super::piirto;
 use super::tallennus::Kesken;
 use crate::yhteinen::aanet::Aani;
+use crate::yhteinen::kieli::{kaanna, muotoile};
 use crate::yhteinen::piirto::aanikytkimella;
 use crate::yhteinen::syote::Syote;
 use crate::yhteinen::tulokset::{Tulos, lisaa_tulos, mahtuu_parhaisiin, muokkaa_nimea, ota_nimi};
@@ -219,7 +220,7 @@ impl Luvut {
                     self.aanijono.push((Aani::Ovi, 0));
                     if self.jatkuu {
                         self.jatkuu = false;
-                        self.viesti = "Jatketaan tallennettua peliä.".to_string();
+                        self.viesti = kaanna("luvut.jatketaan_tallennettua").to_string();
                     }
                 }
             }
@@ -266,7 +267,7 @@ impl Luvut {
             Nappi::Valikko => self.lopeta = true,
             Nappi::Jatka if self.vaihe == Vaihe::Voitto => {
                 self.jatkettu = true;
-                self.viesti = "Jatketaan! Kuinka pitkälle pääset?".to_string();
+                self.viesti = kaanna("luvut.jatketaan").to_string();
                 if self.lauta.on_siirtoja() {
                     self.vaihe = Vaihe::Pelissa;
                 } else {
@@ -287,9 +288,9 @@ impl Luvut {
         self.siirtoja += 1;
         self.paras = self.paras.max(self.lauta.pisteet);
         self.viesti = if siirto.pisteet > 0 {
-            format!("Siirto {}: +{} pistettä!", self.siirtoja, siirto.pisteet)
+            muotoile("luvut.siirto_pisteet", &[&self.siirtoja, &siirto.pisteet])
         } else {
-            format!("Siirto {}.", self.siirtoja)
+            muotoile("luvut.siirto", &[&self.siirtoja])
         };
         self.aanijono.push((Aani::Liuku, 0));
         if siirto.pisteet > 0 {

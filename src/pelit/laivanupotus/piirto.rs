@@ -2,7 +2,8 @@ use std::f32::consts::{PI, TAU};
 
 use klassikot8000::laivanupotus::{KOKO, Laiva, Laivasto, Laukaustulos, Ruutu, SARAKKEET, Vaikeus};
 
-use super::peli::{Peli, TULOS_VIIVE_MS, Tehoste, Vaihe};
+use super::peli::{Peli, TULOS_VIIVE_MS, Tehoste, Vaihe, laivan_nimi};
+use crate::yhteinen::kieli::{kaanna, muotoile};
 use crate::yhteinen::piirto::*;
 use crate::yhteinen::vektori::{self, Kangas, kehapiste};
 
@@ -19,10 +20,10 @@ const TILASTO_PALKKI_X: i32 = 14 * MERKKI;
 const TEHOSTE_KESTO_MS: f32 = super::peli::TEHOSTE_KESTO_MS as f32;
 const MERKINTA: (i32, i32, i32) = (12, 18, 18);
 
-const OHJE: &str = "Ammu: klikkaa tai nuolet + välilyönti";
-const AMMUIT_JO: &str = "Ammuit jo tähän!";
-const VOITTO: &str = "****HIHIHIHIII VOITIT PELIN!****";
-const TAPPIO: &str = "HÄVISIT PELIN!";
+const OHJE: &str = "laivanupotus.ohje";
+const AMMUIT_JO: &str = "laivanupotus.ammuit_jo";
+const VOITTO: &str = "yhteinen.voitit";
+const TAPPIO: &str = "laivanupotus.tappio";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Nappi {
@@ -31,27 +32,53 @@ pub enum Nappi {
 }
 
 const NAPIT: [(Nappi, &str, i32); 2] = [
-    (Nappi::Uudestaan, "K = Uudestaan", NAPPI_X),
-    (Nappi::Lopeta, "E = Valikko", NAPPI_X + 13 * MERKKI + 48),
+    (Nappi::Uudestaan, "yhteinen.uudestaan", NAPPI_X),
+    (
+        Nappi::Lopeta,
+        "yhteinen.valikkoon",
+        NAPPI_X + 13 * MERKKI + 48,
+    ),
 ];
 
-const TASO_OTSIKKO: &str = "Taso:";
+const TASO_OTSIKKO: &str = "yhteinen.taso";
 const TASO_Y: i32 = ALOITUS_Y - NAPPI_K - 6;
 const TASO_X: i32 = 48 + 6 * MERKKI;
 const TASO_VALI: i32 = 12;
 const TASOT: [(Vaikeus, &str, i32); 3] = [
-    (Vaikeus::Helppo, "1 Helppo", TASO_X),
+    (Vaikeus::Helppo, "yhteinen.taso_1", TASO_X),
     (
         Vaikeus::Normaali,
-        "2 Normaali",
+        "yhteinen.taso_2",
         TASO_X + 8 * MERKKI + 24 + TASO_VALI,
     ),
     (
         Vaikeus::Vaikea,
-        "3 Vaikea",
+        "yhteinen.taso_3",
         TASO_X + 18 * MERKKI + 48 + 2 * TASO_VALI,
     ),
 ];
+
+const ALKU_OSAT: [&str; 4] = [
+    "laivanupotus.tervetuloa",
+    "yhteinen.ohjeet",
+    "laivanupotus.ohje_1",
+    "laivanupotus.ohje_2",
+];
+const ALKU_RIVIT: [&str; 5] = [
+    "laivanupotus.nappain_hiiri",
+    "laivanupotus.nappain_nuolet",
+    "laivanupotus.nappain_ammu",
+    "yhteinen.aanet_kytkin",
+    "yhteinen.takaisin",
+];
+
+fn vaikeuden_nimi(vaikeus: Vaikeus) -> &'static str {
+    kaanna(match vaikeus {
+        Vaikeus::Helppo => "yhteinen.helppo",
+        Vaikeus::Normaali => "yhteinen.normaali",
+        Vaikeus::Vaikea => "yhteinen.vaikea",
+    })
+}
 
 pub fn vaikeus_pisteesta(x: i32, y: i32) -> Option<Vaikeus> {
     TASOT
@@ -121,43 +148,17 @@ pub fn piirra(peli: &Peli, kuva: &mut [u32]) {
 impl Piirtaja<'_> {
     fn alkuruutu(&mut self, vaikeus: Vaikeus) {
         self.maisema(
-            "**** LAIVANUPOTUS ****",
+            kaanna("laivanupotus.banneri"),
             &vektori::taistelulaiva(RUNKO, KANSI, TORNI),
         );
 
-        let mut y = OHJE_Y;
-        for osa in [
-            "Tervetuloa pelaamaan laivanupotusta.",
-            "Ohjeet:",
-            "Kummallakin on 10x10 ruudukossa 5 laivaa (pituudet 5, 4, 3, 3 ja 2).",
-            "Ammutte vuorotellen. Voittaja on se, joka upottaa ensin vastustajan kaikki laivat.",
-        ] {
-            for rivi in rivita(osa, 36) {
-                self.teksti(48, y, rivi, REUNA);
-                y += RIVIN_KORKEUS;
-            }
-        }
-        y += RIVIN_KORKEUS / 2;
-        for rivi in [
-            "Hiiri: osoita ja klikkaa ruutua.",
-            "Nuolet, A-J ja 1-0: valitse ruutu.",
-            "Välilyönti tai Enter: ammu.",
-            "M: äänet päälle tai pois.",
-            "Esc: takaisin valikkoon.",
-        ] {
-            self.teksti(48, y, rivi, VALKOINEN);
-            y += RIVIN_KORKEUS;
-        }
+        self.alkuohje(&ALKU_OSAT, &ALKU_RIVIT);
         self.tasovalinta(vaikeus);
-        y = ALOITUS_Y;
-        self.teksti(48, y, "Paina välilyöntiä tai klikkaa.", REUNA);
-        if self.vilkku() {
-            self.k.laatikko(48 + 30 * MERKKI, y, MERKKI, MERKKI, REUNA);
-        }
+        self.aloituskehote(ALOITUS);
     }
 
     fn tasovalinta(&mut self, valittu: Vaikeus) {
-        self.teksti(48, TASO_Y + 3, TASO_OTSIKKO, KELTAINEN);
+        self.teksti(48, TASO_Y + 3, kaanna(TASO_OTSIKKO), KELTAINEN);
         for (vaikeus, teksti, x) in TASOT {
             if vaikeus == valittu {
                 self.nappi(x, TASO_Y, teksti, WB_ORANSSI, MUSTA);
@@ -172,17 +173,18 @@ impl Piirtaja<'_> {
         let (l, k) = (LEVEYS as i32, KORKEUS as i32);
         self.k.kehys(0, 0, l, k, REUNA);
         self.k.kehys(1, 1, l - 2, k - 2, REUNA);
-        self.otsikkopalkki("Laivanupotus", peli.vaikeus.nimi());
+        self.otsikkopalkki(kaanna("peli.laivanupotus"), vaikeuden_nimi(peli.vaikeus));
 
         self.vektoriteksti(
             VASTUSTAJA_X,
             OTSIKKO_Y,
-            "VASTUSTAJAN LAUTA",
+            kaanna("laivanupotus.vastustajan_lauta"),
             OTSIKKO,
             VALKOINEN,
             false,
         );
-        self.vektoriteksti(OMA_X, OTSIKKO_Y, "OMA LAUTA", OTSIKKO, VALKOINEN, false);
+        let oma_lauta = kaanna("laivanupotus.oma_lauta");
+        self.vektoriteksti(OMA_X, OTSIKKO_Y, oma_lauta, OTSIKKO, VALKOINEN, false);
         self.lauta(VASTUSTAJA_X, &peli.vastustaja, false, peli);
         self.lauta(OMA_X, &peli.oma, true, peli);
         if peli.vaihe == Vaihe::Ammunta {
@@ -199,10 +201,9 @@ impl Piirtaja<'_> {
     /// Laudan alle: montako laivaa on upotettu ja mitkä. Osumia ei kerrota,
     /// koska vastustajan laivoista pelaajan kuuluu tietää vain uponneet.
     fn tilasto(&mut self, x: i32, laivasto: &Laivasto) {
-        let otsikko = format!(
-            "Upotettu {}/{}",
-            laivasto.upotettuja(),
-            laivasto.laivat().len()
+        let otsikko = muotoile(
+            "laivanupotus.upotettu",
+            &[&laivasto.upotettuja(), &laivasto.laivat().len()],
         );
         self.teksti(x, TILASTO_Y, &otsikko, KELTAINEN);
         let mut y = TILASTO_Y + RIVIN_KORKEUS + 3;
@@ -213,10 +214,11 @@ impl Piirtaja<'_> {
             } else {
                 (VALKOINEN, KANSI)
             };
-            self.teksti(x, y, laiva.nimi, teksti_vari);
+            let nimi = laivan_nimi(laiva.nimi);
+            self.teksti(x, y, nimi, teksti_vari);
             if upotettu {
                 // yliviivaus, jottei tieto jää pelkän värin varaan
-                let leveys = laiva.nimi.chars().count() as i32 * MERKKI;
+                let leveys = nimi.chars().count() as i32 * MERKKI;
                 self.k.laatikko(x, y + 9, leveys, 3, teksti_vari);
             }
             for i in 0..laiva.ruudut.maara() as i32 {
@@ -459,9 +461,9 @@ impl Piirtaja<'_> {
         let alarivi = PANEELI_RIVI_Y + (PANEELI_RIVEJA as i32 - 1) * RIVIN_KORKEUS;
         match peli.vaihe {
             Vaihe::Ammunta if peli.ammuttu_jo => {
-                self.teksti(TEKSTI_X, alarivi, AMMUIT_JO, WB_ORANSSI);
+                self.teksti(TEKSTI_X, alarivi, kaanna(AMMUIT_JO), WB_ORANSSI);
             }
-            Vaihe::Ammunta => self.teksti(TEKSTI_X, alarivi, OHJE, HUTI),
+            Vaihe::Ammunta => self.teksti(TEKSTI_X, alarivi, kaanna(OHJE), HUTI),
             Vaihe::Voitto | Vaihe::Tappio if !vastaus_kesken => {
                 let teksti = if peli.vaihe == Vaihe::Voitto {
                     VOITTO
@@ -469,7 +471,7 @@ impl Piirtaja<'_> {
                     TAPPIO
                 };
                 let y = alarivi - RIVIN_KORKEUS - 2;
-                self.vektoriteksti(TEKSTI_X, y, teksti, TULOS, KELTAINEN, true);
+                self.vektoriteksti(TEKSTI_X, y, kaanna(teksti), TULOS, KELTAINEN, true);
                 self.napit();
             }
             Vaihe::Voitto | Vaihe::Tappio | Vaihe::Alku => {}
@@ -486,6 +488,8 @@ impl Piirtaja<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::pelit::laivanupotus::peli::tulos_teksti;
+    use crate::yhteinen::kieli::kaikilla_kielilla;
 
     #[test]
     fn jokainen_ruutu_loytyy_keskipisteestaan() {
@@ -507,12 +511,30 @@ mod tests {
 
     #[test]
     fn pisin_kierros_mahtuu_paneeliin() {
-        // kaksi viestiä, lopputulos ja napit
-        let a = "Sinä ammuit B10: OSUMA! Lentotukialus upposi!";
-        let b = "Vastustaja ampui B10: OSUMA! Lentotukialus upposi!";
-        let rivit = rivita(a, RIVILLE_MERKKEJA).len() + rivita(b, RIVILLE_MERKKEJA).len();
-        assert!(rivit + 2 <= PANEELI_RIVEJA);
-        assert!(OHJE.chars().count() <= RIVILLE_MERKKEJA);
+        kaikilla_kielilla(|| {
+            let ruutu = Ruutu::new(9, 1).unwrap();
+            for (nimi, _) in klassikot8000::laivanupotus::LAIVAT {
+                // kaksi viestiä, lopputulos ja napit
+                let tulos = Laukaustulos::Upposi(nimi);
+                let a = tulos_teksti("laivanupotus.sina_ammuit", ruutu, tulos);
+                let b = tulos_teksti("laivanupotus.vastustaja_ampui", ruutu, tulos);
+                let rivit = rivita(&a, RIVILLE_MERKKEJA).len() + rivita(&b, RIVILLE_MERKKEJA).len();
+                assert!(rivit + 2 <= PANEELI_RIVEJA, "{a} {b}");
+                // Nimi ei saa osua tilaston palkkiin.
+                let leveys = laivan_nimi(nimi).chars().count() as i32 * MERKKI;
+                assert!(leveys < TILASTO_PALKKI_X, "{nimi}");
+            }
+            assert!(kaanna(OHJE).chars().count() <= RIVILLE_MERKKEJA);
+            assert!(kaanna(AMMUIT_JO).chars().count() <= RIVILLE_MERKKEJA);
+            assert!(kaanna(TASO_OTSIKKO).chars().count() <= 6);
+            for pari in NAPIT.windows(2) {
+                assert!(pari[0].2 + napin_leveys(pari[0].1) < pari[1].2);
+            }
+            for pari in TASOT.windows(2) {
+                assert!(pari[0].2 + napin_leveys(pari[0].1) < pari[1].2);
+            }
+        });
+        alkuohje_mahtuu(&ALKU_OSAT, &ALKU_RIVIT, TASO_Y);
     }
 
     #[test]

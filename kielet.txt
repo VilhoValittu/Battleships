@@ -1,0 +1,366 @@
+# Klassikot8000: pelin tekstit / game texts
+#
+# Muoto: avain = teksti. {} on arvon paikka, ja arvot tulevat aina samassa järjestyksessä.
+# Format: key = text. {} marks a value; values always come in the same order.
+# Tiedosto luetaan käynnistyksessä exen vierestä. Jos teksti puuttuu, käytetään exeen upotettua.
+# The file is read at startup from next to the exe. Missing texts fall back to the built-in copy.
+
+[fi]
+peli.pelikone = Pelikone
+peli.laivanupotus = Laivanupotus
+peli.luvut = 2048
+peli.pasianssi = Pasianssi
+peli.tiilirikko = Laatan murskain
+peli.asteroidit = Asteroidit
+peli.silmukka = Mato8000
+
+valikko.banneri = **** PELIKONE ****
+valikko.ohje = Väli: pelaa. M: äänet. Esc: lopeta.
+valikko.kielikytkin = L = English
+valikko.laivanupotus = Upota vastustajan laivasto.
+valikko.luvut = Yhdistä luvut ja saavuta 2048.
+valikko.pasianssi = Klassinen pasianssi, kolme tasoa.
+valikko.tiilirikko = Riko tiilet, pidä pallo kentällä.
+valikko.asteroidit = Ammu kivet ennen kuin ne osuvat.
+valikko.silmukka = Kierrä mato itikoiden ympärille.
+
+yhteinen.netti_top = NETTI TOP
+yhteinen.top3 = TOP 3
+yhteinen.aani_paalla = Ääni: päällä
+yhteinen.aani_pois = Ääni: pois
+yhteinen.nimi_otsikko = TOP 3 -TULOS!
+yhteinen.nimi_ohje = Kirjoita nimimerkki, Enter = valmis.
+yhteinen.oletusnimi = NIMETÖN
+yhteinen.aloitus = Paina välilyöntiä tai klikkaa.
+yhteinen.ohjeet = Ohjeet:
+yhteinen.takaisin = Esc: takaisin valikkoon.
+yhteinen.aanet_kytkin = M: äänet päälle tai pois.
+yhteinen.tauko_aanet = P: tauko. M: äänet.
+yhteinen.tauko = TAUKO
+yhteinen.tauon_ohje = Jatka: P, välilyönti tai klikkaus.
+yhteinen.peli_paattyi = PELI PÄÄTTYI!
+yhteinen.voitit = ****HIHIHIHIII VOITIT PELIN!****
+yhteinen.uudestaan = K = Uudestaan
+yhteinen.valikkoon = E = Valikko
+yhteinen.pisteet = PISTEET
+yhteinen.paras = PARAS
+yhteinen.siirrot = SIIRROT
+yhteinen.tulos = Pisteet: {}.
+yhteinen.taso = Taso:
+yhteinen.helppo = Helppo
+yhteinen.normaali = Normaali
+yhteinen.vaikea = Vaikea
+yhteinen.taso_1 = 1 Helppo
+yhteinen.taso_2 = 2 Normaali
+yhteinen.taso_3 = 3 Vaikea
+
+laivanupotus.banneri = **** LAIVANUPOTUS ****
+laivanupotus.tervetuloa = Tervetuloa pelaamaan laivanupotusta.
+laivanupotus.ohje_1 = Kummallakin on 10x10 ruudukossa 5 laivaa (pituudet 5, 4, 3, 3 ja 2).
+laivanupotus.ohje_2 = Ammutte vuorotellen. Voittaja on se, joka upottaa ensin vastustajan kaikki laivat.
+laivanupotus.nappain_hiiri = Hiiri: osoita ja klikkaa ruutua.
+laivanupotus.nappain_nuolet = Nuolet, A-J ja 1-0: valitse ruutu.
+laivanupotus.nappain_ammu = Välilyönti tai Enter: ammu.
+laivanupotus.ohje = Ammu: klikkaa tai nuolet + välilyönti
+laivanupotus.ammuit_jo = Ammuit jo tähän!
+laivanupotus.tappio = HÄVISIT PELIN!
+laivanupotus.vastustajan_lauta = VASTUSTAJAN LAUTA
+laivanupotus.oma_lauta = OMA LAUTA
+laivanupotus.upotettu = Upotettu {}/{}
+laivanupotus.sina_ammuit = Sinä ammuit
+laivanupotus.vastustaja_ampui = Vastustaja ampui
+laivanupotus.ohi = {} {}: ohi.
+laivanupotus.osuma = {} {}: OSUMA!
+laivanupotus.upposi = {} {}: OSUMA! {} upposi!
+laivanupotus.lentotukialus = Lentotukialus
+laivanupotus.taistelulaiva = Taistelulaiva
+laivanupotus.havittaja = Hävittäjä
+laivanupotus.sukellusvene = Sukellusvene
+laivanupotus.partioalus = Partioalus
+
+luvut.banneri = **** 2048 ****
+luvut.tervetuloa = Tervetuloa pelaamaan 2048-peliä.
+luvut.ohje_1 = Siirto työntää kaikki luvut laudan reunaan asti.
+luvut.ohje_2 = Kaksi samaa lukua yhdistyy summakseen, ja laudalle ilmestyy uusi luku.
+luvut.ohje_3 = Tavoite on saada luku 2048. Peli päättyy, kun siirtoja ei enää ole.
+luvut.nappain_nuolet = Nuolet: siirrä lukuja.
+luvut.nappain_hiiri = Hiiri: klikkaa laudan reunaa.
+luvut.ohje = Siirrä: nuolet tai klikkaa lautaa.
+luvut.ei_liiku = Ei liiku tuohon suuntaan!
+luvut.uusi_peli = Tallennettu peli: K = uusi peli.
+luvut.jatka = Jatka: välilyönti tai klikkaa.
+luvut.voitto = ****HIHIHIHIII SAIT 2048!****
+luvut.jatka_nappi = J = Jatka
+luvut.suurin = SUURIN
+luvut.tavoite = Tavoite {}
+luvut.jatketaan_tallennettua = Jatketaan tallennettua peliä.
+luvut.jatketaan = Jatketaan! Kuinka pitkälle pääset?
+luvut.siirto_pisteet = Siirto {}: +{} pistettä!
+luvut.siirto = Siirto {}.
+
+pasianssi.banneri = **** PASIANSSI ****
+pasianssi.tervetuloa = Tervetuloa pelaamaan pasianssia.
+pasianssi.ohje_1 = Kokoa kortit maittain ylärivin pinoihin ässästä kuninkaaseen.
+pasianssi.ohje_2 = Sarakkeissa kortit laskevat vuorotellen punaisina ja mustina.
+pasianssi.nappain_hiiri = Hiiri: vedä, klikkaa, tuplaklikkaa.
+pasianssi.nappain_nuolet = Nuolet + välilyönti: siirrä.
+pasianssi.nappain_kirjaimet = N: nosta, U: peru, A: vie ylös.
+pasianssi.nappain_muut = M: äänet. Esc: takaisin valikkoon.
+pasianssi.kuvaus_helppo = 1 kortti, vapaa kierto, peruutus.
+pasianssi.kuvaus_normaali = 3 korttia, vapaa kierto, peruutus.
+pasianssi.kuvaus_vaikea = 3 korttia, 3 kierrosta, ei perua.
+pasianssi.sivu_hiiri = Hiiri: vedä, klikkaa.
+pasianssi.sivu_tupla = Tuplaklik: vie ylös.
+pasianssi.sivu_nuolet = Nuolet + väli: siirrä.
+pasianssi.sivu_nosta = N: nosta pakasta.
+pasianssi.sivu_aanet = M: äänet päälle/pois.
+pasianssi.sivu_valikko = Esc: valikkoon.
+pasianssi.nappi_uusi = K = Uusi peli
+pasianssi.nappi_peruuta = U = Peruuta
+pasianssi.nappi_keraa = A = Vie ylös
+pasianssi.tappio = **** SIIRROT LOPPUIVAT! ****
+pasianssi.aika = AIKA
+pasianssi.kierros = KIERROS
+pasianssi.pakassa = PAKASSA
+pasianssi.ei_kay = Kortti ei käy tähän.
+pasianssi.pakka_loppu = Pakkaa ei voi enää kääntää.
+pasianssi.ei_peruutusta = Vaikealla tasolla ei voi perua.
+pasianssi.ei_peruttavaa = Ei mitään peruttavaa.
+pasianssi.ei_kerattavaa = Ei siirtoja!
+pasianssi.jumissa = Siirrot näyttävät loppuneen. K = uusi peli.
+pasianssi.voittoviesti = Kaikki kortit ovat pakoissa!
+pasianssi.siirrot_loppu = Siirrot loppuivat. K = uusi peli.
+
+tiilirikko.banneri = ** LAATAN MURSKAIN **
+tiilirikko.tervetuloa = Tervetuloa Laatan murskaimeen.
+tiilirikko.ohje_1 = Pidä pallo kentällä mailalla ja riko kaikki tiilet.
+tiilirikko.ohje_2 = Mailan laita kääntää palloa jyrkemmin, joten voit tähdätä.
+tiilirikko.ohje_3 = Kenttiä on viisi, palloja kolme.
+tiilirikko.ohje_4 = Mitä nopeammin läpäiset kentän, sitä enemmän pisteitä.
+tiilirikko.nappain_hiiri = Hiiri tai nuolet: liikuta mailaa.
+tiilirikko.nappain_laukaisu = Välilyönti tai klikkaus: laukaise.
+tiilirikko.ohje = Ohjaa: hiiri tai nuolet. P = tauko.
+tiilirikko.laukaisu = Laukaise: välilyönti tai klikkaus.
+tiilirikko.voitto = ****KAIKKI KENTÄT LÄPI!****
+tiilirikko.kentta = KENTTÄ
+tiilirikko.pallot = PALLOT
+tiilirikko.aikabonus = AIKABONUS
+tiilirikko.pallo_meni = Pallo meni! Palloja jäljellä: {}.
+tiilirikko.kentta_lapi = Kenttä läpi! Aikabonus +{}.
+tiilirikko.loppubonus = Aikabonus +{}. Pisteet: {}.
+
+asteroidit.banneri = **** ASTEROIDIT ****
+asteroidit.tervetuloa = Tervetuloa pelaamaan Asteroideja.
+asteroidit.ohje_1 = Ammu kivet ja lentävät lautaset. Iso kivi hajoaa kahdeksi pienemmäksi.
+asteroidit.ohje_2 = Aluksia on kolme, ja joka 10000. piste tuo uuden.
+asteroidit.nappain_kaanto = Vasen, oikea tai hiiri: käännä.
+asteroidit.nappain_tyonto = Ylös: kiihdytä.
+asteroidit.nappain_ammu = Välilyönti tai klikkaus: ammu.
+asteroidit.nappain_muut = H: hyppy. P: tauko. M: äänet.
+asteroidit.ohje = Nuolet, H = hyppy, P = tauko.
+asteroidit.aalto = AALTO
+asteroidit.alukset = ALUKSET
+asteroidit.alus_tuhoutui = Alus tuhoutui! Aluksia jäljellä: {}.
+asteroidit.lisaalus = Lisäalus!
+asteroidit.uusi_aalto = Aalto {}!
+
+silmukka.banneri = **** MATO8000 ****
+silmukka.tervetuloa = Tervetuloa Mato8000-peliin.
+silmukka.ohje_1 = Kun mato osuu itseensä, syntyy silmukka: kaikki sen sisään jäänyt on saalista, mutta silmukka kuluttaa madon.
+silmukka.ohje_2 = Mitä enemmän kerralla, sen moninkertaisemmat pisteet. Omenat kasvattavat. Varo seiniä ja itikoita.
+silmukka.nappain_ohjaus = Nuolet, WASD tai hiiri: ohjaa.
+silmukka.ohje = Nuolet, WASD tai hiiri. P = tauko.
+silmukka.taso = TASO
+silmukka.pituus = PITUUS
+silmukka.kehu_2 = TUPLA!
+silmukka.kehu_3 = KOLMOSET!
+silmukka.kehu_4 = NELOSET!
+silmukka.kehu_5 = MAHTAVA!
+silmukka.kehu_7 = USKOMATON!
+silmukka.kehu_9 = JUHANNUSTAIKAA!
+silmukka.kultaomena = Kultaomena!
+silmukka.muna_litistyi = Muna litistyi ennen kuoriutumista.
+silmukka.tyhja = Tyhjä silmukka: pituus kului hukkaan.
+silmukka.kulta_ilmestyi = Kultaomena! Nopeasti, se katoaa pian.
+silmukka.uusi_taso = Taso {}: mato kiihtyy, parvi kasvaa.
+silmukka.saalis = Saalis {}: +{} pistettä!
+
+[en]
+peli.pelikone = Game Machine
+peli.laivanupotus = Battleships
+peli.luvut = 2048
+peli.pasianssi = Solitaire
+peli.tiilirikko = Laatan murskain
+peli.asteroidit = Asteroids
+peli.silmukka = Mato8000
+
+valikko.banneri = **** GAME MACHINE ****
+valikko.ohje = Space: play. M: sound. Esc: quit.
+valikko.kielikytkin = L = Suomi
+valikko.laivanupotus = Sink the enemy fleet.
+valikko.luvut = Merge the numbers and reach 2048.
+valikko.pasianssi = Classic solitaire, three levels.
+valikko.tiilirikko = Break the bricks, keep the ball up.
+valikko.asteroidit = Shoot the rocks before they hit.
+valikko.silmukka = Coil the worm around mosquitoes.
+
+yhteinen.netti_top = NET TOP 3
+yhteinen.top3 = TOP 3
+yhteinen.aani_paalla = Sound: on
+yhteinen.aani_pois = Sound: off
+yhteinen.nimi_otsikko = TOP 3 SCORE!
+yhteinen.nimi_ohje = Type a nickname, Enter = done.
+yhteinen.oletusnimi = NONAME
+yhteinen.aloitus = Press space or click.
+yhteinen.ohjeet = How to play:
+yhteinen.takaisin = Esc: back to menu.
+yhteinen.aanet_kytkin = M: sound on or off.
+yhteinen.tauko_aanet = P: pause. M: sound.
+yhteinen.tauko = PAUSED
+yhteinen.tauon_ohje = Resume: P, space or click.
+yhteinen.peli_paattyi = GAME OVER!
+yhteinen.voitit = ****HIHIHIHIII YOU WON!****
+yhteinen.uudestaan = K = Again
+yhteinen.valikkoon = E = Menu
+yhteinen.pisteet = SCORE
+yhteinen.paras = BEST
+yhteinen.siirrot = MOVES
+yhteinen.tulos = Score: {}.
+yhteinen.taso = Level:
+yhteinen.helppo = Easy
+yhteinen.normaali = Normal
+yhteinen.vaikea = Hard
+yhteinen.taso_1 = 1 Easy
+yhteinen.taso_2 = 2 Normal
+yhteinen.taso_3 = 3 Hard
+
+laivanupotus.banneri = **** BATTLESHIPS ****
+laivanupotus.tervetuloa = Welcome to Battleships.
+laivanupotus.ohje_1 = Both sides have 5 ships on a 10x10 grid (lengths 5, 4, 3, 3 and 2).
+laivanupotus.ohje_2 = You take turns firing. The first to sink all enemy ships wins.
+laivanupotus.nappain_hiiri = Mouse: point and click a square.
+laivanupotus.nappain_nuolet = Arrows, A-J and 1-0: pick a square.
+laivanupotus.nappain_ammu = Space or Enter: fire.
+laivanupotus.ohje = Fire: click or arrows + space
+laivanupotus.ammuit_jo = You already fired here!
+laivanupotus.tappio = YOU LOST THE GAME!
+laivanupotus.vastustajan_lauta = ENEMY BOARD
+laivanupotus.oma_lauta = YOUR BOARD
+laivanupotus.upotettu = Sunk {}/{}
+laivanupotus.sina_ammuit = You fired at
+laivanupotus.vastustaja_ampui = Enemy fired at
+laivanupotus.ohi = {} {}: miss.
+laivanupotus.osuma = {} {}: HIT!
+laivanupotus.upposi = {} {}: HIT! {} sunk!
+laivanupotus.lentotukialus = Carrier
+laivanupotus.taistelulaiva = Battleship
+laivanupotus.havittaja = Destroyer
+laivanupotus.sukellusvene = Submarine
+laivanupotus.partioalus = Patrol boat
+
+luvut.banneri = **** 2048 ****
+luvut.tervetuloa = Welcome to 2048.
+luvut.ohje_1 = A move pushes all numbers to the edge of the board.
+luvut.ohje_2 = Two equal numbers merge into their sum, and a new number appears.
+luvut.ohje_3 = The goal is to reach 2048. The game ends when no moves are left.
+luvut.nappain_nuolet = Arrows: move the numbers.
+luvut.nappain_hiiri = Mouse: click the board's edge.
+luvut.ohje = Move: arrows or click the board.
+luvut.ei_liiku = Nothing moves that way!
+luvut.uusi_peli = Saved game: K = new game.
+luvut.jatka = Continue: press space or click.
+luvut.voitto = ****HIHIHIHIII YOU GOT 2048!****
+luvut.jatka_nappi = J = Go on
+luvut.suurin = LARGEST
+luvut.tavoite = Goal {}
+luvut.jatketaan_tallennettua = Continuing your saved game.
+luvut.jatketaan = Keep going! How far can you get?
+luvut.siirto_pisteet = Move {}: +{} points!
+luvut.siirto = Move {}.
+
+pasianssi.banneri = **** SOLITAIRE ****
+pasianssi.tervetuloa = Welcome to Solitaire.
+pasianssi.ohje_1 = Build the top row piles by suit from ace to king.
+pasianssi.ohje_2 = In the columns, cards go down in alternating red and black.
+pasianssi.nappain_hiiri = Mouse: drag, click, double-click.
+pasianssi.nappain_nuolet = Arrows + space: move.
+pasianssi.nappain_kirjaimet = N: draw, U: undo, A: send up.
+pasianssi.nappain_muut = M: sound. Esc: back to menu.
+pasianssi.kuvaus_helppo = 1 card, free passes, undo.
+pasianssi.kuvaus_normaali = 3 cards, free passes, undo.
+pasianssi.kuvaus_vaikea = 3 cards, 3 passes, no undo.
+pasianssi.sivu_hiiri = Mouse: drag, click.
+pasianssi.sivu_tupla = Dbl-click: send up.
+pasianssi.sivu_nuolet = Arrows + space: move.
+pasianssi.sivu_nosta = N: draw a card.
+pasianssi.sivu_aanet = M: sound on/off.
+pasianssi.sivu_valikko = Esc: to menu.
+pasianssi.nappi_uusi = K = New game
+pasianssi.nappi_peruuta = U = Undo
+pasianssi.nappi_keraa = A = Send up
+pasianssi.tappio = **** OUT OF MOVES! ****
+pasianssi.aika = TIME
+pasianssi.kierros = PASS
+pasianssi.pakassa = STOCK
+pasianssi.ei_kay = That card won't go here.
+pasianssi.pakka_loppu = The stock can't be turned again.
+pasianssi.ei_peruutusta = Hard level has no undo.
+pasianssi.ei_peruttavaa = Nothing to undo.
+pasianssi.ei_kerattavaa = No moves!
+pasianssi.jumissa = Looks like you are out of moves. K = new game.
+pasianssi.voittoviesti = All cards are on the piles!
+pasianssi.siirrot_loppu = Out of moves. K = new game.
+
+tiilirikko.banneri = ** LAATAN MURSKAIN **
+tiilirikko.tervetuloa = Welcome to Laatan murskain.
+tiilirikko.ohje_1 = Keep the ball up with the paddle and break all bricks.
+tiilirikko.ohje_2 = The paddle's edge turns the ball more sharply, so you can aim.
+tiilirikko.ohje_3 = There are five stages and three balls.
+tiilirikko.ohje_4 = The faster you clear a stage, the more points you get.
+tiilirikko.nappain_hiiri = Mouse or arrows: move the paddle.
+tiilirikko.nappain_laukaisu = Space or click: launch.
+tiilirikko.ohje = Steer: mouse or arrows. P = pause.
+tiilirikko.laukaisu = Launch: space or click.
+tiilirikko.voitto = ****ALL STAGES CLEARED!****
+tiilirikko.kentta = STAGE
+tiilirikko.pallot = BALLS
+tiilirikko.aikabonus = BONUS
+tiilirikko.pallo_meni = Ball lost! Balls left: {}.
+tiilirikko.kentta_lapi = Stage clear! Time bonus +{}.
+tiilirikko.loppubonus = Time bonus +{}. Score: {}.
+
+asteroidit.banneri = **** ASTEROIDS ****
+asteroidit.tervetuloa = Welcome to Asteroids.
+asteroidit.ohje_1 = Shoot the rocks and flying saucers. A big rock splits into two smaller ones.
+asteroidit.ohje_2 = You have three ships, and every 10000 points gives a new one.
+asteroidit.nappain_kaanto = Left, right or mouse: turn.
+asteroidit.nappain_tyonto = Up: thrust.
+asteroidit.nappain_ammu = Space or click: fire.
+asteroidit.nappain_muut = H: jump. P: pause. M: sound.
+asteroidit.ohje = Arrows, H = jump, P = pause.
+asteroidit.aalto = WAVE
+asteroidit.alukset = SHIPS
+asteroidit.alus_tuhoutui = Ship destroyed! Ships left: {}.
+asteroidit.lisaalus = Extra ship!
+asteroidit.uusi_aalto = Wave {}!
+
+silmukka.banneri = **** MATO8000 ****
+silmukka.tervetuloa = Welcome to Mato8000.
+silmukka.ohje_1 = When the worm hits itself it forms a loop: everything inside is caught, but the loop uses up the worm.
+silmukka.ohje_2 = The more at once, the bigger the multiplier. Apples make you grow. Avoid walls and mosquitoes.
+silmukka.nappain_ohjaus = Arrows, WASD or mouse: steer.
+silmukka.ohje = Arrows, WASD or mouse. P = pause.
+silmukka.taso = LEVEL
+silmukka.pituus = LENGTH
+silmukka.kehu_2 = DOUBLE!
+silmukka.kehu_3 = TRIPLE!
+silmukka.kehu_4 = QUADRUPLE!
+silmukka.kehu_5 = AWESOME!
+silmukka.kehu_7 = UNBELIEVABLE!
+silmukka.kehu_9 = MIDSUMMER MAGIC!
+silmukka.kultaomena = Golden apple!
+silmukka.muna_litistyi = Egg squashed before it hatched.
+silmukka.tyhja = Empty loop: the length was wasted.
+silmukka.kulta_ilmestyi = Golden apple! Quick, it fades soon.
+silmukka.uusi_taso = Level {}: faster worm, bigger swarm.
+silmukka.saalis = Catch {}: +{} points!

@@ -1,10 +1,11 @@
 //! Parhaiden tulosten lista ja nimimerkin kirjoitus.
 
+use super::kieli::kaanna;
 use super::syote::Syote;
 
 pub const PARHAITA: usize = 3;
 pub const NIMEN_PITUUS: usize = 8;
-const OLETUSNIMI: &str = "NIMETÖN";
+const OLETUSNIMI: &str = "yhteinen.oletusnimi";
 // Raja pitää muokatun tiedoston tai vieraan vastauksen luvut sellaisina, ettei mikään voi ylivuotaa.
 const SUURIN_PISTEMAARA: u32 = 1_000_000_000;
 
@@ -53,7 +54,7 @@ pub fn lisaa_tulos(parhaat: &mut Vec<Tulos>, tulos: Tulos) {
 /// nimi korvataan oletuksella.
 pub fn ota_nimi(nimi: &mut String) -> String {
     if nimi.is_empty() {
-        OLETUSNIMI.to_string()
+        kaanna(OLETUSNIMI).to_string()
     } else {
         std::mem::take(nimi)
     }
@@ -109,7 +110,7 @@ mod tests {
     #[test]
     fn tyhja_nimi_saa_oletuksen() {
         let mut nimi = String::new();
-        assert_eq!(ota_nimi(&mut nimi), OLETUSNIMI);
+        assert_eq!(ota_nimi(&mut nimi), kaanna(OLETUSNIMI));
         muokkaa_nimea(&mut nimi, Syote::Kirjain('A'));
         assert_eq!(ota_nimi(&mut nimi), "A");
         assert!(nimi.is_empty());

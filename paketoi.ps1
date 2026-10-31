@@ -16,7 +16,7 @@ $exe = 'target\release\klassikot8000.exe'
 $paketti = "dist\klassikot8000-$versio-windows-x64.zip"
 
 New-Item -ItemType Directory -Force dist | Out-Null
-Compress-Archive -Path $exe -DestinationPath $paketti -CompressionLevel Optimal -Force
+Compress-Archive -Path $exe, 'kielet.txt' -DestinationPath $paketti -CompressionLevel Optimal -Force
 
 Write-Host ''
 Write-Host "Paketti: $paketti"

@@ -3,6 +3,7 @@
 use klassikot8000::luvut::{Lukulauta, Paikka, SIVU, Suunta, TAVOITE};
 
 use super::peli::{KIPINA_MS, LIUKU_MS, Luvut, Nappi, Vaihe};
+use crate::yhteinen::kieli::{kaanna, muotoile};
 use crate::yhteinen::piirto::*;
 use crate::yhteinen::vektori::{Kangas, Tahko, kuutio};
 
@@ -21,17 +22,39 @@ const NUOLEN_KOKO: i32 = 15;
 const PARHAAT_Y: i32 = TAVOITE_Y + 66;
 const PARHAAT_L: i32 = LEVEYS as i32 - 12 - SARAKE_X;
 
-const OHJE: &str = "Siirrä: nuolet tai klikkaa lautaa.";
-const EI_LIIKU: &str = "Ei liiku tuohon suuntaan!";
-const UUSI_PELI: &str = "Tallennettu peli: K = uusi peli.";
-const JATKA: &str = "Jatka: välilyönti tai klikkaa.";
-const VOITTO: &str = "****HIHIHIHIII SAIT 2048!****";
-const TAPPIO: &str = "PELI PÄÄTTYI!";
+const OHJE: &str = "luvut.ohje";
+const EI_LIIKU: &str = "luvut.ei_liiku";
+const UUSI_PELI: &str = "luvut.uusi_peli";
+const JATKA: &str = "luvut.jatka";
+const VOITTO: &str = "luvut.voitto";
+const TAPPIO: &str = "yhteinen.peli_paattyi";
 
 const NAPIT: [(Nappi, &str, i32); 3] = [
-    (Nappi::Uudestaan, "K = Uudestaan", NAPPI_X),
-    (Nappi::Valikko, "E = Valikko", NAPPI_X + 13 * MERKKI + 48),
-    (Nappi::Jatka, "J = Jatka", NAPPI_X + 24 * MERKKI + 84),
+    (Nappi::Uudestaan, "yhteinen.uudestaan", NAPPI_X),
+    (
+        Nappi::Valikko,
+        "yhteinen.valikkoon",
+        NAPPI_X + 13 * MERKKI + 48,
+    ),
+    (
+        Nappi::Jatka,
+        "luvut.jatka_nappi",
+        NAPPI_X + 24 * MERKKI + 84,
+    ),
+];
+
+const ALKU_OSAT: [&str; 5] = [
+    "luvut.tervetuloa",
+    "yhteinen.ohjeet",
+    "luvut.ohje_1",
+    "luvut.ohje_2",
+    "luvut.ohje_3",
+];
+const ALKU_RIVIT: [&str; 4] = [
+    "luvut.nappain_nuolet",
+    "luvut.nappain_hiiri",
+    "yhteinen.aanet_kytkin",
+    "yhteinen.takaisin",
 ];
 
 /// Laudan pikseli kertoo suunnan: se puoli keskipisteestä, jota kohti on pisin matka.
@@ -151,45 +174,14 @@ impl Piirtaja<'_> {
     fn luvut_alkuruutu(&mut self, luvut: &Luvut) {
         let jatkuu = luvut.jatkuu;
         let varit = [2, 8, 64, 2048].map(|arvo| laatan_varit(arvo).0);
-        self.maisema("**** 2048 ****", &lukupino(varit));
+        self.maisema(kaanna("luvut.banneri"), &lukupino(varit));
         let otsikko = listan_otsikko(luvut.netti_parhaat.is_some());
         self.parhaat_alkuruudulla(otsikko, luvut.nakyva_lista());
-        let mut y = OHJE_Y;
-        for osa in [
-            "Tervetuloa pelaamaan 2048-peliä.",
-            "Ohjeet:",
-            "Siirto työntää kaikki luvut laudan reunaan asti.",
-            "Kaksi samaa lukua yhdistyy summakseen, ja laudalle ilmestyy uusi luku.",
-            "Tavoite on saada luku 2048. Peli päättyy, kun siirtoja ei enää ole.",
-        ] {
-            for rivi in rivita(osa, 36) {
-                self.teksti(48, y, rivi, REUNA);
-                y += RIVIN_KORKEUS;
-            }
-        }
-        y += RIVIN_KORKEUS / 2;
-        for rivi in [
-            "Nuolet: siirrä lukuja.",
-            "Hiiri: klikkaa laudan reunaa.",
-            "M: äänet päälle tai pois.",
-            "Esc: takaisin valikkoon.",
-        ] {
-            self.teksti(48, y, rivi, VALKOINEN);
-            y += RIVIN_KORKEUS;
-        }
+        let y = self.alkuohje(&ALKU_OSAT, &ALKU_RIVIT);
         if jatkuu {
-            self.teksti(48, y, UUSI_PELI, KELTAINEN);
+            self.teksti(48, y, kaanna(UUSI_PELI), KELTAINEN);
         }
-        y = ALOITUS_Y;
-        let aloitus = if jatkuu {
-            JATKA
-        } else {
-            "Paina välilyöntiä tai klikkaa."
-        };
-        self.teksti(48, y, aloitus, REUNA);
-        if self.vilkku() {
-            self.k.laatikko(48 + 30 * MERKKI, y, MERKKI, MERKKI, REUNA);
-        }
+        self.aloituskehote(if jatkuu { JATKA } else { ALOITUS });
     }
 
     fn luvut_nakyma(&mut self, luvut: &Luvut) {
@@ -197,7 +189,7 @@ impl Piirtaja<'_> {
         let (l, k) = (LEVEYS as i32, KORKEUS as i32);
         self.k.kehys(0, 0, l, k, REUNA);
         self.k.kehys(1, 1, l - 2, k - 2, REUNA);
-        self.otsikkopalkki("2048", "");
+        self.otsikkopalkki(kaanna("peli.luvut"), "");
 
         self.luku_lauta();
         self.laatat(luvut);
@@ -335,10 +327,10 @@ impl Piirtaja<'_> {
     fn luku_tilasto(&mut self, luvut: &Luvut) {
         let lauta: &Lukulauta = &luvut.lauta;
         for (i, (otsikko, arvo)) in [
-            ("PISTEET", lauta.pisteet),
-            ("PARAS", luvut.paras),
-            ("SUURIN", lauta.suurin()),
-            ("SIIRROT", luvut.siirtoja),
+            (kaanna("yhteinen.pisteet"), lauta.pisteet),
+            (kaanna("yhteinen.paras"), luvut.paras),
+            (kaanna("luvut.suurin"), lauta.suurin()),
+            (kaanna("yhteinen.siirrot"), luvut.siirtoja),
         ]
         .into_iter()
         .enumerate()
@@ -350,7 +342,7 @@ impl Piirtaja<'_> {
         }
 
         // Palkki kertoo matkan tavoitteeseen samoilla väreillä kuin laatat.
-        let otsikko = format!("Tavoite {TAVOITE}");
+        let otsikko = muotoile("luvut.tavoite", &[&TAVOITE]);
         self.teksti(SARAKE_X, TAVOITE_Y, &otsikko, KELTAINEN);
         let saavutettu = tuplauksia(lauta.suurin());
         for i in 1..=ASKELIA_TAVOITTEESEEN {
@@ -387,17 +379,17 @@ impl Piirtaja<'_> {
         let otsikko_y = alarivi - RIVIN_KORKEUS - 12;
         match luvut.vaihe {
             Vaihe::Pelissa if luvut.ei_liiku => {
-                self.teksti(TEKSTI_X, alarivi, EI_LIIKU, WB_ORANSSI);
+                self.teksti(TEKSTI_X, alarivi, kaanna(EI_LIIKU), WB_ORANSSI);
             }
-            Vaihe::Pelissa => self.teksti(TEKSTI_X, alarivi, OHJE, HUTI),
+            Vaihe::Pelissa => self.teksti(TEKSTI_X, alarivi, kaanna(OHJE), HUTI),
             Vaihe::Voitto => {
-                self.vektoriteksti(TEKSTI_X, otsikko_y, VOITTO, TULOS, KELTAINEN, true);
+                self.vektoriteksti(TEKSTI_X, otsikko_y, kaanna(VOITTO), TULOS, KELTAINEN, true);
                 for (_, teksti, x) in NAPIT {
                     self.nappi(x, NAPPI_Y, teksti, VALKOINEN, WB_SININEN);
                 }
             }
             Vaihe::Tappio => {
-                self.vektoriteksti(TEKSTI_X, otsikko_y, TAPPIO, TULOS, KELTAINEN, true);
+                self.vektoriteksti(TEKSTI_X, otsikko_y, kaanna(TAPPIO), TULOS, KELTAINEN, true);
                 for (_, teksti, x) in &NAPIT[..2] {
                     self.nappi(*x, NAPPI_Y, teksti, VALKOINEN, WB_SININEN);
                 }
@@ -411,6 +403,7 @@ impl Piirtaja<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::yhteinen::kieli::kaikilla_kielilla;
 
     #[test]
     fn laudan_neljannekset_antavat_suunnan_ja_ulkopuoli_ei() {
@@ -424,11 +417,13 @@ mod tests {
 
     #[test]
     fn napit_eivat_mene_paallekkain_ja_mahtuvat_ruudulle() {
-        for pari in NAPIT.windows(2) {
-            assert!(pari[0].2 + napin_leveys(pari[0].1) < pari[1].2);
-        }
-        let (_, teksti, x) = NAPIT[2];
-        assert!(x + napin_leveys(teksti) < LEVEYS as i32);
+        kaikilla_kielilla(|| {
+            for pari in NAPIT.windows(2) {
+                assert!(pari[0].2 + napin_leveys(pari[0].1) < pari[1].2);
+            }
+            let (_, teksti, x) = NAPIT[2];
+            assert!(x + napin_leveys(teksti) < LEVEYS as i32);
+        });
     }
 
     #[test]
@@ -440,13 +435,26 @@ mod tests {
                 "{pituus}"
             );
         }
-        assert!(OHJE.chars().count() <= RIVILLE_MERKKEJA);
-        assert!(NIMI_OHJE.chars().count() <= RIVILLE_MERKKEJA);
-        assert_eq!(JATKA.chars().count(), 30);
-        assert!(UUSI_PELI.chars().count() <= 36);
-        assert!(VOITTO.chars().count() as i32 * TULOS.2 < LEVEYS as i32 - TEKSTI_X);
-        let viiva = "Jatketaan! Kuinka pitkälle pääset?";
-        assert!(viiva.chars().count() <= RIVILLE_MERKKEJA);
+        kaikilla_kielilla(|| {
+            for avain in [
+                OHJE,
+                EI_LIIKU,
+                NIMI_OHJE,
+                "luvut.jatketaan",
+                "luvut.jatketaan_tallennettua",
+            ] {
+                let teksti = kaanna(avain);
+                assert!(teksti.chars().count() <= RIVILLE_MERKKEJA, "{teksti}");
+            }
+            let siirto = muotoile("luvut.siirto_pisteet", &[&99999, &99999]);
+            assert!(siirto.chars().count() <= RIVILLE_MERKKEJA, "{siirto}");
+            assert!(kaanna(JATKA).chars().count() <= 36);
+            assert!(kaanna(UUSI_PELI).chars().count() <= 36);
+            assert!(kaanna(VOITTO).chars().count() as i32 * TULOS.2 < LEVEYS as i32 - TEKSTI_X);
+        });
+        // Tallennetun pelin rivi tulee näppäinohjeiden jälkeen.
+        let rivit: Vec<&str> = ALKU_RIVIT.iter().copied().chain([UUSI_PELI]).collect();
+        alkuohje_mahtuu(&ALKU_OSAT, &rivit, ALOITUS_Y);
     }
 
     #[test]

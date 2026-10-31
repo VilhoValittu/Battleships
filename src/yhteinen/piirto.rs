@@ -1,12 +1,17 @@
 use std::f32::consts::TAU;
 
+use super::kieli::kaanna;
 use super::tulokset::{PARHAITA, Tulos};
 use super::vektori::{self, Kangas, kehapiste, varjosta};
 use super::{fontti, vektorifontti};
 
 /// Sivupalkkiin mahtuu yhdeksän merkkiä.
 pub fn listan_otsikko(netti: bool) -> &'static str {
-    if netti { "NETTI TOP" } else { "TOP 3" }
+    kaanna(if netti {
+        "yhteinen.netti_top"
+    } else {
+        "yhteinen.top3"
+    })
 }
 
 pub const LEVEYS: usize = 960;
@@ -59,11 +64,11 @@ pub const RIVILLE_MERKKEJA: usize = 38;
 pub const NAPPI_Y: i32 = PANEELI_RIVI_Y + 5 * RIVIN_KORKEUS - 6;
 pub const NAPPI_K: i32 = 30;
 pub const NAPPI_X: i32 = 30;
-const AANI_PAALLA: &str = "Ääni: päällä";
-const AANI_POIS: &str = "Ääni: pois";
+const AANI_PAALLA: &str = "yhteinen.aani_paalla";
+const AANI_POIS: &str = "yhteinen.aani_pois";
 // Mahtuu pidemmän tekstin mukaan, jottei kytkin muuta kokoaan.
 const AANI_L: i32 = 12 * MERKKI + 24;
-const AANI_X: i32 = LEVEYS as i32 - 12 - AANI_L;
+pub const AANI_X: i32 = LEVEYS as i32 - 12 - AANI_L;
 const AANI_Y: i32 = 6;
 const AANI_K: i32 = 30;
 
@@ -72,6 +77,8 @@ const VILKKU_MS: u32 = 400;
 
 // Alkuruutujen viimeinen rivi: "Paina välilyöntiä..."
 pub const ALOITUS_Y: i32 = 708;
+pub const ALOITUS: &str = "yhteinen.aloitus";
+const ALKU_MERKKEJA: usize = 36;
 
 // Alkuruudun maisema
 const MAISEMA_REUNA: i32 = 24;
@@ -91,8 +98,8 @@ pub const TULOS: (i32, i32, i32) = (12, 18, 18);
 const PARHAAT_RIVI: i32 = 26;
 // Alkuruudulla lista on maiseman vasemmassa laidassa, pyörivän mallin vieressä.
 const ALKU_PARHAAT: (i32, i32, i32, i32) = (36, 204, 318, 126);
-const NIMI_OTSIKKO: &str = "TOP 3 -TULOS!";
-pub const NIMI_OHJE: &str = "Kirjoita nimimerkki, Enter = valmis.";
+const NIMI_OTSIKKO: &str = "yhteinen.nimi_otsikko";
+pub const NIMI_OHJE: &str = "yhteinen.nimi_ohje";
 
 pub fn aanikytkimella(x: i32, y: i32) -> bool {
     (AANI_X..AANI_X + AANI_L).contains(&x) && (AANI_Y..AANI_Y + AANI_K).contains(&y)
@@ -103,8 +110,8 @@ pub fn aanikytkimen_keskipiste() -> (i32, i32) {
     (AANI_X + AANI_L / 2, AANI_Y + AANI_K / 2)
 }
 
-pub fn napin_leveys(teksti: &str) -> i32 {
-    teksti.chars().count() as i32 * MERKKI + 24
+pub fn napin_leveys(avain: &str) -> i32 {
+    kaanna(avain).chars().count() as i32 * MERKKI + 24
 }
 
 /// Venyttää klassisen kuvan ruudulle. Lähimmän pikselin menetelmä säilyttää
@@ -403,6 +410,32 @@ impl Piirtaja<'_> {
         );
     }
 
+    /// Alkuruudun ohjeet: `osat` rivitetään, `rivit` ovat näppäinohjeita. Palauttaa seuraavan vapaan rivin.
+    pub fn alkuohje(&mut self, osat: &[&str], rivit: &[&str]) -> i32 {
+        let mut y = OHJE_Y;
+        for osa in osat {
+            for rivi in rivita(kaanna(osa), ALKU_MERKKEJA) {
+                self.teksti(48, y, rivi, REUNA);
+                y += RIVIN_KORKEUS;
+            }
+        }
+        y += RIVIN_KORKEUS / 2;
+        for rivi in rivit {
+            self.teksti(48, y, kaanna(rivi), VALKOINEN);
+            y += RIVIN_KORKEUS;
+        }
+        y
+    }
+
+    pub fn aloituskehote(&mut self, avain: &str) {
+        let teksti = kaanna(avain);
+        self.teksti(48, ALOITUS_Y, teksti, REUNA);
+        if self.vilkku() {
+            let x = 48 + teksti.chars().count() as i32 * MERKKI;
+            self.k.laatikko(x, ALOITUS_Y, MERKKI, MERKKI, REUNA);
+        }
+    }
+
     pub fn tahdet(&mut self) {
         // kiinteä siemen: tähdet pysyvät paikoillaan ruudusta toiseen
         let mut siemen = 0x2F6Eu32;
@@ -490,10 +523,10 @@ impl Piirtaja<'_> {
 
     /// Paneelin sisältö, kun tulos pääsi listalle ja odottaa nimimerkkiä.
     pub fn nimikysely(&mut self, pisteet: u32, nimi: &str) {
-        let otsikko = format!("{NIMI_OTSIKKO} {pisteet}");
+        let otsikko = format!("{} {pisteet}", kaanna(NIMI_OTSIKKO));
         let ohje_y = PANEELI_RIVI_Y + 2 * RIVIN_KORKEUS;
         self.vektoriteksti(TEKSTI_X, ohje_y - 21, &otsikko, TULOS, KELTAINEN, true);
-        self.teksti(TEKSTI_X, ohje_y + 6, NIMI_OHJE, HUTI);
+        self.teksti(TEKSTI_X, ohje_y + 6, kaanna(NIMI_OHJE), HUTI);
         let alarivi = PANEELI_RIVI_Y + (PANEELI_RIVEJA as i32 - 1) * RIVIN_KORKEUS;
         let kentta = format!("> {nimi}");
         self.teksti(TEKSTI_X, alarivi, &kentta, VALKOINEN);
@@ -532,18 +565,35 @@ impl Piirtaja<'_> {
         let x = self.k.leveys as i32 - 12 - AANI_L;
         self.k.laatikko(x, AANI_Y, AANI_L, AANI_K, tausta);
         self.k.kehys(x, AANI_Y, AANI_L, AANI_K, MUSTA);
-        self.teksti(x + 12, AANI_Y + 3, teksti, MUSTA);
+        self.teksti(x + 12, AANI_Y + 3, kaanna(teksti), MUSTA);
     }
 
-    pub fn nappi(&mut self, x: i32, y: i32, teksti: &str, tausta: u32, vari: u32) {
-        let leveys = napin_leveys(teksti);
+    pub fn nappi(&mut self, x: i32, y: i32, avain: &str, tausta: u32, vari: u32) {
+        let leveys = napin_leveys(avain);
         self.k.laatikko(x, y, leveys, NAPPI_K, tausta);
         self.k
             .laatikko(x + 3, y + NAPPI_K - 3, leveys - 3, 3, MUSTA);
         self.k
             .laatikko(x + leveys - 3, y + 3, 3, NAPPI_K - 3, MUSTA);
-        self.teksti(x + 12, y + 3, teksti, vari);
+        self.teksti(x + 12, y + 3, kaanna(avain), vari);
     }
+}
+
+/// Ohjeet ja kehote eivät saa mennä päällekkäin eivätkä yli kuvan laidan millään kielellä.
+#[cfg(test)]
+pub fn alkuohje_mahtuu(osat: &[&str], rivit: &[&str], raja_y: i32) {
+    super::kieli::kaikilla_kielilla(|| {
+        let osarivit: usize = osat
+            .iter()
+            .map(|osa| rivita(kaanna(osa), ALKU_MERKKEJA).len())
+            .sum();
+        let korkeus = (osarivit + rivit.len()) as i32 * RIVIN_KORKEUS + RIVIN_KORKEUS / 2;
+        assert!(OHJE_Y + korkeus <= raja_y, "{osat:?}");
+        for rivi in rivit.iter().chain(&[ALOITUS]) {
+            let teksti = kaanna(rivi);
+            assert!(teksti.chars().count() <= ALKU_MERKKEJA, "{teksti}");
+        }
+    });
 }
 
 #[cfg(test)]

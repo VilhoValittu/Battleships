@@ -9,6 +9,7 @@ use std::path::PathBuf;
 
 use klassikot8000::luvut::{Lukulauta, Ruudut, SIVU};
 
+use crate::yhteinen::kieli::Kieli;
 use crate::yhteinen::tulokset::{Tulos, lisaa_tulos, tulos_tekstista};
 
 const OTSAKE: &str = "klassikot8000 1";
@@ -32,6 +33,8 @@ pub struct Tallennus {
     pub parhaat: Vec<Tulos>,
     /// Oletus on epätosi, joten vanhassa tallennuksessa äänet ovat päällä.
     pub hiljaa: bool,
+    /// Oletus on suomi, joten vanhassa tallennuksessa kieli säilyy entisenä.
+    pub kieli: Kieli,
     /// 2048:n tulokset, jotka eivät ole vielä päässeet nettilistalle.
     pub luvut_jono: Vec<Tulos>,
     /// Tiilirikon paras tulos. Vanhassa tallennuksessa nolla.
@@ -73,8 +76,13 @@ fn ruudut(teksti: &str) -> Option<Ruudut> {
 impl Tallennus {
     pub fn tekstiksi(&self) -> String {
         let mut teksti = format!(
-            "{OTSAKE}\nparas {}\nhiljaa {}\ntiilirikko {}\nasteroidit {}\nsilmukka {}\n",
-            self.paras, self.hiljaa as u8, self.tiilirikko, self.asteroidit, self.silmukka,
+            "{OTSAKE}\nparas {}\nhiljaa {}\nkieli {}\ntiilirikko {}\nasteroidit {}\nsilmukka {}\n",
+            self.paras,
+            self.hiljaa as u8,
+            self.kieli.koodi(),
+            self.tiilirikko,
+            self.asteroidit,
+            self.silmukka,
         );
         for tulos in &self.parhaat {
             teksti += &format!("top {} {}\n", tulos.pisteet, tulos.nimi);
@@ -120,6 +128,7 @@ impl Tallennus {
         }
         let (mut paras, mut lauta, mut pisteet, mut siirrot) = (None, None, None, None);
         let (mut jatkettu, mut hiljaa) = (false, false);
+        let mut kieli = Kieli::default();
         let (mut parhaat, mut tiilirikon_parhaat) = (Vec::new(), Vec::new());
         let (mut luvut_jono, mut tiilirikon_jono) = (Vec::new(), Vec::new());
         let (mut asteroidien_parhaat, mut asteroidien_jono) = (Vec::new(), Vec::new());
@@ -129,6 +138,7 @@ impl Tallennus {
             match rivi.split_once(' ') {
                 Some(("paras", arvo)) => paras = luku(arvo),
                 Some(("hiljaa", arvo)) => hiljaa = arvo == "1",
+                Some(("kieli", arvo)) => kieli = Kieli::koodista(arvo).unwrap_or(kieli),
                 Some(("tiilirikko", arvo)) => tiilirikko = luku(arvo),
                 Some(("asteroidit", arvo)) => asteroidit = luku(arvo),
                 Some(("silmukka", arvo)) => silmukka = luku(arvo),
@@ -197,6 +207,7 @@ impl Tallennus {
             kesken,
             parhaat,
             hiljaa,
+            kieli,
             luvut_jono,
             tiilirikko: tiilirikko.unwrap_or(0),
             tiilirikon_parhaat,
@@ -257,6 +268,7 @@ mod tests {
                 },
             ],
             hiljaa: true,
+            kieli: Kieli::Englanti,
             luvut_jono: vec![Tulos {
                 nimi: "A1".to_string(),
                 pisteet: 300,
@@ -300,6 +312,7 @@ mod tests {
             kesken: None,
             parhaat: Vec::new(),
             hiljaa: false,
+            kieli: Kieli::Suomi,
             luvut_jono: Vec::new(),
             tiilirikko: 0,
             tiilirikon_parhaat: Vec::new(),

@@ -3,6 +3,7 @@
 use klassikot8000::asteroidit::{self, Alus, Kivi, Lautanen, Piste};
 
 use super::peli::{Asteroidit, Nappi, RAJAHDYS_MS, Vaihe};
+use crate::yhteinen::kieli::kaanna;
 use crate::yhteinen::piirto::*;
 use crate::yhteinen::vektori::{Kangas, Tahko, tahko4};
 
@@ -41,14 +42,32 @@ const LAUTASEN_MUOTO: [Piste; 8] = [
     (-0.4, -0.25),
 ];
 
-const OHJE: &str = "Nuolet, H = hyppy, P = tauko.";
-const TAUKO: &str = "TAUKO";
-const TAUON_OHJE: &str = "Jatka: P, välilyönti tai klikkaus.";
-const TAPPIO: &str = "PELI PÄÄTTYI!";
+const OHJE: &str = "asteroidit.ohje";
+const TAUKO: &str = "yhteinen.tauko";
+const TAUON_OHJE: &str = "yhteinen.tauon_ohje";
+const TAPPIO: &str = "yhteinen.peli_paattyi";
 
 const NAPIT: [(Nappi, &str, i32); 2] = [
-    (Nappi::Uudestaan, "K = Uudestaan", NAPPI_X),
-    (Nappi::Valikko, "E = Valikko", NAPPI_X + 13 * MERKKI + 48),
+    (Nappi::Uudestaan, "yhteinen.uudestaan", NAPPI_X),
+    (
+        Nappi::Valikko,
+        "yhteinen.valikkoon",
+        NAPPI_X + 13 * MERKKI + 48,
+    ),
+];
+
+const ALKU_OSAT: [&str; 4] = [
+    "asteroidit.tervetuloa",
+    "yhteinen.ohjeet",
+    "asteroidit.ohje_1",
+    "asteroidit.ohje_2",
+];
+const ALKU_RIVIT: [&str; 5] = [
+    "asteroidit.nappain_kaanto",
+    "asteroidit.nappain_tyonto",
+    "asteroidit.nappain_ammu",
+    "asteroidit.nappain_muut",
+    "yhteinen.takaisin",
 ];
 
 pub fn nappi_pisteesta(x: i32, y: i32) -> Option<Nappi> {
@@ -129,37 +148,11 @@ pub fn piirra(peli: &Asteroidit, kuva: &mut [u32]) {
 
 impl Piirtaja<'_> {
     fn asteroidi_alkuruutu(&mut self, peli: &Asteroidit) {
-        self.maisema("**** ASTEROIDIT ****", &kivimalli());
+        self.maisema(kaanna("asteroidit.banneri"), &kivimalli());
         let otsikko = listan_otsikko(peli.netti_parhaat.is_some());
         self.parhaat_alkuruudulla(otsikko, peli.nakyva_lista());
-        let mut y = OHJE_Y;
-        for osa in [
-            "Tervetuloa pelaamaan Asteroideja.",
-            "Ohjeet:",
-            "Ammu kivet ja lentävät lautaset. Iso kivi hajoaa kahdeksi pienemmäksi.",
-            "Aluksia on kolme, ja joka 10000. piste tuo uuden.",
-        ] {
-            for rivi in rivita(osa, 36) {
-                self.teksti(48, y, rivi, REUNA);
-                y += RIVIN_KORKEUS;
-            }
-        }
-        y += RIVIN_KORKEUS / 2;
-        for rivi in [
-            "Vasen, oikea tai hiiri: käännä.",
-            "Ylös: kiihdytä.",
-            "Välilyönti tai klikkaus: ammu.",
-            "H: hyppy. P: tauko. M: äänet.",
-            "Esc: takaisin valikkoon.",
-        ] {
-            self.teksti(48, y, rivi, VALKOINEN);
-            y += RIVIN_KORKEUS;
-        }
-        self.teksti(48, ALOITUS_Y, "Paina välilyöntiä tai klikkaa.", REUNA);
-        if self.vilkku() {
-            self.k
-                .laatikko(48 + 30 * MERKKI, ALOITUS_Y, MERKKI, MERKKI, REUNA);
-        }
+        self.alkuohje(&ALKU_OSAT, &ALKU_RIVIT);
+        self.aloituskehote(ALOITUS);
     }
 
     fn asteroidi_nakyma(&mut self, peli: &Asteroidit) {
@@ -168,7 +161,7 @@ impl Piirtaja<'_> {
         self.avaruuden_tahdet();
         self.kappaleet(peli);
         self.kentan_kehys();
-        self.otsikkopalkki("ASTEROIDIT", "");
+        self.otsikkopalkki(&kaanna("peli.asteroidit").to_uppercase(), "");
         self.asteroidi_tilasto(peli);
         self.asteroidi_paneeli(peli);
     }
@@ -297,9 +290,9 @@ impl Piirtaja<'_> {
         let lauta = &peli.lauta;
         let aalto = (lauta.aalto + 1).to_string();
         for (i, (otsikko, arvo)) in [
-            ("PISTEET", lauta.pisteet.to_string()),
-            ("PARAS", peli.paras.to_string()),
-            ("AALTO", aalto),
+            (kaanna("yhteinen.pisteet"), lauta.pisteet.to_string()),
+            (kaanna("yhteinen.paras"), peli.paras.to_string()),
+            (kaanna("asteroidit.aalto"), aalto),
         ]
         .into_iter()
         .enumerate()
@@ -310,7 +303,14 @@ impl Piirtaja<'_> {
         }
 
         let y = KENTTA_Y + 3 * TILASTON_ASKEL;
-        self.vektoriteksti(SARAKE_X, y, "ALUKSET", OTSIKKO, KELTAINEN, false);
+        self.vektoriteksti(
+            SARAKE_X,
+            y,
+            kaanna("asteroidit.alukset"),
+            OTSIKKO,
+            KELTAINEN,
+            false,
+        );
         // Kymmenen alusta täyttää sarakkeen, eikä suurempi luku enää kerro paljoa.
         for i in 0..lauta.elamat.min(10) as i32 {
             let keski = (SARAKE_X + 10 + i * 22, y + 42);
@@ -336,13 +336,13 @@ impl Piirtaja<'_> {
         let alarivi = PANEELI_RIVI_Y + (PANEELI_RIVEJA as i32 - 1) * RIVIN_KORKEUS;
         let otsikko_y = alarivi - RIVIN_KORKEUS - 12;
         match peli.vaihe {
-            Vaihe::Pelissa => self.teksti(TEKSTI_X, alarivi, OHJE, HUTI),
+            Vaihe::Pelissa => self.teksti(TEKSTI_X, alarivi, kaanna(OHJE), HUTI),
             Vaihe::Tauko => {
-                self.vektoriteksti(TEKSTI_X, otsikko_y, TAUKO, TULOS, KELTAINEN, true);
-                self.teksti(TEKSTI_X, alarivi, TAUON_OHJE, HUTI);
+                self.vektoriteksti(TEKSTI_X, otsikko_y, kaanna(TAUKO), TULOS, KELTAINEN, true);
+                self.teksti(TEKSTI_X, alarivi, kaanna(TAUON_OHJE), HUTI);
             }
             Vaihe::Tappio => {
-                self.vektoriteksti(TEKSTI_X, otsikko_y, TAPPIO, TULOS, KELTAINEN, true);
+                self.vektoriteksti(TEKSTI_X, otsikko_y, kaanna(TAPPIO), TULOS, KELTAINEN, true);
                 for (_, teksti, x) in NAPIT {
                     self.nappi(x, NAPPI_Y, teksti, VALKOINEN, WB_SININEN);
                 }
@@ -356,6 +356,7 @@ impl Piirtaja<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::yhteinen::kieli::{kaikilla_kielilla, muotoile};
     use crate::yhteinen::syote::Syote;
 
     #[test]
@@ -365,19 +366,26 @@ mod tests {
             assert_eq!(nappi_pisteesta(x, y), Some(nappi));
         }
         assert_eq!(nappi_pisteesta(0, 0), None);
-        assert!(NAPIT[0].2 + napin_leveys(NAPIT[0].1) < NAPIT[1].2);
+        kaikilla_kielilla(|| assert!(NAPIT[0].2 + napin_leveys(NAPIT[0].1) < NAPIT[1].2));
     }
 
     #[test]
     fn tekstit_ja_kentta_mahtuvat_paikoilleen() {
-        for teksti in [
-            OHJE,
-            TAUON_OHJE,
-            "Alus tuhoutui! Aluksia jäljellä: 99.",
-            "Pisteet: 999999.",
-        ] {
-            assert!(teksti.chars().count() <= RIVILLE_MERKKEJA, "{teksti}");
-        }
+        kaikilla_kielilla(|| {
+            for teksti in [
+                kaanna(OHJE).to_string(),
+                kaanna(TAUON_OHJE).to_string(),
+                muotoile("asteroidit.alus_tuhoutui", &[&99]),
+                muotoile("yhteinen.tulos", &[&999999]),
+            ] {
+                assert!(teksti.chars().count() <= RIVILLE_MERKKEJA, "{teksti}");
+            }
+            for avain in ["asteroidit.aalto", "asteroidit.alukset"] {
+                let leveys = kaanna(avain).chars().count() as i32 * OTSIKKO.2;
+                assert!(SARAKE_X + leveys < LEVEYS as i32, "{avain}");
+            }
+        });
+        alkuohje_mahtuu(&ALKU_OSAT, &ALKU_RIVIT, ALOITUS_Y);
         const { assert!((2 + 8 + 1 + 6) * PARHAAT_KOKO.2 <= PARHAAT_L) };
         const { assert!(PARHAAT_Y + 30 + 3 * 26 < PANEELI_Y) };
         const { assert!(KENTTA_Y + KENTTA_K < PANEELI_Y) };

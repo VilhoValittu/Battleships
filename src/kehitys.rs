@@ -7,12 +7,15 @@ use klassikot8000::laivanupotus::{Ruutu, Vaikeus};
 use klassikot8000::luvut::{Ruudut, SIVU, Suunta};
 
 use crate::kaynnistin::Laji;
+use crate::yhteinen::kieli::Kieli;
 
 pub struct Liput {
     pub siemen: Option<u64>,
     pub kuvakaappaus: Option<String>,
     pub siirrot: Vec<Ruutu>,
     pub vaikeus: Option<Vaikeus>,
+    /// Kieli koodina `fi` tai `en`. Menee tallennuksen asetuksen edelle.
+    pub kieli: Option<Kieli>,
     /// Ohittaa käynnistimen. Kunkin pelin omat liput tekevät saman.
     peli: Option<Laji>,
     /// 2048: luvut laudalla riveittäin, kuvakaappausta varten.
@@ -70,6 +73,7 @@ pub fn lue_liput() -> Result<Liput, String> {
         kuvakaappaus: None,
         siirrot: Vec::new(),
         vaikeus: None,
+        kieli: None,
         peli: None,
         lauta: None,
         liu_ut: Vec::new(),
@@ -87,6 +91,9 @@ pub fn lue_liput() -> Result<Liput, String> {
     while let Some(lippu) = args.next() {
         let arvo = args.next().ok_or(format!("{lippu}: arvo puuttuu"))?;
         match lippu.as_str() {
+            "--lang" => {
+                liput.kieli = Some(Kieli::koodista(&arvo).ok_or(format!("--lang: {arvo}"))?);
+            }
             "--seed" => liput.siemen = Some(arvo.parse().map_err(|_| "--seed: ei luku")?),
             "--screenshot" => liput.kuvakaappaus = Some(arvo),
             "--save" => liput.tallennus = Some(arvo),

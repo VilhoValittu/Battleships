@@ -5,6 +5,7 @@ use klassikot8000::laivanupotus::{
 
 use super::piirto;
 use crate::yhteinen::aanet::Aani;
+use crate::yhteinen::kieli::{kaanna, muotoile};
 use crate::yhteinen::piirto::aanikytkimella;
 use crate::yhteinen::syote::Syote;
 
@@ -222,7 +223,10 @@ impl Peli {
             return;
         };
         self.ammuttu_jo = false;
-        self.viestit = [tulos_teksti("Sinä ammuit", ruutu, tulos), String::new()];
+        self.viestit = [
+            tulos_teksti("laivanupotus.sina_ammuit", ruutu, tulos),
+            String::new(),
+        ];
         self.aanijono.push((Aani::Laukaus, 0));
         self.aanijono.push((tuloksen_aani(tulos), TULOS_VIIVE_MS));
         self.tehosteet.push(Tehoste {
@@ -240,7 +244,7 @@ impl Peli {
         let laukaus = vastustaja::valitse(self.vaikeus, &self.oma.tiedot(), &mut self.arpa);
         let tulos = laukaus.and_then(|r| Some((r, self.oma.kasittele_laukaus(r)?)));
         if let Some((ruutu, tulos)) = tulos {
-            self.viestit[1] = tulos_teksti("Vastustaja ampui", ruutu, tulos);
+            self.viestit[1] = tulos_teksti("laivanupotus.vastustaja_ampui", ruutu, tulos);
             self.aanijono.push((Aani::Tulipallo, VASTAUS_VIIVE_MS));
             self.aanijono
                 .push((tuloksen_aani(tulos), VASTAUS_VIIVE_MS + TULOS_VIIVE_MS));
@@ -271,11 +275,27 @@ fn siirra(arvo: u8, muutos: i8) -> u8 {
     arvo.saturating_add_signed(muutos).min(KOKO as u8 - 1)
 }
 
-fn tulos_teksti(ampuja: &str, ruutu: Ruutu, tulos: Laukaustulos) -> String {
+/// Logiikka tuntee laivat suomenkielisillä nimillä, näkyvä nimi tulee kielitiedostosta.
+pub fn laivan_nimi(nimi: &'static str) -> &'static str {
+    match nimi {
+        "Lentotukialus" => kaanna("laivanupotus.lentotukialus"),
+        "Taistelulaiva" => kaanna("laivanupotus.taistelulaiva"),
+        "Hävittäjä" => kaanna("laivanupotus.havittaja"),
+        "Sukellusvene" => kaanna("laivanupotus.sukellusvene"),
+        "Partioalus" => kaanna("laivanupotus.partioalus"),
+        _ => nimi,
+    }
+}
+
+pub fn tulos_teksti(ampuja: &str, ruutu: Ruutu, tulos: Laukaustulos) -> String {
+    let ampuja = kaanna(ampuja);
     match tulos {
-        Laukaustulos::Ohi => format!("{ampuja} {ruutu}: ohi."),
-        Laukaustulos::Osuma => format!("{ampuja} {ruutu}: OSUMA!"),
-        Laukaustulos::Upposi(laiva) => format!("{ampuja} {ruutu}: OSUMA! {laiva} upposi!"),
+        Laukaustulos::Ohi => muotoile("laivanupotus.ohi", &[&ampuja, &ruutu]),
+        Laukaustulos::Osuma => muotoile("laivanupotus.osuma", &[&ampuja, &ruutu]),
+        Laukaustulos::Upposi(laiva) => muotoile(
+            "laivanupotus.upposi",
+            &[&ampuja, &ruutu, &laivan_nimi(laiva)],
+        ),
     }
 }
 

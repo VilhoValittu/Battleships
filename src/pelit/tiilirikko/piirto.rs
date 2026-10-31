@@ -6,6 +6,7 @@ use klassikot8000::tiilirikko::{
 };
 
 use super::peli::{KIPINA_MS, Nappi, Tiilirikko, Vaihe};
+use crate::yhteinen::kieli::kaanna;
 use crate::yhteinen::piirto::*;
 use crate::yhteinen::vektori::{Kangas, Tahko, kuutio};
 
@@ -24,16 +25,35 @@ const RIVIN_VARIT: [u32; RIVEJA] = [
     OSUMA, WB_ORANSSI, KELTAINEN, 0x70B050, HUTI, 0x4FA8E0, REUNA, 0x8B3FC0,
 ];
 
-const OHJE: &str = "Ohjaa: hiiri tai nuolet. P = tauko.";
-const LAUKAISU: &str = "Laukaise: välilyönti tai klikkaus.";
-const TAUKO: &str = "TAUKO";
-const TAUON_OHJE: &str = "Jatka: P, välilyönti tai klikkaus.";
-const VOITTO: &str = "****KAIKKI KENTÄT LÄPI!****";
-const TAPPIO: &str = "PELI PÄÄTTYI!";
+const OHJE: &str = "tiilirikko.ohje";
+const LAUKAISU: &str = "tiilirikko.laukaisu";
+const TAUKO: &str = "yhteinen.tauko";
+const TAUON_OHJE: &str = "yhteinen.tauon_ohje";
+const VOITTO: &str = "tiilirikko.voitto";
+const TAPPIO: &str = "yhteinen.peli_paattyi";
 
 const NAPIT: [(Nappi, &str, i32); 2] = [
-    (Nappi::Uudestaan, "K = Uudestaan", NAPPI_X),
-    (Nappi::Valikko, "E = Valikko", NAPPI_X + 13 * MERKKI + 48),
+    (Nappi::Uudestaan, "yhteinen.uudestaan", NAPPI_X),
+    (
+        Nappi::Valikko,
+        "yhteinen.valikkoon",
+        NAPPI_X + 13 * MERKKI + 48,
+    ),
+];
+
+const ALKU_OSAT: [&str; 6] = [
+    "tiilirikko.tervetuloa",
+    "yhteinen.ohjeet",
+    "tiilirikko.ohje_1",
+    "tiilirikko.ohje_2",
+    "tiilirikko.ohje_3",
+    "tiilirikko.ohje_4",
+];
+const ALKU_RIVIT: [&str; 4] = [
+    "tiilirikko.nappain_hiiri",
+    "tiilirikko.nappain_laukaisu",
+    "yhteinen.tauko_aanet",
+    "yhteinen.takaisin",
 ];
 
 pub fn nappi_pisteesta(x: i32, y: i32) -> Option<Nappi> {
@@ -88,38 +108,11 @@ pub fn piirra(peli: &Tiilirikko, kuva: &mut [u32]) {
 
 impl Piirtaja<'_> {
     fn tiili_alkuruutu(&mut self, peli: &Tiilirikko) {
-        self.maisema("**** TIILIRIKKO ****", &tiilimuuri());
+        self.maisema(kaanna("tiilirikko.banneri"), &tiilimuuri());
         let otsikko = listan_otsikko(peli.netti_parhaat.is_some());
         self.parhaat_alkuruudulla(otsikko, peli.nakyva_lista());
-        let mut y = OHJE_Y;
-        for osa in [
-            "Tervetuloa pelaamaan Tiilirikkoa.",
-            "Ohjeet:",
-            "Pidä pallo kentällä mailalla ja riko kaikki tiilet.",
-            "Mailan laita kääntää palloa jyrkemmin, joten voit tähdätä.",
-            "Kenttiä on viisi, palloja kolme.",
-            "Mitä nopeammin läpäiset kentän, sitä enemmän pisteitä.",
-        ] {
-            for rivi in rivita(osa, 36) {
-                self.teksti(48, y, rivi, REUNA);
-                y += RIVIN_KORKEUS;
-            }
-        }
-        y += RIVIN_KORKEUS / 2;
-        for rivi in [
-            "Hiiri tai nuolet: liikuta mailaa.",
-            "Välilyönti tai klikkaus: laukaise.",
-            "P: tauko. M: äänet.",
-            "Esc: takaisin valikkoon.",
-        ] {
-            self.teksti(48, y, rivi, VALKOINEN);
-            y += RIVIN_KORKEUS;
-        }
-        self.teksti(48, ALOITUS_Y, "Paina välilyöntiä tai klikkaa.", REUNA);
-        if self.vilkku() {
-            self.k
-                .laatikko(48 + 30 * MERKKI, ALOITUS_Y, MERKKI, MERKKI, REUNA);
-        }
+        self.alkuohje(&ALKU_OSAT, &ALKU_RIVIT);
+        self.aloituskehote(ALOITUS);
     }
 
     fn tiili_nakyma(&mut self, peli: &Tiilirikko) {
@@ -127,7 +120,7 @@ impl Piirtaja<'_> {
         let (l, k) = (LEVEYS as i32, KORKEUS as i32);
         self.k.kehys(0, 0, l, k, REUNA);
         self.k.kehys(1, 1, l - 2, k - 2, REUNA);
-        self.otsikkopalkki("TIILIRIKKO", "");
+        self.otsikkopalkki(&kaanna("peli.tiilirikko").to_uppercase(), "");
 
         self.k
             .laatikko(KENTTA_X, KENTTA_Y, KENTTA_L, KENTTA_K, VESI);
@@ -200,9 +193,9 @@ impl Piirtaja<'_> {
         let lauta = &peli.lauta;
         let kentta = format!("{}/{KENTTIA}", lauta.kentta + 1);
         for (i, (otsikko, arvo)) in [
-            ("PISTEET", lauta.pisteet.to_string()),
-            ("PARAS", peli.paras.to_string()),
-            ("KENTTÄ", kentta),
+            (kaanna("yhteinen.pisteet"), lauta.pisteet.to_string()),
+            (kaanna("yhteinen.paras"), peli.paras.to_string()),
+            (kaanna("tiilirikko.kentta"), kentta),
         ]
         .into_iter()
         .enumerate()
@@ -213,7 +206,14 @@ impl Piirtaja<'_> {
         }
 
         let y = KENTTA_Y + 3 * TILASTON_ASKEL;
-        self.vektoriteksti(SARAKE_X, y, "PALLOT", OTSIKKO, KELTAINEN, false);
+        self.vektoriteksti(
+            SARAKE_X,
+            y,
+            kaanna("tiilirikko.pallot"),
+            OTSIKKO,
+            KELTAINEN,
+            false,
+        );
         for i in 0..lauta.elamat as i32 {
             self.k
                 .laatikko(SARAKE_X + i * 27, y + 33, 18, 18, VALKOINEN);
@@ -221,7 +221,14 @@ impl Piirtaja<'_> {
 
         let y = KENTTA_Y + 4 * TILASTON_ASKEL;
         let bonus = lauta.aikabonus().to_string();
-        self.vektoriteksti(SARAKE_X, y, "AIKABONUS", TULOS, KELTAINEN, false);
+        self.vektoriteksti(
+            SARAKE_X,
+            y,
+            kaanna("tiilirikko.aikabonus"),
+            TULOS,
+            KELTAINEN,
+            false,
+        );
         self.vektoriteksti(SARAKE_X, y + 30, &bonus, OTSIKKO, VALKOINEN, true);
 
         self.parhaat_lista(
@@ -244,12 +251,12 @@ impl Piirtaja<'_> {
         let otsikko_y = alarivi - RIVIN_KORKEUS - 12;
         match peli.vaihe {
             Vaihe::Pelissa if peli.lauta.tila == Tila::Kiinni => {
-                self.teksti(TEKSTI_X, alarivi, LAUKAISU, KELTAINEN);
+                self.teksti(TEKSTI_X, alarivi, kaanna(LAUKAISU), KELTAINEN);
             }
-            Vaihe::Pelissa => self.teksti(TEKSTI_X, alarivi, OHJE, HUTI),
+            Vaihe::Pelissa => self.teksti(TEKSTI_X, alarivi, kaanna(OHJE), HUTI),
             Vaihe::Tauko => {
-                self.vektoriteksti(TEKSTI_X, otsikko_y, TAUKO, TULOS, KELTAINEN, true);
-                self.teksti(TEKSTI_X, alarivi, TAUON_OHJE, HUTI);
+                self.vektoriteksti(TEKSTI_X, otsikko_y, kaanna(TAUKO), TULOS, KELTAINEN, true);
+                self.teksti(TEKSTI_X, alarivi, kaanna(TAUON_OHJE), HUTI);
             }
             Vaihe::Voitto | Vaihe::Tappio => {
                 let otsikko = if peli.vaihe == Vaihe::Voitto {
@@ -257,7 +264,7 @@ impl Piirtaja<'_> {
                 } else {
                     TAPPIO
                 };
-                self.vektoriteksti(TEKSTI_X, otsikko_y, otsikko, TULOS, KELTAINEN, true);
+                self.vektoriteksti(TEKSTI_X, otsikko_y, kaanna(otsikko), TULOS, KELTAINEN, true);
                 for (_, teksti, x) in NAPIT {
                     self.nappi(x, NAPPI_Y, teksti, VALKOINEN, WB_SININEN);
                 }
@@ -271,6 +278,7 @@ impl Piirtaja<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::yhteinen::kieli::{kaikilla_kielilla, muotoile};
 
     #[test]
     fn napit_loytyvat_eivatka_mene_paallekkain() {
@@ -279,23 +287,34 @@ mod tests {
             assert_eq!(nappi_pisteesta(x, y), Some(nappi));
         }
         assert_eq!(nappi_pisteesta(0, 0), None);
-        assert!(NAPIT[0].2 + napin_leveys(NAPIT[0].1) < NAPIT[1].2);
+        kaikilla_kielilla(|| assert!(NAPIT[0].2 + napin_leveys(NAPIT[0].1) < NAPIT[1].2));
     }
 
     #[test]
     fn tekstit_ja_kentta_mahtuvat_paikoilleen() {
-        for teksti in [
-            OHJE,
-            LAUKAISU,
-            TAUON_OHJE,
-            "Kenttä läpi! Aikabonus +5000.",
-            "Aikabonus +5000. Pisteet: 99999.",
-        ] {
-            assert!(teksti.chars().count() <= RIVILLE_MERKKEJA, "{teksti}");
-        }
+        kaikilla_kielilla(|| {
+            for teksti in [
+                kaanna(OHJE).to_string(),
+                kaanna(LAUKAISU).to_string(),
+                kaanna(TAUON_OHJE).to_string(),
+                muotoile("tiilirikko.pallo_meni", &[&3]),
+                muotoile("tiilirikko.kentta_lapi", &[&5000]),
+                muotoile("tiilirikko.loppubonus", &[&5000, &99999]),
+            ] {
+                assert!(teksti.chars().count() <= RIVILLE_MERKKEJA, "{teksti}");
+            }
+            let voitto = kaanna(VOITTO).chars().count() as i32;
+            assert!(voitto * TULOS.2 < LEVEYS as i32 - TEKSTI_X);
+            for avain in ["tiilirikko.kentta", "tiilirikko.pallot"] {
+                let leveys = kaanna(avain).chars().count() as i32 * OTSIKKO.2;
+                assert!(SARAKE_X + leveys < LEVEYS as i32, "{avain}");
+            }
+            let bonus = kaanna("tiilirikko.aikabonus").chars().count() as i32 * TULOS.2;
+            assert!(SARAKE_X + bonus < LEVEYS as i32);
+        });
+        alkuohje_mahtuu(&ALKU_OSAT, &ALKU_RIVIT, ALOITUS_Y);
         const { assert!((2 + 8 + 1 + 5) * PARHAAT_KOKO.2 <= PARHAAT_L) };
         const { assert!(PARHAAT_Y + 30 + 3 * 26 < PANEELI_Y) };
-        assert!(VOITTO.chars().count() as i32 * TULOS.2 < LEVEYS as i32 - TEKSTI_X);
         const { assert!(KENTTA_Y + KENTTA_K < PANEELI_Y) };
         assert!(SARAKE_X + "PISTEET".len() as i32 * OTSIKKO.2 < LEVEYS as i32);
     }

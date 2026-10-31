@@ -3,6 +3,7 @@ use klassikot8000::silmukka::{ASKEL_MS, Niitty, Ruutu, Saalis, Suunta, Tapahtuma
 
 use super::piirto;
 use crate::yhteinen::aanet::Aani;
+use crate::yhteinen::kieli::{kaanna, muotoile};
 use crate::yhteinen::piirto::aanikytkimella;
 use crate::yhteinen::syote::Syote;
 use crate::yhteinen::tulokset::{Tulos, lisaa_tulos, mahtuu_parhaisiin, muokkaa_nimea, ota_nimi};
@@ -102,12 +103,12 @@ pub struct Silmukka {
 fn kehu(maara: usize) -> Option<&'static str> {
     match maara {
         0 | 1 => None,
-        2 => Some("TUPLA!"),
-        3 => Some("KOLMOSET!"),
-        4 => Some("NELOSET!"),
-        5 | 6 => Some("MAHTAVA!"),
-        7 | 8 => Some("USKOMATON!"),
-        _ => Some("JUHANNUSTAIKAA!"),
+        2 => Some(kaanna("silmukka.kehu_2")),
+        3 => Some(kaanna("silmukka.kehu_3")),
+        4 => Some(kaanna("silmukka.kehu_4")),
+        5 | 6 => Some(kaanna("silmukka.kehu_5")),
+        7 | 8 => Some(kaanna("silmukka.kehu_7")),
+        _ => Some(kaanna("silmukka.kehu_9")),
     }
 }
 
@@ -197,12 +198,12 @@ impl Silmukka {
                 self.aanijono.push((Aani::Yhdistys, 0));
                 self.leiju(paikka, pisteet, piirto::KULLAN_VARI);
                 self.pamahda(paikka, 40.0);
-                self.viesti = "Kultaomena!".to_string();
+                self.viesti = kaanna("silmukka.kultaomena").to_string();
             }
             Tapahtuma::Muna { paikka, pisteet } => {
                 self.aanijono.push((Aani::Liuku, 0));
                 self.leiju(paikka, pisteet, piirto::MUNAN_VARI);
-                self.viesti = "Muna litistyi ennen kuoriutumista.".to_string();
+                self.viesti = kaanna("silmukka.muna_litistyi").to_string();
             }
             Tapahtuma::Silmukka(saalis) => self.pyydysta(saalis),
             Tapahtuma::TyhjaSilmukka { reitti } => {
@@ -213,18 +214,18 @@ impl Silmukka {
                     saalis: false,
                     alku: self.kello_ms,
                 });
-                self.viesti = "Tyhjä silmukka: pituus kului hukkaan.".to_string();
+                self.viesti = kaanna("silmukka.tyhja").to_string();
             }
             Tapahtuma::Kuoriutui { .. } => self.aanijono.push((Aani::Surina, 0)),
             Tapahtuma::KultaIlmestyi { .. } => {
                 self.aanijono.push((Aani::Helina5, 0));
                 self.aanijono.push((Aani::Helina6, HELINAN_VALI_MS));
-                self.viesti = "Kultaomena! Nopeasti, se katoaa pian.".to_string();
+                self.viesti = kaanna("silmukka.kulta_ilmestyi").to_string();
             }
             Tapahtuma::KultaKatosi { paikka } => self.pamahda(paikka, 20.0),
             Tapahtuma::UusiTaso => {
                 self.aanijono.push((Aani::Ovi, 0));
-                self.viesti = format!("Taso {}: mato kiihtyy, parvi kasvaa.", self.lauta.taso);
+                self.viesti = muotoile("silmukka.uusi_taso", &[&self.lauta.taso]);
             }
             Tapahtuma::Seina => self.aanijono.push((Aani::Pomppu, 0)),
             Tapahtuma::Kuolema { paikka } => {
@@ -253,7 +254,7 @@ impl Silmukka {
             self.kehu = Some((teksti, self.kello_ms));
         }
         self.tarina = Some(((maara as f32 * 1.5).min(7.0), self.kello_ms));
-        self.viesti = format!("Saalis {maara}: +{} pistettä!", saalis.pisteet);
+        self.viesti = muotoile("silmukka.saalis", &[&maara, &saalis.pisteet]);
         self.valahdykset.push(Valahdys {
             reitti: saalis.reitti,
             sisus: saalis.sisus,
@@ -271,7 +272,7 @@ impl Silmukka {
             Vaihe::Tappio
         };
         self.uusi_tulos = true;
-        self.viesti = format!("Pisteet: {}.", self.lauta.pisteet);
+        self.viesti = muotoile("yhteinen.tulos", &[&self.lauta.pisteet]);
     }
 
     /// Kirjaa odottavan tuloksen.

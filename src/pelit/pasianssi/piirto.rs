@@ -6,6 +6,7 @@ use klassikot8000::pasianssi::{
 };
 
 use super::peli::{Nappi, Pasianssi, Vaihe};
+use crate::yhteinen::kieli::kaanna;
 use crate::yhteinen::piirto::*;
 use crate::yhteinen::vektori::{Kangas, Tahko, kehapiste, kuutio};
 
@@ -33,19 +34,19 @@ const NAPIT_Y: i32 = SIVU_OHJE_Y + 7 * RIVIN_KORKEUS + 18;
 const NAPPI_ASKEL: i32 = NAPPI_K + 12;
 
 const SIVU_OHJEET: [&str; 6] = [
-    "Hiiri: vedä, klikkaa.",
-    "Tuplaklik: vie ylös.",
-    "Nuolet + väli: siirrä.",
-    "N: nosta pakasta.",
-    "M: äänet päälle/pois.",
-    "Esc: valikkoon.",
+    "pasianssi.sivu_hiiri",
+    "pasianssi.sivu_tupla",
+    "pasianssi.sivu_nuolet",
+    "pasianssi.sivu_nosta",
+    "pasianssi.sivu_aanet",
+    "pasianssi.sivu_valikko",
 ];
 
 const NAPIT: [(Nappi, &str); 4] = [
-    (Nappi::Uusi, "K = Uusi peli"),
-    (Nappi::Peruuta, "U = Peruuta"),
-    (Nappi::Keraa, "A = Vie ylös"),
-    (Nappi::Valikko, "E = Valikko"),
+    (Nappi::Uusi, "pasianssi.nappi_uusi"),
+    (Nappi::Peruuta, "pasianssi.nappi_peruuta"),
+    (Nappi::Keraa, "pasianssi.nappi_keraa"),
+    (Nappi::Valikko, "yhteinen.valikkoon"),
 ];
 
 // Alkuruudun tasovalinta samoilla mitoilla kuin laivanupotuksessa.
@@ -53,24 +54,44 @@ const TASO_Y: i32 = ALOITUS_Y - NAPPI_K - 6;
 const TASO_X: i32 = 48 + 6 * MERKKI;
 const TASO_VALI: i32 = 12;
 const TASOT: [(Vaikeus, &str, i32); 3] = [
-    (Vaikeus::Helppo, "1 Helppo", TASO_X),
+    (Vaikeus::Helppo, "yhteinen.taso_1", TASO_X),
     (
         Vaikeus::Normaali,
-        "2 Normaali",
+        "yhteinen.taso_2",
         TASO_X + 8 * MERKKI + 24 + TASO_VALI,
     ),
     (
         Vaikeus::Vaikea,
-        "3 Vaikea",
+        "yhteinen.taso_3",
         TASO_X + 18 * MERKKI + 48 + 2 * TASO_VALI,
     ),
 ];
 
-const VOITTOTEKSTI: &str = "****HIHIHIHIII VOITIT PELIN!****";
-const TAPPIOTEKSTI: &str = "**** SIIRROT LOPPUIVAT! ****";
+const VOITTOTEKSTI: &str = "yhteinen.voitit";
+const TAPPIOTEKSTI: &str = "pasianssi.tappio";
 const VOITTO_KORTTI_VALI_MS: u32 = 110;
 const VOITTO_JALKIA: u32 = 6;
 const VOITTO_JALKI_MS: u32 = 45;
+
+const ALKU_OSAT: [&str; 3] = [
+    "pasianssi.tervetuloa",
+    "pasianssi.ohje_1",
+    "pasianssi.ohje_2",
+];
+const ALKU_RIVIT: [&str; 4] = [
+    "pasianssi.nappain_hiiri",
+    "pasianssi.nappain_nuolet",
+    "pasianssi.nappain_kirjaimet",
+    "pasianssi.nappain_muut",
+];
+
+fn vaikeuden_nimi(vaikeus: Vaikeus) -> &'static str {
+    kaanna(match vaikeus {
+        Vaikeus::Helppo => "yhteinen.helppo",
+        Vaikeus::Normaali => "yhteinen.normaali",
+        Vaikeus::Vaikea => "yhteinen.vaikea",
+    })
+}
 
 /// Laudan paikka hiiren tai osoittimen alla. `kortti` on `None` tyhjässä sarakkeessa.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -325,37 +346,16 @@ pub fn piirra(peli: &Pasianssi, ruutu: &mut [u32]) {
 
 impl Piirtaja<'_> {
     fn pasianssi_alkuruutu(&mut self, vaikeus: Vaikeus) {
-        self.maisema("**** PASIANSSI ****", &korttipinot());
-        let mut y = OHJE_Y;
-        for osa in [
-            "Tervetuloa pelaamaan pasianssia.",
-            "Kokoa kortit maittain ylärivin pinoihin ässästä kuninkaaseen.",
-            "Sarakkeissa kortit laskevat vuorotellen punaisina ja mustina.",
-        ] {
-            for rivi in rivita(osa, 36) {
-                self.teksti(48, y, rivi, REUNA);
-                y += RIVIN_KORKEUS;
-            }
-        }
-        y += RIVIN_KORKEUS / 2;
-        for rivi in [
-            "Hiiri: vedä, klikkaa, tuplaklikkaa.",
-            "Nuolet + välilyönti: siirrä.",
-            "N: nosta, U: peru, A: vie ylös.",
-            "M: äänet. Esc: takaisin valikkoon.",
-        ] {
-            self.teksti(48, y, rivi, VALKOINEN);
-            y += RIVIN_KORKEUS;
-        }
-        y += RIVIN_KORKEUS / 2;
+        self.maisema(kaanna("pasianssi.banneri"), &korttipinot());
+        let y = self.alkuohje(&ALKU_OSAT, &ALKU_RIVIT) + RIVIN_KORKEUS / 2;
         let kuvaus = match vaikeus {
-            Vaikeus::Helppo => "1 kortti, vapaa kierto, peruutus.",
-            Vaikeus::Normaali => "3 korttia, vapaa kierto, peruutus.",
-            Vaikeus::Vaikea => "3 korttia, 3 kierrosta, ei perua.",
+            Vaikeus::Helppo => "pasianssi.kuvaus_helppo",
+            Vaikeus::Normaali => "pasianssi.kuvaus_normaali",
+            Vaikeus::Vaikea => "pasianssi.kuvaus_vaikea",
         };
-        self.teksti(48, y, kuvaus, KELTAINEN);
+        self.teksti(48, y, kaanna(kuvaus), KELTAINEN);
 
-        self.teksti(48, TASO_Y + 3, "Taso:", KELTAINEN);
+        self.teksti(48, TASO_Y + 3, kaanna("yhteinen.taso"), KELTAINEN);
         for (taso, teksti, x) in TASOT {
             if taso == vaikeus {
                 self.nappi(x, TASO_Y, teksti, WB_ORANSSI, MUSTA);
@@ -363,11 +363,7 @@ impl Piirtaja<'_> {
                 self.nappi(x, TASO_Y, teksti, VALKOINEN, WB_SININEN);
             }
         }
-        self.teksti(48, ALOITUS_Y, "Paina välilyöntiä tai klikkaa.", REUNA);
-        if self.vilkku() {
-            self.k
-                .laatikko(48 + 30 * MERKKI, ALOITUS_Y, MERKKI, MERKKI, REUNA);
-        }
+        self.aloituskehote(ALOITUS);
     }
 
     fn pasianssi_nakyma(&mut self, peli: &Pasianssi) {
@@ -375,7 +371,8 @@ impl Piirtaja<'_> {
         self.liuku(0, k, TAUSTA_TUMMA, TAUSTA);
         self.k.kehys(0, 0, l, k, REUNA);
         self.k.kehys(1, 1, l - 2, k - 2, REUNA);
-        self.otsikkopalkki("PASIANSSI", peli.lauta.vaikeus.nimi());
+        let nimi = kaanna("peli.pasianssi").to_uppercase();
+        self.otsikkopalkki(&nimi, vaikeuden_nimi(peli.lauta.vaikeus));
 
         self.pasianssi_ylarivi(peli);
         for sarake in 0..SARAKKEITA {
@@ -634,11 +631,11 @@ impl Piirtaja<'_> {
             None => peli.lauta.kierros().to_string(),
         };
         for (i, (otsikko, arvo)) in [
-            ("PISTEET", tila.pisteet.to_string()),
-            ("SIIRROT", tila.siirrot.to_string()),
-            ("AIKA", kesto(peli.peliaika_ms)),
-            ("KIERROS", kierros),
-            ("PAKASSA", tila.pakka.len().to_string()),
+            (kaanna("yhteinen.pisteet"), tila.pisteet.to_string()),
+            (kaanna("yhteinen.siirrot"), tila.siirrot.to_string()),
+            (kaanna("pasianssi.aika"), kesto(peli.peliaika_ms)),
+            (kaanna("pasianssi.kierros"), kierros),
+            (kaanna("pasianssi.pakassa"), tila.pakka.len().to_string()),
         ]
         .into_iter()
         .enumerate()
@@ -659,7 +656,7 @@ impl Piirtaja<'_> {
 
         let mut y = SIVU_OHJE_Y;
         for rivi in SIVU_OHJEET {
-            self.teksti(SIVU_TEKSTI_X, y, rivi, HUTI);
+            self.teksti(SIVU_TEKSTI_X, y, kaanna(rivi), HUTI);
             y += RIVIN_KORKEUS;
         }
 
@@ -697,7 +694,8 @@ impl Piirtaja<'_> {
     }
 
     /// Oma tausta, jotta teksti erottuu korttien päältä.
-    fn pasianssi_loppupalkki(&mut self, teksti: &str) {
+    fn pasianssi_loppupalkki(&mut self, avain: &str) {
+        let teksti = kaanna(avain);
         let y = RUUDUN_KORKEUS as i32 - 84;
         let leveys = teksti.chars().count() as i32 * OTSIKKO.2 + 36;
         self.k.laatikko(SARAKE_X, y, leveys, 48, WB_SININEN);
@@ -727,6 +725,7 @@ fn juhlapaikka(maa: usize, jarjestys: u32, aika: u32) -> (i32, i32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::yhteinen::kieli::kaikilla_kielilla;
     use klassikot8000::Arpa;
 
     #[test]
@@ -744,12 +743,42 @@ mod tests {
     fn sivun_tekstit_mahtuvat_paneeliin() {
         let tila = SIVU_L - 36;
         assert!(SIVU_MERKKEJA as i32 * MERKKI <= tila);
-        for rivi in SIVU_OHJEET {
-            assert!(rivi.chars().count() <= SIVU_MERKKEJA, "{rivi}");
-        }
-        for (_, teksti) in NAPIT {
-            assert!(napin_leveys(teksti) <= tila);
-        }
+        kaikilla_kielilla(|| {
+            for avain in SIVU_OHJEET {
+                let rivi = kaanna(avain);
+                assert!(rivi.chars().count() <= SIVU_MERKKEJA, "{rivi}");
+            }
+            for (_, teksti) in NAPIT {
+                assert!(napin_leveys(teksti) <= tila);
+            }
+            // Viesti rivitetään sivupalkkiin, jossa on tilaa neljälle riville.
+            for avain in [
+                "pasianssi.ei_kay",
+                "pasianssi.pakka_loppu",
+                "pasianssi.ei_peruutusta",
+                "pasianssi.ei_peruttavaa",
+                "pasianssi.ei_kerattavaa",
+                "pasianssi.jumissa",
+                "pasianssi.voittoviesti",
+                "pasianssi.siirrot_loppu",
+            ] {
+                assert!(rivita(kaanna(avain), SIVU_MERKKEJA).len() <= 4, "{avain}");
+            }
+            for pari in TASOT.windows(2) {
+                assert!(pari[0].2 + napin_leveys(pari[0].1) < pari[1].2);
+            }
+            for avain in [
+                "pasianssi.kuvaus_helppo",
+                "pasianssi.kuvaus_normaali",
+                "pasianssi.kuvaus_vaikea",
+            ] {
+                assert!(kaanna(avain).chars().count() <= 36, "{avain}");
+            }
+        });
+        // Vaikeustason kuvaus tulee näppäinohjeiden jälkeen.
+        let mut rivit = ALKU_RIVIT.to_vec();
+        rivit.extend(["pasianssi.kuvaus_normaali", "pasianssi.kuvaus_normaali"]);
+        alkuohje_mahtuu(&ALKU_OSAT, &rivit, TASO_Y);
     }
 
     #[test]

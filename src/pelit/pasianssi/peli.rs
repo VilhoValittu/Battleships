@@ -3,6 +3,7 @@ use klassikot8000::pasianssi::{Kohde, Lahde, Lauta, SARAKKEITA, Vaikeus};
 
 use super::piirto::{self, Kohta};
 use crate::yhteinen::aanet::Aani;
+use crate::yhteinen::kieli::kaanna;
 use crate::yhteinen::syote::Syote;
 
 const TUPLAKLIKKAUS_MS: u32 = 400;
@@ -13,14 +14,14 @@ const VOITTO_VIIVE_MS: u32 = 250;
 const TYHJA_YLASARAKE: usize = 2;
 const PERUSTA_ALKAA: usize = 3;
 
-const EI_KAY: &str = "Kortti ei käy tähän.";
-const PAKKA_LOPPU: &str = "Pakkaa ei voi enää kääntää.";
-const EI_PERUUTUSTA: &str = "Vaikealla tasolla ei voi perua.";
-const EI_PERUTTAVAA: &str = "Ei mitään peruttavaa.";
-const EI_KERATTAVAA: &str = "Ei siirtoja!";
-const JUMISSA: &str = "Siirrot näyttävät loppuneen. K = uusi peli.";
-const VOITTOVIESTI: &str = "Kaikki kortit ovat pakoissa!";
-const SIIRROT_LOPPU: &str = "Siirrot loppuivat. K = uusi peli.";
+const EI_KAY: &str = "pasianssi.ei_kay";
+const PAKKA_LOPPU: &str = "pasianssi.pakka_loppu";
+const EI_PERUUTUSTA: &str = "pasianssi.ei_peruutusta";
+const EI_PERUTTAVAA: &str = "pasianssi.ei_peruttavaa";
+const EI_KERATTAVAA: &str = "pasianssi.ei_kerattavaa";
+const JUMISSA: &str = "pasianssi.jumissa";
+const VOITTOVIESTI: &str = "pasianssi.voittoviesti";
+const SIIRROT_LOPPU: &str = "pasianssi.siirrot_loppu";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Vaihe {
@@ -132,7 +133,7 @@ impl Pasianssi {
 
     fn siirrot_loppuivat(&mut self) {
         self.vaihe = Vaihe::Tappio;
-        self.viesti = SIIRROT_LOPPU.to_string();
+        self.viesti = kaanna(SIIRROT_LOPPU).to_string();
         self.aanijono.push((Aani::Tappio, VOITTO_VIIVE_MS));
     }
 
@@ -255,7 +256,7 @@ impl Pasianssi {
     }
 
     fn virhe(&mut self, viesti: &str) {
-        self.viesti = viesti.to_string();
+        self.viesti = kaanna(viesti).to_string();
         self.aanijono.push((Aani::Ahkaisy, 0));
     }
 
@@ -268,14 +269,14 @@ impl Pasianssi {
         if self.lauta.on_voitettu() {
             self.vaihe = Vaihe::Voitto;
             self.voitto_alku = self.kello_ms;
-            self.viesti = VOITTOVIESTI.to_string();
+            self.viesti = kaanna(VOITTOVIESTI).to_string();
             self.aanijono.push((Aani::Voitto, VOITTO_VIIVE_MS));
         } else if !self.lauta.on_siirtoja() {
             self.siirrot_loppuivat();
         } else if self.lauta.on_hyodyllisia_siirtoja() {
             self.viesti.clear();
         } else {
-            self.viesti = JUMISSA.to_string();
+            self.viesti = kaanna(JUMISSA).to_string();
         }
     }
 
@@ -545,7 +546,7 @@ mod tests {
         peli.kasittele(Syote::Hiiri(kx, ky));
         peli.kasittele(Syote::Vapautus(kx, ky));
         assert_eq!(peli.lauta.tila.sarakkeet[0].kortit.len(), 1);
-        assert_eq!(peli.viesti, EI_KAY);
+        assert_eq!(peli.viesti, kaanna(EI_KAY));
         assert!(peli.aanijono.contains(&(Aani::Ahkaisy, 0)));
     }
 
@@ -593,7 +594,7 @@ mod tests {
         for _ in 0..100 {
             peli.kasittele(Syote::Kirjain('N'));
         }
-        assert_eq!(peli.viesti, PAKKA_LOPPU);
+        assert_eq!(peli.viesti, kaanna(PAKKA_LOPPU));
     }
 
     #[test]
@@ -663,7 +664,7 @@ mod tests {
         peli.kasittele(Syote::Ammu);
         peli.kasittele(Syote::Kirjain('N'));
         peli.kasittele(Syote::Kirjain('U'));
-        assert_eq!(peli.viesti, EI_PERUUTUSTA);
+        assert_eq!(peli.viesti, kaanna(EI_PERUUTUSTA));
         assert_eq!(peli.lauta.tila.jate.len(), 3);
     }
 
@@ -704,7 +705,7 @@ mod tests {
         peli.edista(1000);
         peli.kasittele(Syote::Kirjain('A'));
         assert_eq!(peli.vaihe, Vaihe::Tappio);
-        assert_eq!(peli.viesti, SIIRROT_LOPPU);
+        assert_eq!(peli.viesti, kaanna(SIIRROT_LOPPU));
         assert!(peli.aanijono.contains(&(Aani::Tappio, VOITTO_VIIVE_MS)));
         peli.edista(1000);
         assert_eq!(peli.peliaika_ms, 1000);
@@ -732,6 +733,6 @@ mod tests {
         aseta(&mut peli, 2, &[kortti(Maa::Hertta, 1)]);
         peli.kasittele(Syote::Kirjain('A'));
         assert_eq!(peli.vaihe, Vaihe::Pelissa);
-        assert_eq!(peli.viesti, JUMISSA);
+        assert_eq!(peli.viesti, kaanna(JUMISSA));
     }
 }
