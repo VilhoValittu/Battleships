@@ -1,8 +1,9 @@
 //! Käynnistimen näkymä: pelikortit ja ohjeet.
 
+use super::netti::VERSIO;
 use super::{Kaynnissa, Kaynnistin, PELIT};
 use crate::pelit::{asteroidit, laivanupotus, luvut, pasianssi, silmukka, tiilirikko};
-use crate::yhteinen::kieli::kaanna;
+use crate::yhteinen::kieli::{kaanna, muotoile};
 use crate::yhteinen::piirto::*;
 use crate::yhteinen::tulokset::Tulos;
 use crate::yhteinen::vektori::{Kangas, Tahko};
@@ -65,6 +66,12 @@ const KIELI_Y: i32 = 6;
 const KIELI_VALI: i32 = 12;
 // Yhteinen äänikytkin piirtyy kankaan oikeaan laitaan, jossa on nyt koko ruudun leveys.
 const AANI_SIIRTO: i32 = (RUUDUN_LEVEYS - LEVEYS) as i32;
+
+const VERSIO_Y: i32 = KIELI_Y + (NAPPI_K - MERKKI) / 2;
+// Otsikon ja korttien välissä on vapaata tilaa yhden rivin verran.
+const ILMOITUS_Y: i32 = 141;
+const ILMOITUS_K: i32 = 28;
+const ILMOITUS_SISENNYS: i32 = 12;
 
 /// Kytkin on äänikytkimen vasemmalla puolella, ja sen leveys seuraa tekstiä.
 fn kielikytkimen_x() -> i32 {
@@ -146,6 +153,11 @@ impl Piirtaja<'_> {
         let ika = kaynnistin.kello_ms.saturating_sub(kaynnistin.valittu_ms);
         self.valikon_malli(&kaynnistin.malli, ika);
         self.valikon_otsikko(kaanna("valikko.banneri"));
+        let versio = muotoile("valikko.versio", &[&VERSIO]);
+        self.teksti(OHJE_X, VERSIO_Y, &versio, VALKOINEN);
+        if let Some(uusi) = &kaynnistin.uusi_versio {
+            self.versioilmoitus(uusi);
+        }
         for i in 0..PELIT.len() {
             self.valikkokortti(i, i == kaynnistin.valittu);
         }
@@ -175,6 +187,17 @@ impl Piirtaja<'_> {
         let (koko, paksuus) = (OTSIKKO_KOKO, OTSIKON_PAKSUUS);
         self.levea_vektoriteksti(x + varjo, OTSIKKO_Y + varjo, teksti, koko, paksuus, TAUSTA);
         self.levea_vektoriteksti(x, OTSIKKO_Y, teksti, koko, paksuus, KELTAINEN);
+    }
+
+    fn versioilmoitus(&mut self, versio: &str) {
+        let teksti = muotoile("valikko.uusi_versio", &[&versio]);
+        let leveys = teksti.chars().count() as i32 * MERKKI;
+        let x = (RUUTU_L - leveys) / 2;
+        let (reuna_x, reuna_l) = (x - ILMOITUS_SISENNYS, leveys + 2 * ILMOITUS_SISENNYS);
+        self.k
+            .laatikko(reuna_x, ILMOITUS_Y, reuna_l, ILMOITUS_K, KELTAINEN);
+        let y = ILMOITUS_Y + (ILMOITUS_K - MERKKI) / 2;
+        self.teksti(x, y, &teksti, MUSTA);
     }
 
     fn valikkokortti(&mut self, i: usize, valittu: bool) {
@@ -267,6 +290,8 @@ mod tests {
         const { assert!(KORTTI_X + KORTTI_L + KORTIN_VARJO < PANEELI_X) };
         const { assert!(PANEELI_X + PANEELI_L < RUUTU_L) };
         const { assert!(OHJE_RIVI_Y + SUURI_MERKKI < RUUDUN_KORKEUS as i32) };
+        const { assert!(OTSIKKO_Y + OTSIKKO_KOKO.1 <= ILMOITUS_Y) };
+        const { assert!(ILMOITUS_Y + ILMOITUS_K <= KORTTI_Y) };
     }
 
     #[test]
@@ -305,6 +330,12 @@ mod tests {
             assert!(OHJE_X + ohje * SUURI_MERKKI <= RUUTU_L);
             let otsikko = kaanna("valikko.banneri").chars().count() as i32;
             assert!(otsikko * OTSIKKO_KOKO.2 <= RUUTU_L);
+            let versio = muotoile("valikko.versio", &[&"100.100.100"]);
+            let oikea = OHJE_X + versio.chars().count() as i32 * MERKKI;
+            assert!(oikea < kielikytkimen_x());
+            let ilmoitus = muotoile("valikko.uusi_versio", &[&"100.100.100"]);
+            let leveys = ilmoitus.chars().count() as i32 * MERKKI + 2 * ILMOITUS_SISENNYS;
+            assert!(leveys <= RUUTU_L);
         });
     }
 

@@ -17,6 +17,8 @@ peli.silmukka = Mato8000
 valikko.banneri = **** PELIKONE ****
 valikko.ohje = Väli: pelaa. M: äänet. Esc: lopeta.
 valikko.kielikytkin = L = English
+valikko.versio = Versio {}
+valikko.uusi_versio = Uusi versio {}: github.com/VilhoValittu/Klassikot8000/releases
 valikko.laivanupotus = Upota vastustajan laivasto.
 valikko.luvut = Yhdistä luvut ja saavuta 2048.
 valikko.pasianssi = Klassinen pasianssi, kolme tasoa.
@@ -201,6 +203,8 @@ peli.silmukka = Mato8000
 valikko.banneri = **** GAME MACHINE ****
 valikko.ohje = Space: play. M: sound. Esc: quit.
 valikko.kielikytkin = L = Suomi
+valikko.versio = Version {}
+valikko.uusi_versio = New version {}: github.com/VilhoValittu/Klassikot8000/releases
 valikko.laivanupotus = Sink the enemy fleet.
 valikko.luvut = Merge the numbers and reach 2048.
 valikko.pasianssi = Classic solitaire, three levels.

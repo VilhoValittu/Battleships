@@ -19,7 +19,9 @@ use tinyaudio::{OutputDevice, OutputDeviceParameters, run_output_device};
 
 #[cfg(debug_assertions)]
 use kaynnistin::Kaynnissa;
-use kaynnistin::netti::Netti;
+#[cfg(debug_assertions)]
+use kaynnistin::netti::Vastaus;
+use kaynnistin::netti::{Netti, Pyynto};
 use kaynnistin::{Kaynnistin, piirto};
 #[cfg(debug_assertions)]
 use klassikot8000::Arpa;
@@ -54,6 +56,36 @@ const AANIPUSKURI: usize = 400;
 // Scale::FitScreen kertoo tämän suurimmalla kertoimella, joka mahtuu näytölle, ja vähentää
 // yhden askeleen: ikkuna on 16:9 ja näytön reunaan jää tilaa otsikkopalkille ja tehtäväpalkille.
 const IKKUNAN_POHJA: (usize, usize) = (160, 90);
+
+/// Exen ikoni ei siirry ikkunaan itsestään, ja minifb lataa ikkunan ikonin vain tiedostosta.
+/// Polku annetaan suoraan, koska minifb:n `Icon::from_str` vapauttaa sen ennen käyttöä.
+#[cfg(windows)]
+fn aseta_ikoni(ikkuna: &mut Window) {
+    use std::os::windows::ffi::OsStrExt;
+
+    let polku = std::env::temp_dir().join("klassikot8000.ico");
+    if std::fs::write(&polku, include_bytes!("../paketointi/ikoni.ico")).is_ok() {
+        let leveat: Vec<u16> = polku.as_os_str().encode_wide().chain(Some(0)).collect();
+        ikkuna.set_icon(minifb::Icon::Path(leveat.as_ptr()));
+    }
+}
+
+/// X11 haluaa ikonin lukuina: leveys, korkeus ja pikselit, kukin omassa 64-bittisessä luvussaan.
+#[cfg(target_os = "linux")]
+fn aseta_ikoni(ikkuna: &mut Window) {
+    const SIVU: u64 = 48;
+    let pikselit = include_bytes!("../paketointi/ikoni48.argb")
+        .chunks_exact(4)
+        .map(|p| u64::from(u32::from_le_bytes([p[0], p[1], p[2], p[3]])));
+    let luvut: Vec<u64> = [SIVU, SIVU].into_iter().chain(pikselit).collect();
+    if let Ok(ikoni) = minifb::Icon::try_from(luvut.as_slice()) {
+        ikkuna.set_icon(ikoni);
+    }
+}
+
+// macOS ottaa ikonin paketin Info.plististä, ja minifb:n set_icon kaatuisi siellä.
+#[cfg(target_os = "macos")]
+fn aseta_ikoni(_ikkuna: &mut Window) {}
 
 fn aikasiemen() -> u64 {
     SystemTime::now()
@@ -170,6 +202,7 @@ fn pelisilmukka(
     };
     let mut otsikko = kaynnistin.otsikko();
     let mut ikkuna = Window::new(otsikko, IKKUNAN_POHJA.0, IKKUNAN_POHJA.1, asetukset)?;
+    aseta_ikoni(&mut ikkuna);
     // Oletuspaikassa ikkuna voisi jatkua ruudun yli, ja sulkemisnappi jäisi piiloon.
     ikkuna.set_position(0, 0);
     let mut taajuus = paivitystaajuus(&kaynnistin);
@@ -457,6 +490,9 @@ fn main() -> ExitCode {
             None => {}
         }
         kaynnistin.ota_aanet();
+        if let Some(versio) = liput.uusi_versio {
+            kaynnistin.vastaanota(Vastaus::UusiVersio(versio));
+        }
         if let Some(polku) = liput.kuvakaappaus {
             // Renkaan tehosteet on ajettu jo, eikä niitä saa hypätä yli.
             if liput.rengas.is_none() {
@@ -474,6 +510,9 @@ fn main() -> ExitCode {
         }
         // Kehitysajo ei koske oikeaan nettilistaan ilman lippua.
         let netti = liput.netti.as_deref().and_then(Netti::kaynnista);
+        if let (Some(netti), Some(julkaisut)) = (&netti, liput.julkaisut) {
+            netti.laheta(Pyynto::HaeVersio(julkaisut));
+        }
         (kaynnistin, polku, netti)
     };
     #[cfg(not(debug_assertions))]
@@ -483,11 +522,11 @@ fn main() -> ExitCode {
         if let Some(polku) = &polku {
             kaynnistin.lataa(tallennus::lue_tiedosto(polku));
         }
-        (
-            kaynnistin,
-            polku,
-            Netti::kaynnista(kaynnistin::netti::OSOITE),
-        )
+        let netti = Netti::kaynnista(kaynnistin::netti::OSOITE);
+        if let Some(netti) = &netti {
+            netti.laheta(Pyynto::HaeVersio(kaynnistin::netti::JULKAISUT.to_string()));
+        }
+        (kaynnistin, polku, netti)
     };
 
     match pelisilmukka(kaynnistin, &mut kehys, polku.as_deref(), netti) {

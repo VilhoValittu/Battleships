@@ -35,7 +35,7 @@ const VALIKON_ASKEL_MS: u32 = 66;
 /// Kaikki, mistä paikallaan pysyvän näkymän kuva riippuu.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum KuvanAvain {
-    Valikko(usize, bool, Kieli, u32),
+    Valikko(usize, bool, Kieli, bool, u32),
     Pasianssi {
         syotteita: u32,
         sekunnit: u32,
@@ -134,6 +134,8 @@ pub struct Kaynnistin {
     netti_tiilirikko: Option<Vec<Tulos>>,
     netti_asteroidit: Option<Vec<Tulos>>,
     netti_silmukka: Option<Vec<Tulos>>,
+    /// Uusin julkaistu versio, jos se on uudempi kuin tämä ohjelma.
+    uusi_versio: Option<String>,
     vaikeus: Vaikeus,
     pasianssin_vaikeus: pasianssi::Vaikeus,
     siemen: u64,
@@ -158,6 +160,7 @@ impl Kaynnistin {
             netti_tiilirikko: None,
             netti_asteroidit: None,
             netti_silmukka: None,
+            uusi_versio: None,
             vaikeus: Vaikeus::Normaali,
             pasianssin_vaikeus: pasianssi::Vaikeus::Normaali,
             siemen,
@@ -200,6 +203,7 @@ impl Kaynnistin {
                     self.valittu,
                     self.aanet_paalla,
                     kieli::nykyinen(),
+                    self.uusi_versio.is_some(),
                     askel,
                 ))
             }
@@ -396,6 +400,7 @@ impl Kaynnistin {
                 jono.retain(|t| *t != tulos);
                 self.tallenna = true;
             }
+            Vastaus::UusiVersio(versio) => self.uusi_versio = Some(versio),
         }
     }
 
@@ -764,6 +769,11 @@ mod tests {
         assert_eq!(k.kuvan_avain(false), taustalla);
         k.kasittele(Syote::Numero(2));
         assert_ne!(k.kuvan_avain(false), taustalla);
+
+        // ilmoitus uudesta versiosta tulee näkyviin, vaikka valikko olisi taustalla
+        let ilman_ilmoitusta = k.kuvan_avain(false);
+        k.vastaanota(Vastaus::UusiVersio("9.9.9".to_string()));
+        assert_ne!(k.kuvan_avain(false), ilman_ilmoitusta);
 
         k.kasittele(Syote::Ammu);
         assert_eq!(k.kuvan_avain(true), None);

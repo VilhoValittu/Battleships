@@ -28,6 +28,10 @@ pub struct Liput {
     pub tallennus: Option<String>,
     /// Nettilistan osoite. Ilman tätä kehitysajo ei ota yhteyttä verkkoon.
     pub netti: Option<String>,
+    /// Julkaisujen osoite uuden version tarkistukseen. Tarvitsee rinnalleen `--net`-lipun.
+    pub julkaisut: Option<String>,
+    /// Näyttää ilmoituksen tästä versiosta ilman verkkoa.
+    pub uusi_versio: Option<String>,
     /// Pasianssi: aloittaa pelin ja nostaa pakasta näin monta kertaa.
     pub nostot: Option<u32>,
     /// Pasianssi: aloittaa pelin voitettuna, loppujuhlan tarkistukseen.
@@ -84,6 +88,8 @@ pub fn lue_liput() -> Result<Liput, String> {
         liu_ut: Vec::new(),
         tallennus: None,
         netti: None,
+        julkaisut: None,
+        uusi_versio: None,
         nostot: None,
         voitto: false,
         jumissa: false,
@@ -104,6 +110,8 @@ pub fn lue_liput() -> Result<Liput, String> {
             "--screenshot" => liput.kuvakaappaus = Some(arvo),
             "--save" => liput.tallennus = Some(arvo),
             "--net" => liput.netti = Some(arvo),
+            "--releases" => liput.julkaisut = Some(arvo),
+            "--new-version" => liput.uusi_versio = Some(arvo),
             "--time" => liput.aika_ms = arvo.parse().map_err(|_| "--time: ei luku")?,
             "--game" => {
                 liput.peli = Some(match arvo.as_str() {

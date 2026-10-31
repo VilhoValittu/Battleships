@@ -42,6 +42,7 @@ A worm game where hitting yourself is the whole idea. A hit closes a loop, and e
 
 - `Esc` returns from a game to the menu, and a good score from an unfinished game still reaches the list. `P` pauses the action games, `M` mutes the sound and `L` in the menu switches the language between Finnish and English.
 - All games except Battleships and Solitaire also have an online Top 3. Without a connection the games play just as well.
+- The menu shows the game's version and tells you if GitHub has a newer release. The game checks this when it starts.
 
 ## Get playing
 

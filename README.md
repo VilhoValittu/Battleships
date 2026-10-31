@@ -42,6 +42,7 @@ Matopeli, jossa itseensä törmääminen on koko idea. Osuma sulkee silmukan, ja
 
 - `Esc` palaa pelistä valikkoon, ja kesken jäänyt hyvä tulos pääsee silti listalle. `P` pysäyttää toimintapelit, `M` vaimentaa äänet ja `L` vaihtaa valikossa kielen suomen ja englannin välillä.
 - Laivanupotusta ja Pasianssia lukuun ottamatta peleissä on Top 3 -lista myös netissä. Ilman nettiä pelaat ihan yhtä hyvin.
+- Valikko näyttää pelin version ja kertoo, jos GitHubissa on uudempi julkaisu. Peli katsoo asian käynnistyessään.
 
 ## Pelaamaan
 

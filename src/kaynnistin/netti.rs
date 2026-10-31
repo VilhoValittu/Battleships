@@ -1,5 +1,6 @@
 //! Nettilistan pyynnöt omassa säikeessään, jottei hidas yhteys nyki peliä. Epäonnistunut
 //! pyyntö ei näy pelaajalle: lista pysyy ennallaan ja tulos jää jonoon seuraavaa käynnistystä varten.
+//! Sama säie katsoo käynnistyksessä, onko GitHubissa uudempi julkaisu.
 
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::thread;
@@ -12,6 +13,10 @@ use crate::yhteinen::tulokset::{Tulos, lista_tekstista};
 
 #[cfg(not(debug_assertions))]
 pub const OSOITE: &str = "https://klassikot8000-tulokset.palvelin.workers.dev";
+#[cfg(not(debug_assertions))]
+pub const JULKAISUT: &str = "https://github.com/VilhoValittu/Klassikot8000";
+/// Julkaisun tagi on tämä luku v-etuliitteellä: `julkaisu.yml` tarkistaa, että ne täsmäävät.
+pub const VERSIO: &str = env!("CARGO_PKG_VERSION");
 const AIKARAJA: Duration = Duration::from_secs(8);
 const KELVOTON_PYYNTO: u16 = 400;
 
@@ -39,6 +44,8 @@ impl Nettipeli {
 pub enum Pyynto {
     Hae(Nettipeli),
     Laheta(Nettipeli, Tulos),
+    /// Julkaisujen osoite, jonka alta `releases/latest` löytyy.
+    HaeVersio(String),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -46,6 +53,8 @@ pub enum Vastaus {
     Lista(Nettipeli, Vec<Tulos>),
     /// Tulos on käsitelty, eikä sitä tarvitse lähettää uudelleen.
     Lahetetty(Nettipeli, Tulos),
+    /// Julkaistu versio on uudempi kuin tämä ohjelma.
+    UusiVersio(String),
 }
 
 pub struct Netti {
@@ -123,7 +132,39 @@ fn kasittele(agentti: &Agent, osoite: &str, pyynto: Pyynto) -> Vec<Vastaus> {
                 },
             }
         }
+        Pyynto::HaeVersio(julkaisut) => {
+            // GitHub ohjaa uusimman julkaisun sivulle. Osoite kertoo tagin, joten sivua ei tarvitse
+            // ladata, eikä API:n käyttörajakaan koske tätä.
+            let vastaus = agentti
+                .get(format!("{julkaisut}/releases/latest"))
+                .config()
+                .max_redirects(0)
+                .build()
+                .call();
+            vastaus
+                .ok()
+                .and_then(|vastaus| {
+                    let sijainti = vastaus.headers().get("location")?.to_str().ok()?;
+                    uudempi_versio(sijainti, VERSIO)
+                })
+                .map(Vastaus::UusiVersio)
+                .into_iter()
+                .collect()
+        }
     }
+}
+
+fn versionumero(teksti: &str) -> Option<(u32, u32, u32)> {
+    let mut osat = teksti.split('.').map(|osa| osa.parse().ok());
+    let numero = (osat.next()??, osat.next()??, osat.next()??);
+    osat.next().is_none().then_some(numero)
+}
+
+/// Lukee version julkaisun osoitteen lopusta. Kaikki muu kuin selvästi uudempi versio ohitetaan.
+fn uudempi_versio(sijainti: &str, nykyinen: &str) -> Option<String> {
+    let tagi = sijainti.rsplit('/').next()?.strip_prefix('v')?;
+    let uusi = versionumero(tagi)?;
+    (uusi > versionumero(nykyinen)?).then(|| format!("{}.{}.{}", uusi.0, uusi.1, uusi.2))
 }
 
 fn lue_lista(vastaus: Result<ureq::http::Response<ureq::Body>, ureq::Error>) -> Option<Vec<Tulos>> {
@@ -221,6 +262,53 @@ mod tests {
         assert!(pyynnot[0].starts_with("GET /top3?peli=tiilirikko "));
         assert!(pyynnot[1].starts_with("POST /tulos?peli=luvut "));
         assert!(pyynnot[1].ends_with(" 120 VÄINÖ"));
+    }
+
+    #[test]
+    fn vain_uudempi_kelvollinen_versio_kelpaa() {
+        let polku = "https://github.com/x/y/releases/tag/";
+        let uudempi = |tagi: &str| uudempi_versio(&format!("{polku}{tagi}"), "0.3.6");
+        assert_eq!(uudempi("v0.3.7").as_deref(), Some("0.3.7"));
+        assert_eq!(uudempi("v0.4.0").as_deref(), Some("0.4.0"));
+        assert_eq!(uudempi("v1.0.0").as_deref(), Some("1.0.0"));
+        // luvut vertaillaan lukuina eikä kirjaimina
+        assert_eq!(uudempi("v0.3.10").as_deref(), Some("0.3.10"));
+        assert_eq!(uudempi("v0.3.6"), None);
+        assert_eq!(uudempi("v0.3.5"), None);
+        assert_eq!(uudempi("v0.2.99"), None);
+        for kelvoton in ["0.3.7", "v0.3", "v0.3.7.1", "v0.3.x", "v0.4.0-beta", "v"] {
+            assert_eq!(uudempi(kelvoton), None, "{kelvoton}");
+        }
+        // ilman julkaisuja GitHub ohjaa julkaisujen listaan
+        assert_eq!(
+            uudempi_versio("https://github.com/x/y/releases", "0.3.6"),
+            None
+        );
+        assert_eq!(uudempi_versio(&format!("{polku}v9.0.0"), "kehitys"), None);
+    }
+
+    #[test]
+    fn versio_luetaan_uudelleenohjauksesta_jota_ei_seurata() {
+        let ohjaus = |tagi: &str| {
+            format!(
+                "HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:9/releases/tag/{tagi}\r\n\
+                 Content-Length: 0\r\nConnection: close\r\n\r\n"
+            )
+        };
+        let (osoite, saie) = palvelin(vec![
+            ohjaus("v999.0.0"),
+            ohjaus("v0.0.1"),
+            http("200 OK", ""),
+            http("404 Not Found", ""),
+        ]);
+        let agentti = Agent::new_with_defaults();
+        let hae = || kasittele(&agentti, &osoite, Pyynto::HaeVersio(osoite.clone()));
+        assert_eq!(hae(), [Vastaus::UusiVersio("999.0.0".to_string())]);
+        assert!(hae().is_empty());
+        assert!(hae().is_empty());
+        assert!(hae().is_empty());
+        let pyynnot = saie.join().unwrap();
+        assert!(pyynnot[0].starts_with("GET /releases/latest "));
     }
 
     #[test]
