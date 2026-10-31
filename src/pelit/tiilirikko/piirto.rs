@@ -18,8 +18,8 @@ const SARAKE_X: i32 = KENTTA_X + KENTTA_L + 30;
 const TILASTON_ASKEL: i32 = 87;
 const PARHAAT_Y: i32 = KENTTA_Y + 4 * TILASTON_ASKEL + 66;
 const PARHAAT_L: i32 = LEVEYS as i32 - 12 - SARAKE_X;
-// Kapeaan sarakkeeseen mahtuu sijoitus, kahdeksan merkin nimi ja viisinumeroiset pisteet.
-const PARHAAT_KOKO: (i32, i32, i32) = (10, 15, 14);
+// Kapeaan sarakkeeseen mahtuu sijoitus, kahdeksan merkin nimi ja kuusinumeroiset pisteet.
+const PARHAAT_KOKO: (i32, i32, i32) = (10, 15, 13);
 
 const RIVIN_VARIT: [u32; RIVEJA] = [
     OSUMA, WB_ORANSSI, KELTAINEN, 0x70B050, HUTI, 0x4FA8E0, REUNA, 0x8B3FC0,
@@ -41,7 +41,10 @@ const NAPIT: [(Nappi, &str, i32); 2] = [
     ),
 ];
 
-const ALKU_OSAT: [&str; 7] = [
+const SUPERTIILI: u32 = 0x202020;
+const SUPERPALLO: u32 = KELTAINEN;
+
+const ALKU_OSAT: [&str; 8] = [
     "tiilirikko.tervetuloa",
     "yhteinen.ohjeet",
     "tiilirikko.ohje_1",
@@ -49,6 +52,7 @@ const ALKU_OSAT: [&str; 7] = [
     "tiilirikko.ohje_3",
     "tiilirikko.ohje_4",
     "tiilirikko.ohje_5",
+    "tiilirikko.ohje_6",
 ];
 const ALKU_RIVIT: [&str; 4] = [
     "tiilirikko.nappain_hiiri",
@@ -148,17 +152,25 @@ impl Piirtaja<'_> {
                 }
                 let (x, y) = tiilen_paikka(rivi, sarake);
                 let pallotiili = peli.lauta.pallotiilet[rivi][sarake];
-                let vari = if pallotiili { VALKOINEN } else { vari };
+                let supertiili = peli.lauta.supertiilet[rivi][sarake];
+                let vari = if pallotiili {
+                    VALKOINEN
+                } else if supertiili {
+                    SUPERTIILI
+                } else {
+                    vari
+                };
                 self.k.laatikko(x + 1, y + 1, l - 2, k - 2, vari);
                 self.k
                     .laatikko(x + 1, y + 1, l - 2, 3, sekoita(vari, VALKOINEN, 0.5));
                 self.k
                     .laatikko(x + 1, y + k - 4, l - 2, 3, sekoita(vari, MUSTA, 0.4));
-                // Pallotiilen keskellä on pallon kokoinen merkki.
-                if pallotiili {
+                // Palkintotiilen keskellä on pallon kokoinen merkki sen tuomaa palloa vastaavin värein.
+                if pallotiili || supertiili {
                     let sivu = 2 * PALLON_SADE as i32;
+                    let merkki = if supertiili { SUPERPALLO } else { MUSTA };
                     self.k
-                        .laatikko(x + (l - sivu) / 2, y + (k - sivu) / 2, sivu, sivu, MUSTA);
+                        .laatikko(x + (l - sivu) / 2, y + (k - sivu) / 2, sivu, sivu, merkki);
                 }
                 // Kestävän tiilen keskellä näkyy yksi niitti jokaista lisäosumaa kohti.
                 for niitti in 1..kesto as i32 {
@@ -192,7 +204,12 @@ impl Piirtaja<'_> {
             // Pallon alapuoli voi pudota kentän alle, mutta paneelin päälle se ei piirry.
             let korkeus = sivu.min(KENTTA_Y + KENTTA_K - py);
             if korkeus > 0 {
-                self.k.laatikko(px, py, sivu, korkeus, VALKOINEN);
+                let vari = if pallo.superpallo {
+                    SUPERPALLO
+                } else {
+                    VALKOINEN
+                };
+                self.k.laatikko(px, py, sivu, korkeus, vari);
             }
         }
     }
@@ -306,10 +323,12 @@ mod tests {
                 kaanna(LAUKAISU).to_string(),
                 kaanna(TAUON_OHJE).to_string(),
                 kaanna("tiilirikko.uusi_pallo").to_string(),
+                kaanna("tiilirikko.superpallo").to_string(),
                 kaanna("tiilirikko.toinen_meni").to_string(),
                 muotoile("tiilirikko.pallo_meni", &[&3]),
                 muotoile("tiilirikko.kentta_lapi", &[&5000]),
-                muotoile("tiilirikko.loppubonus", &[&5000, &99999]),
+                muotoile("tiilirikko.loppubonus", &[&5000, &999999]),
+                muotoile("yhteinen.tulos", &[&999999]),
             ] {
                 assert!(teksti.chars().count() <= RIVILLE_MERKKEJA, "{teksti}");
             }
@@ -323,7 +342,7 @@ mod tests {
             assert!(SARAKE_X + bonus < LEVEYS as i32);
         });
         alkuohje_mahtuu(&ALKU_OSAT, &ALKU_RIVIT, ALOITUS_Y);
-        const { assert!((2 + 8 + 1 + 5) * PARHAAT_KOKO.2 <= PARHAAT_L) };
+        const { assert!((2 + 8 + 1 + 6) * PARHAAT_KOKO.2 <= PARHAAT_L) };
         const { assert!(PARHAAT_Y + 30 + 3 * 26 < PANEELI_Y) };
         const { assert!(KENTTA_Y + KENTTA_K < PANEELI_Y) };
         assert!(SARAKE_X + "PISTEET".len() as i32 * OTSIKKO.2 < LEVEYS as i32);

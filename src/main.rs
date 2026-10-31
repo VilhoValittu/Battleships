@@ -459,6 +459,12 @@ fn main() -> ExitCode {
                                 + 0.5,
                         );
                     }
+                    if liput.superpallo {
+                        let pallo = &mut peli.lauta.pallot[0];
+                        pallo.superpallo = true;
+                        pallo.nopeus.0 *= tiilirikko::SUPERVAUHTI;
+                        pallo.nopeus.1 *= tiilirikko::SUPERVAUHTI;
+                    }
                     // Aikahyppy on rajattu, joten kuvakaappauksen hetki ajetaan pieninä askelina.
                     for _ in 0..liput.aika_ms / 16 {
                         peli.edista(16);

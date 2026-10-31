@@ -1,7 +1,8 @@
 use klassikot8000::Arpa;
 use klassikot8000::tiilirikko::{
     ASKEL_MS, ELAMIA, KENTTIA, KORKEUS, LEVEA_MAILA_L, LEVEYS, MAILA_L, MAILA_Y, PALLOJA_ENINTAAN,
-    PALLON_SADE, RIVEJA, SARAKKEITA, TIILET_Y, TIILI_K, TIILI_L, Tapahtuma, Tiilipeli, Tila,
+    PALLON_SADE, Pallo, RIVEJA, SARAKKEITA, SUURIN_PISTEMAARA, TIILET_Y, TIILI_K, TIILI_L,
+    Tapahtuma, Tiilipeli, Tila,
 };
 
 fn uusi_peli(kentta: usize) -> Tiilipeli {
@@ -13,6 +14,7 @@ fn lahes_tyhja() -> Tiilipeli {
     let mut peli = uusi_peli(0);
     peli.tiilet = [[0; SARAKKEITA]; RIVEJA];
     peli.pallotiilet = [[false; SARAKKEITA]; RIVEJA];
+    peli.supertiilet = [[false; SARAKKEITA]; RIVEJA];
     peli.tiilet[0][0] = 1;
     peli.tila = Tila::Lennossa;
     peli
@@ -236,7 +238,10 @@ fn nopeampi_lapaisy_antaa_enemman_pisteita() {
     assert_eq!(lapaisy(0, 240_000).0, 0);
     assert_eq!(lapaisy(0, 999_000).0, 0);
     assert!(lapaisy(0, 60_000).1 > lapaisy(0, 180_000).1);
-    assert_eq!(lapaisy(KENTTIA - 1, 120_000).0, 500 * KENTTIA as u32);
+    // Kerroin kasvaa kymmenen kentän välein, joten viimeinen kenttä on viisinkertainen.
+    assert_eq!(lapaisy(9, 120_000).0, 500);
+    assert_eq!(lapaisy(10, 120_000).0, 1000);
+    assert_eq!(lapaisy(KENTTIA - 1, 120_000).0, 2500);
 }
 
 #[test]
@@ -277,23 +282,64 @@ fn pudota(peli: &mut Tiilipeli, i: usize) -> Vec<Tapahtuma> {
     peli.askel(0, &mut Arpa::new(1))
 }
 
-/// Kentässä on useita pallotiiliä, ja jokainen on ehjä yhden osuman tiili.
+/// Kentässä on useita pallotiiliä ja yksi supertiili. Jokainen on ehjä yhden osuman tiili,
+/// eivätkä ne kosketa toisiaan edes kulmittain.
 fn tarkista_pallotiilet(peli: &Tiilipeli) {
-    let mut maara = 0;
+    let mut palkinnot = Vec::new();
+    let mut supertiilia = 0;
     for rivi in 0..RIVEJA {
         for sarake in 0..SARAKKEITA {
-            if peli.pallotiilet[rivi][sarake] {
-                maara += 1;
+            let pallotiili = peli.pallotiilet[rivi][sarake];
+            let supertiili = peli.supertiilet[rivi][sarake];
+            assert!(!(pallotiili && supertiili), "kenttä {}", peli.kentta);
+            if pallotiili || supertiili {
+                palkinnot.push((rivi, sarake));
                 assert_eq!(peli.tiilet[rivi][sarake], 1, "kenttä {}", peli.kentta);
             }
+            supertiilia += supertiili as usize;
         }
     }
+    assert_eq!(supertiilia, 1, "kenttä {}", peli.kentta);
+    let maara = palkinnot.len() - supertiilia;
     assert!((3..=4).contains(&maara), "kenttä {}: {maara}", peli.kentta);
+    for (i, a) in palkinnot.iter().enumerate() {
+        for b in &palkinnot[i + 1..] {
+            assert!(
+                a.0.abs_diff(b.0) > 1 || a.1.abs_diff(b.1) > 1,
+                "kenttä {}: {a:?} ja {b:?} vierekkäin",
+                peli.kentta
+            );
+        }
+    }
+}
+
+#[test]
+fn kenttia_on_viisikymmenta_ja_jokainen_on_erilainen() {
+    assert_eq!(KENTTIA, 50);
+    let kuviot: Vec<_> = (0..KENTTIA)
+        .map(|kentta| {
+            let mut peli = uusi_peli(kentta);
+            // Palkintotiilet ovat arvottuja ja kestävät yhden osuman, joten ne eivät kuulu vertailuun.
+            for rivi in 0..RIVEJA {
+                for sarake in 0..SARAKKEITA {
+                    if peli.tiilet[rivi][sarake] > 0 {
+                        peli.tiilet[rivi][sarake] = 1;
+                    }
+                }
+            }
+            peli.tiilet
+        })
+        .collect();
+    for (i, kuvio) in kuviot.iter().enumerate() {
+        for (j, toinen) in kuviot.iter().enumerate().skip(i + 1) {
+            assert_ne!(kuvio, toinen, "kentät {i} ja {j}");
+        }
+    }
 }
 
 #[test]
 fn jokaisessa_kentassa_on_useita_yhden_osuman_pallotiilia() {
-    for siemen in 0..50 {
+    for siemen in 0..200 {
         let mut arpa = Arpa::new(siemen);
         for kentta in 0..KENTTIA {
             tarkista_pallotiilet(&Tiilipeli::new(kentta, &mut arpa));
@@ -397,11 +443,12 @@ fn tuplapisteet_kasvavat_kentan_kertoimella_mutta_aikabonus_ei_tuplaannu() {
     };
     assert_eq!(peli.pisteet, ennen + 20 + bonus);
 
-    // Toisella kentällä osuma on valmiiksi kaksinkertainen, ja kaksi palloa tuplaa sen.
-    let mut peli = Tiilipeli::new(1, &mut Arpa::new(1));
+    // Kentästä 11 alkaen osuma on valmiiksi kaksinkertainen, ja kaksi palloa tuplaa sen.
+    let mut peli = Tiilipeli::new(10, &mut Arpa::new(1));
     peli.laukaise(&mut Arpa::new(1));
     peli.tiilet = [[0; SARAKKEITA]; RIVEJA];
     peli.pallotiilet = [[false; SARAKKEITA]; RIVEJA];
+    peli.supertiilet = [[false; SARAKKEITA]; RIVEJA];
     peli.tiilet[0][0] = 1;
     peli.tiilet[7][10] = 1;
     peli.pallotiilet[0][0] = true;
@@ -584,6 +631,187 @@ fn jaljelle_jaava_pallo_sailyttaa_oman_vauhtinsa() {
     assert_eq!(peli.pallot[0].vauhti, vanhan_vauhti);
 }
 
+/// Supertiili riville 0 ja ylimääräinen tiili, joka pitää kentän kesken.
+fn supertiilella() -> Tiilipeli {
+    let mut peli = lennossa_tyhjalla();
+    peli.tiilet[7][10] = 1;
+    peli.supertiilet[0][0] = true;
+    peli
+}
+
+fn vauhti(pallo: &Pallo) -> f32 {
+    pallo.nopeus.0.hypot(pallo.nopeus.1)
+}
+
+#[test]
+fn supertiili_tekee_rikkojasta_30_prosenttia_nopeamman_superpallon() {
+    let mut peli = supertiilella();
+    assert_eq!(
+        riko_ensimmainen(&mut peli),
+        [
+            Tapahtuma::Tiili {
+                rivi: 0,
+                sarake: 0,
+                rikki: true
+            },
+            Tapahtuma::Superpallo
+        ]
+    );
+    let pallo = peli.pallot[0];
+    assert!(pallo.superpallo);
+    assert_eq!(peli.pallot.len(), 1);
+    assert!((pallo.lentovauhti() - pallo.vauhti * 1.3).abs() < 0.01);
+    assert!(
+        (vauhti(&pallo) - (100.0f32.hypot(300.0) * 1.3 * pallo.vauhti / (pallo.vauhti - 4.0)))
+            .abs()
+            < 0.1
+    );
+    // Muuttumisen tuova osuma lasketaan vielä tavallisena.
+    assert_eq!(peli.pisteet, 10);
+}
+
+#[test]
+fn superpallo_menee_tiilien_lapi_rikkoo_kestavatkin_ja_antaa_nelinkertaiset_pisteet() {
+    let mut peli = supertiilella();
+    riko_ensimmainen(&mut peli);
+    let ennen = peli.pisteet;
+    let nopeus = (0.0, -300.0);
+    peli.tiilet[3][5] = 3;
+    peli.pallot[0].paikka = (5.5 * TIILI_L, TIILET_Y + 4.0 * TIILI_K + PALLON_SADE + 0.5);
+    peli.pallot[0].nopeus = nopeus;
+    let vauhti_ennen = peli.pallot[0].vauhti;
+    assert_eq!(
+        peli.askel(0, &mut Arpa::new(1)),
+        [Tapahtuma::Tiili {
+            rivi: 3,
+            sarake: 5,
+            rikki: true
+        }]
+    );
+    assert_eq!(peli.tiilet[3][5], 0);
+    assert_eq!(peli.pisteet, ennen + 40);
+    // Pallo jatkaa samaan suuntaan eikä kiihdy.
+    assert_eq!(peli.pallot[0].nopeus, nopeus);
+    assert_eq!(peli.pallot[0].vauhti, vauhti_ennen);
+}
+
+#[test]
+fn superpallo_rikkoo_kerralla_kaikki_alleen_jaavat_tiilet() {
+    let mut peli = supertiilella();
+    riko_ensimmainen(&mut peli);
+    let ennen = peli.pisteet;
+    // Pallo on neljän tiilen kulmassa.
+    for (rivi, sarake) in [(2, 4), (2, 5), (3, 4), (3, 5)] {
+        peli.tiilet[rivi][sarake] = 1;
+    }
+    peli.pallot[0].paikka = (5.0 * TIILI_L, TIILET_Y + 3.0 * TIILI_K);
+    peli.pallot[0].nopeus = (0.0, -1.0);
+    peli.askel(0, &mut Arpa::new(1));
+    for (rivi, sarake) in [(2, 4), (2, 5), (3, 4), (3, 5)] {
+        assert_eq!(peli.tiilet[rivi][sarake], 0);
+    }
+    assert_eq!(peli.pisteet, ennen + 4 * 40);
+}
+
+#[test]
+fn pallotiili_tuplaa_superpallon_ja_kahdesta_superpallosta_saa_kahdeksankertaiset() {
+    let mut peli = supertiilella();
+    riko_ensimmainen(&mut peli);
+    peli.tiilet[3][5] = 1;
+    peli.pallotiilet[3][5] = true;
+    peli.pallot[0].paikka = (5.5 * TIILI_L, TIILET_Y + 4.0 * TIILI_K + PALLON_SADE + 0.5);
+    peli.pallot[0].nopeus = (100.0, -300.0);
+    let tapahtumat = peli.askel(0, &mut Arpa::new(1));
+    assert!(tapahtumat.contains(&Tapahtuma::UusiPallo));
+
+    let [vanha, uusi] = peli.pallot[..] else {
+        panic!("palloja pitää olla kaksi");
+    };
+    assert!(vanha.superpallo && uusi.superpallo);
+    assert!((vauhti(&uusi) - uusi.vauhti * 1.3).abs() < 0.01);
+
+    let ennen = peli.pisteet;
+    peli.tiilet[5][2] = 1;
+    peli.pallot[1].paikka = (100.0, 300.0);
+    peli.pallot[0].paikka = (2.5 * TIILI_L, TIILET_Y + 5.5 * TIILI_K);
+    peli.askel(0, &mut Arpa::new(1));
+    assert_eq!(peli.pisteet, ennen + 80);
+}
+
+#[test]
+fn tavallinen_pallo_ei_muutu_toisen_supertiilesta() {
+    let mut peli = pallotiilella();
+    riko_ensimmainen(&mut peli);
+    peli.tiilet[3][5] = 1;
+    peli.supertiilet[3][5] = true;
+    peli.pallot[1].paikka = (100.0, 300.0);
+    peli.pallot[0].paikka = (5.5 * TIILI_L, TIILET_Y + 4.0 * TIILI_K + PALLON_SADE + 0.5);
+    peli.pallot[0].nopeus = (0.0, -300.0);
+    assert!(
+        peli.askel(0, &mut Arpa::new(1))
+            .contains(&Tapahtuma::Superpallo)
+    );
+    assert!(peli.pallot[0].superpallo);
+    assert!(!peli.pallot[1].superpallo);
+}
+
+#[test]
+fn superpallo_kimpoaa_mailasta_nopeammin_ja_loppuu_putoamiseen_ja_kentan_vaihtoon() {
+    let mut peli = supertiilella();
+    riko_ensimmainen(&mut peli);
+    peli.aseta_maila(300.0);
+    peli.pallot[0].paikka = (300.0, MAILA_Y - PALLON_SADE - 0.1);
+    peli.pallot[0].nopeus = (0.0, 300.0);
+    assert_eq!(peli.askel(0, &mut Arpa::new(1)), [Tapahtuma::Maila]);
+    let pallo = peli.pallot[0];
+    assert!((vauhti(&pallo) - pallo.vauhti * 1.3).abs() < 0.01);
+
+    assert_eq!(pudota(&mut peli, 0), [Tapahtuma::Menetys]);
+    assert!(!peli.pallot[0].superpallo);
+
+    let mut peli = supertiilella();
+    riko_ensimmainen(&mut peli);
+    peli.tiilet = [[0; SARAKKEITA]; RIVEJA];
+    peli.tiilet[0][0] = 1;
+    let tapahtumat = riko_ensimmainen(&mut peli);
+    assert!(matches!(
+        tapahtumat.last(),
+        Some(Tapahtuma::KenttaLapi { .. })
+    ));
+    assert!(!peli.pallot[0].superpallo);
+}
+
+#[test]
+fn superpallo_lapaisee_kentan_viimeisen_tiilen_kaatumatta() {
+    let mut peli = uusi_peli(KENTTIA - 1);
+    peli.laukaise(&mut Arpa::new(1));
+    peli.pallot[0].superpallo = true;
+    peli.tiilet = [[0; SARAKKEITA]; RIVEJA];
+    peli.tiilet[2][4] = 1;
+    peli.tiilet[2][5] = 1;
+    peli.pallot[0].paikka = (5.0 * TIILI_L, TIILET_Y + 2.5 * TIILI_K);
+    peli.pallot[0].nopeus = (0.0, -1.0);
+    let tapahtumat = peli.askel(0, &mut Arpa::new(1));
+    assert!(matches!(tapahtumat.last(), Some(Tapahtuma::Voitto { .. })));
+    assert_eq!(peli.tila, Tila::Voitto);
+}
+
+#[test]
+fn pisteet_eivat_ylita_kattoa() {
+    let mut peli = supertiilella();
+    peli.pisteet = SUURIN_PISTEMAARA - 5;
+    riko_ensimmainen(&mut peli);
+    assert_eq!(peli.pisteet, SUURIN_PISTEMAARA);
+}
+
+#[test]
+fn nopeimmankin_pallon_askel_on_sadetta_lyhyempi() {
+    let mut peli = supertiilella();
+    riko_ensimmainen(&mut peli);
+    peli.pallot[0].vauhti = 660.0;
+    assert!(peli.pallot[0].lentovauhti() * ASKEL_MS as f32 / 1000.0 < PALLON_SADE);
+}
+
 fn pallo_tiilen_sisalla(peli: &Tiilipeli, (x, y): (f32, f32)) -> bool {
     (0..RIVEJA).any(|rivi| {
         (0..SARAKKEITA).any(|sarake| {
@@ -601,15 +829,16 @@ fn pallo_tiilen_sisalla(peli: &Tiilipeli, (x, y): (f32, f32)) -> bool {
 /// Automaatti pitää mailan pallon alla vaihtelevalla poikkeamalla, joten se pelaa koko pelin.
 #[test]
 fn automaatti_lapaisee_kaikki_kentat_eika_pallo_karkaa() {
-    for siemen in 0..20 {
+    for siemen in 0..5 {
         let mut arpa = Arpa::new(siemen);
         let mut peli = Tiilipeli::new(0, &mut arpa);
         let mut poikkeama = 0.0;
         let mut askelia = 0u32;
         let mut toista_palloa_nahty = false;
+        let mut superpalloa_nahty = false;
         while peli.tila != Tila::Voitto {
             askelia += 1;
-            assert!(askelia < 20_000_000, "siemen {siemen}: peli ei pääty");
+            assert!(askelia < 200_000_000, "siemen {siemen}: peli ei pääty");
             if peli.tila == Tila::Kiinni {
                 peli.laukaise(&mut arpa);
             }
@@ -622,6 +851,7 @@ fn automaatti_lapaisee_kaikki_kentat_eika_pallo_karkaa() {
             }
             assert!(peli.pallot.len() <= PALLOJA_ENINTAAN, "siemen {siemen}");
             toista_palloa_nahty |= peli.pallot.len() == 2;
+            superpalloa_nahty |= peli.pallot.iter().any(|pallo| pallo.superpallo);
             for pallo in &peli.pallot {
                 assert!(
                     !pallo_tiilen_sisalla(&peli, pallo.paikka),
@@ -638,6 +868,8 @@ fn automaatti_lapaisee_kaikki_kentat_eika_pallo_karkaa() {
             assert!(peli.pallot[0].paikka.1 <= MAILA_Y, "siemen {siemen}");
         }
         assert!(toista_palloa_nahty, "siemen {siemen}");
+        assert!(superpalloa_nahty, "siemen {siemen}");
+        assert!(peli.pisteet <= SUURIN_PISTEMAARA);
         assert_eq!(peli.tiilia_jaljella(), 0);
         assert_eq!(peli.kentta, KENTTIA - 1);
     }

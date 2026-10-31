@@ -3,6 +3,10 @@
 
 use crate::Arpa;
 
+mod kentat;
+
+use kentat::KENTAT;
+
 pub const LEVEYS: f32 = 660.0;
 pub const KORKEUS: f32 = 540.0;
 pub const SARAKKEITA: usize = 11;
@@ -19,69 +23,31 @@ pub const PALLON_SADE: f32 = 7.0;
 pub const ASKEL_MS: u32 = 5;
 pub const ELAMIA: u32 = 3;
 pub const PALLOJA_ENINTAAN: usize = 2;
+pub const SUURIN_PISTEMAARA: u32 = 999_999;
+/// Superpallon vauhti pallon omaan vauhtiin verrattuna.
+pub const SUPERVAUHTI: f32 = 2.5;
+/// Superpallon osuman pistekerroin.
+pub const SUPERKERROIN: u32 = 4;
 
 const ASKEL_S: f32 = ASKEL_MS as f32 / 1000.0;
 const MAILAN_VAUHTI: f32 = 780.0;
 const PERUSVAUHTI: f32 = 330.0;
-const VAUHTI_KENTTAA_KOHTI: f32 = 30.0;
+// Viisikymmentä kenttää: kasvu pysyy pienenä, jotta viimeisetkin ovat pelattavissa.
+const VAUHTI_KENTTAA_KOHTI: f32 = 3.0;
 const VAUHTI_TIILTA_KOHTI: f32 = 4.0;
-// Askel on pallon sädettä lyhyempi tälläkin vauhdilla, joten pallo ei hyppää tiilen yli.
+// Askel on pallon sädettä lyhyempi superpallonkin vauhdilla, joten pallo ei hyppää tiilen yli.
 const SUURIN_VAUHTI: f32 = 660.0;
 const SUURIN_KULMA: f32 = 1.05;
 const UUDEN_PALLON_KULMA: f32 = 0.5;
 const PISTEET_OSUMASTA: u32 = 10;
-// Bonus putoaa tasaisesti nollaan aikarajan aikana ja kerrotaan kentän numerolla.
+// Pistekerroin kasvaa kymmenen kentän välein, joten tulos mahtuu kuuteen numeroon.
+const KENTTIA_KERROINTA_KOHTI: usize = 10;
+// Bonus putoaa tasaisesti nollaan aikarajan aikana ja kerrotaan pistekertoimella.
 const AIKABONUS_ALUSSA: u32 = 1000;
 const AIKARAJA_MS: u32 = 240_000;
-
-/// Numero kertoo, montako osumaa tiili kestää.
-const KENTAT: [&[&str]; 5] = [
-    &[
-        "11111111111",
-        "11111111111",
-        "11111111111",
-        "11111111111",
-        "11111111111",
-    ],
-    &[
-        "...........",
-        ".....1.....",
-        "....111....",
-        "...11111...",
-        "..1111111..",
-        ".111111111.",
-        "11111111111",
-    ],
-    &[
-        "22222222222",
-        "...........",
-        "11111111111",
-        "...........",
-        "22222222222",
-        "11111111111",
-    ],
-    &[
-        "1.1.1.1.1.1",
-        ".2.2.2.2.2.",
-        "1.1.1.1.1.1",
-        ".2.2.2.2.2.",
-        "1.1.1.1.1.1",
-        ".2.2.2.2.2.",
-    ],
-    &[
-        "22222222222",
-        "2.........2",
-        "2.3.3.3.3.2",
-        "2.........2",
-        "2.3.3.3.3.2",
-        "2.........2",
-        "1.1.1.1.1.1",
-    ],
-];
+const SUPERTIILIA: usize = 1;
 
 pub const KENTTIA: usize = KENTAT.len();
-/// Montako pallotiiltä kuhunkin kenttään arvotaan.
-const PALLOTIILIA: [usize; KENTTIA] = [3, 3, 3, 3, 4];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tila {
@@ -103,6 +69,8 @@ pub enum Tapahtuma {
     },
     /// Pallotiili rikkoutui ja kentälle tuli toinen pallo.
     UusiPallo,
+    /// Supertiili rikkoutui ja sen rikkonut pallo muuttui superpalloksi.
+    Superpallo,
     /// Toinen kahdesta pallosta putosi, joten elämä säilyy.
     ToinenMeni,
     Menetys,
@@ -121,12 +89,27 @@ pub struct Pallo {
     pub nopeus: (f32, f32),
     /// Kasvaa vain tämän pallon omista tiiliosumista.
     pub vauhti: f32,
+    /// Superpallo kulkee tiilien läpi, kunnes se putoaa tai kenttä vaihtuu.
+    pub superpallo: bool,
+}
+
+impl Pallo {
+    /// Vauhti, jolla pallo todella liikkuu.
+    pub fn lentovauhti(&self) -> f32 {
+        if self.superpallo {
+            self.vauhti * SUPERVAUHTI
+        } else {
+            self.vauhti
+        }
+    }
 }
 
 pub struct Tiilipeli {
     pub tiilet: [[u8; SARAKKEITA]; RIVEJA],
     /// Tiilet, joiden rikkoutuminen tuo toisen pallon.
     pub pallotiilet: [[bool; SARAKKEITA]; RIVEJA],
+    /// Tiilet, joiden rikkoutuminen tekee rikkojasta superpallon.
+    pub supertiilet: [[bool; SARAKKEITA]; RIVEJA],
     pub maila_x: f32,
     /// Pelissä olevat pallot. Tyhjä vain, kun peli on päättynyt tappioon.
     pub pallot: Vec<Pallo>,
@@ -157,6 +140,7 @@ impl Tiilipeli {
         let mut peli = Self {
             tiilet: [[0; SARAKKEITA]; RIVEJA],
             pallotiilet: [[false; SARAKKEITA]; RIVEJA],
+            supertiilet: [[false; SARAKKEITA]; RIVEJA],
             maila_x: LEVEYS / 2.0,
             pallot: Vec::with_capacity(PALLOJA_ENINTAAN),
             tila: Tila::Kiinni,
@@ -170,10 +154,12 @@ impl Tiilipeli {
         peli
     }
 
-    /// Asettaa kentän tiilet ja arpoo niistä pallotiilet, jotka kestävät yhden osuman.
+    /// Asettaa kentän tiilet ja arpoo niistä palkintotiilet, jotka kestävät yhden osuman.
+    /// Palkintotiilet eivät kosketa toisiaan edes kulmittain.
     fn lataa_kentta(&mut self, arpa: &mut Arpa) {
         self.tiilet = kentan_tiilet(self.kentta);
         self.pallotiilet = [[false; SARAKKEITA]; RIVEJA];
+        self.supertiilet = [[false; SARAKKEITA]; RIVEJA];
         let mut ehdokkaat = Vec::new();
         for rivi in 0..RIVEJA {
             for sarake in 0..SARAKKEITA {
@@ -182,15 +168,35 @@ impl Tiilipeli {
                 }
             }
         }
-        for _ in 0..PALLOTIILIA[self.kentta] {
+        // Loppupään kentissä on yksi pallotiili enemmän.
+        let pallotiilia = 3 + self.kentta * 2 / KENTTIA;
+        for i in 0..pallotiilia + SUPERTIILIA {
+            if ehdokkaat.is_empty() {
+                break;
+            }
             let (rivi, sarake) = ehdokkaat.swap_remove(arpa.alle(ehdokkaat.len()));
             self.tiilet[rivi][sarake] = 1;
-            self.pallotiilet[rivi][sarake] = true;
+            if i < pallotiilia {
+                self.pallotiilet[rivi][sarake] = true;
+            } else {
+                self.supertiilet[rivi][sarake] = true;
+            }
+            ehdokkaat
+                .retain(|&(r, s): &(usize, usize)| r.abs_diff(rivi) > 1 || s.abs_diff(sarake) > 1);
         }
     }
 
     fn perusvauhti(&self) -> f32 {
         PERUSVAUHTI + self.kentta as f32 * VAUHTI_KENTTAA_KOHTI
+    }
+
+    /// Tiilipisteiden ja aikabonuksen kerroin.
+    fn kerroin(&self) -> u32 {
+        (self.kentta / KENTTIA_KERROINTA_KOHTI) as u32 + 1
+    }
+
+    fn lisaa_pisteita(&mut self, maara: u32) {
+        self.pisteet = (self.pisteet + maara).min(SUURIN_PISTEMAARA);
     }
 
     pub fn tiilia_jaljella(&self) -> usize {
@@ -200,7 +206,7 @@ impl Tiilipeli {
     /// Bonus, jonka kentän läpäisy juuri nyt antaisi.
     pub fn aikabonus(&self) -> u32 {
         let jaljella = AIKARAJA_MS.saturating_sub(self.kentan_ms);
-        AIKABONUS_ALUSSA * (self.kentta as u32 + 1) * (jaljella / 1000) / (AIKARAJA_MS / 1000)
+        AIKABONUS_ALUSSA * self.kerroin() * (jaljella / 1000) / (AIKARAJA_MS / 1000)
     }
 
     /// Kahden pallon aikana maila on leveämpi.
@@ -219,6 +225,7 @@ impl Tiilipeli {
             paikka: (self.maila_x, MAILA_Y - PALLON_SADE),
             nopeus: (0.0, 0.0),
             vauhti: 0.0,
+            superpallo: false,
         });
     }
 
@@ -282,6 +289,11 @@ impl Tiilipeli {
             self.pallot[i].paikka.0 = x;
             self.pallot[i].nopeus.0 = -self.pallot[i].nopeus.0;
             tapahtumat.push(Tapahtuma::Seina);
+        } else if self.pallot[i].superpallo {
+            self.lapaise_tiilet(i, tapahtumat, arpa);
+            if self.tila != Tila::Lennossa {
+                return;
+            }
         } else if let Some(paikka) = self.osuva_tiili(self.pallot[i].paikka) {
             self.pallot[i].paikka.0 -= self.pallot[i].nopeus.0 * ASKEL_S;
             self.pallot[i].nopeus.0 = -self.pallot[i].nopeus.0;
@@ -296,6 +308,11 @@ impl Tiilipeli {
             self.pallot[i].paikka.1 = PALLON_SADE;
             self.pallot[i].nopeus.1 = -self.pallot[i].nopeus.1;
             tapahtumat.push(Tapahtuma::Seina);
+        } else if self.pallot[i].superpallo {
+            self.lapaise_tiilet(i, tapahtumat, arpa);
+            if self.tila != Tila::Lennossa {
+                return;
+            }
         } else if let Some(paikka) = self.osuva_tiili(self.pallot[i].paikka) {
             self.pallot[i].paikka.1 -= self.pallot[i].nopeus.1 * ASKEL_S;
             self.pallot[i].nopeus.1 = -self.pallot[i].nopeus.1;
@@ -311,7 +328,7 @@ impl Tiilipeli {
             let osuma =
                 (self.pallot[i].paikka.0 - self.maila_x) / (self.maila_l() / 2.0 + PALLON_SADE);
             let kulma = osuma.clamp(-1.0, 1.0) * SUURIN_KULMA;
-            let vauhti = self.pallot[i].vauhti;
+            let vauhti = self.pallot[i].lentovauhti();
             self.pallot[i].nopeus = (vauhti * kulma.sin(), -vauhti * kulma.cos());
             tapahtumat.push(Tapahtuma::Maila);
         } else if self.pallot[i].paikka.1 - PALLON_SADE > KORKEUS {
@@ -364,6 +381,16 @@ impl Tiilipeli {
         None
     }
 
+    /// Superpallo rikkoo kaikki alleen jäävät tiilet eikä kimpoa niistä.
+    fn lapaise_tiilet(&mut self, i: usize, tapahtumat: &mut Vec<Tapahtuma>, arpa: &mut Arpa) {
+        while self.tila == Tila::Lennossa {
+            let Some(paikka) = self.osuva_tiili(self.pallot[i].paikka) else {
+                return;
+            };
+            self.osu_tiileen(i, paikka, tapahtumat, arpa);
+        }
+    }
+
     fn osu_tiileen(
         &mut self,
         i: usize,
@@ -371,26 +398,38 @@ impl Tiilipeli {
         tapahtumat: &mut Vec<Tapahtuma>,
         arpa: &mut Arpa,
     ) {
+        let superpallo = self.pallot[i].superpallo;
         let tiili = &mut self.tiilet[rivi][sarake];
-        *tiili -= 1;
+        // Läpi kulkeva pallo ei palaa tiileen, joten kestäväkin tiili rikkoutuu kerralla.
+        *tiili = if superpallo { 0 } else { *tiili - 1 };
         let rikki = *tiili == 0;
         // Kahta palloa on vaikeampi hallita, joten kumpikin kertoo osuman pisteet.
-        self.pisteet += PISTEET_OSUMASTA * (self.kentta as u32 + 1) * self.pallot.len() as u32;
+        let kerroin = if superpallo { SUPERKERROIN } else { 1 };
+        self.lisaa_pisteita(PISTEET_OSUMASTA * self.kerroin() * self.pallot.len() as u32 * kerroin);
         tapahtumat.push(Tapahtuma::Tiili {
             rivi,
             sarake,
             rikki,
         });
 
-        let pallo = &mut self.pallot[i];
-        let uusi = (pallo.vauhti + VAUHTI_TIILTA_KOHTI).min(SUURIN_VAUHTI);
-        pallo.nopeus = (
-            pallo.nopeus.0 * uusi / pallo.vauhti,
-            pallo.nopeus.1 * uusi / pallo.vauhti,
-        );
-        pallo.vauhti = uusi;
+        // Superpallon vauhti pysyy tasaisena, muuten läpi ajetut rivit kiihdyttäisivät sen heti.
+        if !superpallo {
+            let pallo = &mut self.pallot[i];
+            let uusi = (pallo.vauhti + VAUHTI_TIILTA_KOHTI).min(SUURIN_VAUHTI);
+            pallo.nopeus = (
+                pallo.nopeus.0 * uusi / pallo.vauhti,
+                pallo.nopeus.1 * uusi / pallo.vauhti,
+            );
+            pallo.vauhti = uusi;
+        }
 
         if self.tiilia_jaljella() > 0 {
+            if rikki && self.supertiilet[rivi][sarake] && !superpallo {
+                let pallo = &mut self.pallot[i];
+                pallo.superpallo = true;
+                pallo.nopeus = (pallo.nopeus.0 * SUPERVAUHTI, pallo.nopeus.1 * SUPERVAUHTI);
+                tapahtumat.push(Tapahtuma::Superpallo);
+            }
             if rikki && self.pallotiilet[rivi][sarake] && self.pallot.len() < PALLOJA_ENINTAAN {
                 self.lisaa_pallo(i, (rivi, sarake));
                 tapahtumat.push(Tapahtuma::UusiPallo);
@@ -398,7 +437,7 @@ impl Tiilipeli {
             return;
         }
         let bonus = self.aikabonus();
-        self.pisteet += bonus;
+        self.lisaa_pisteita(bonus);
         if self.kentta + 1 == KENTTIA {
             self.tila = Tila::Voitto;
             tapahtumat.push(Tapahtuma::Voitto { bonus });
@@ -412,25 +451,28 @@ impl Tiilipeli {
     }
 
     /// Uusi pallo lähtee rikkoutuneesta tiilestä alas kentän perusvauhdilla, eri suuntaan
-    /// kuin osunut pallo.
+    /// kuin osunut pallo. Superpallo tuplaantuu superpalloksi.
     fn lisaa_pallo(&mut self, osunut: usize, (rivi, sarake): (usize, usize)) {
         let suunta = if self.pallot[osunut].nopeus.0 > 0.0 {
             -1.0
         } else {
             1.0
         };
-        let vauhti = self.perusvauhti();
-        self.pallot.push(Pallo {
+        let mut pallo = Pallo {
             paikka: (
                 (sarake as f32 + 0.5) * TIILI_L,
                 TIILET_Y + (rivi as f32 + 0.5) * TIILI_K,
             ),
-            nopeus: (
-                suunta * vauhti * UUDEN_PALLON_KULMA.sin(),
-                vauhti * UUDEN_PALLON_KULMA.cos(),
-            ),
-            vauhti,
-        });
+            nopeus: (0.0, 0.0),
+            vauhti: self.perusvauhti(),
+            superpallo: self.pallot[osunut].superpallo,
+        };
+        let vauhti = pallo.lentovauhti();
+        pallo.nopeus = (
+            suunta * vauhti * UUDEN_PALLON_KULMA.sin(),
+            vauhti * UUDEN_PALLON_KULMA.cos(),
+        );
+        self.pallot.push(pallo);
         // Leveämpi maila ei saa jäädä seinän sisään.
         self.aseta_maila(self.maila_x);
     }

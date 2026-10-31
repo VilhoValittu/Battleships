@@ -127,6 +127,10 @@ impl Tiilirikko {
                 self.aanijono.push((Aani::Yhdistys, 0));
                 self.viesti = kaanna("tiilirikko.uusi_pallo").to_string();
             }
+            Tapahtuma::Superpallo => {
+                self.aanijono.push((Aani::Yhdistys, 0));
+                self.viesti = kaanna("tiilirikko.superpallo").to_string();
+            }
             Tapahtuma::ToinenMeni => {
                 self.aanijono.push((Aani::Puhkus, 0));
                 self.viesti = kaanna("tiilirikko.toinen_meni").to_string();
@@ -494,6 +498,7 @@ mod tests {
         peli.lauta.tiilet[0][0] = 1;
         peli.lauta.tiilet[7][10] = 1;
         peli.lauta.pallotiilet = [[false; SARAKKEITA]; RIVEJA];
+        peli.lauta.supertiilet = [[false; SARAKKEITA]; RIVEJA];
         peli.lauta.pallot[0].paikka = (30.0, 80.0);
         peli.lauta.pallot[0].nopeus = (0.0, -300.0);
         peli.aanijono.clear();
@@ -511,6 +516,7 @@ mod tests {
         peli.lauta.tiilet = [[0; SARAKKEITA]; RIVEJA];
         peli.lauta.tiilet[0][0] = 1;
         peli.lauta.tiilet[7][10] = 1;
+        peli.lauta.supertiilet = [[false; SARAKKEITA]; RIVEJA];
         peli.lauta.pallotiilet[0][0] = true;
         peli.lauta.pallot[0].paikka = (30.0, 80.0);
         peli.lauta.pallot[0].nopeus = (0.0, -300.0);

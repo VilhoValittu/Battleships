@@ -24,7 +24,7 @@ The familiar Klondike that has eaten thousands of working days. Three levels: on
 *Mouse, or arrows and space.*
 
 ### Laatan murskain
-Keep the ball in play and break the bricks. Five stages, three balls, and a fast clear earns bonus points. A white brick brings a second ball and grows the paddle, and as long as both balls stay in play, bricks score double. Watching two balls at once is exactly as hard as it sounds.
+Keep the ball in play and break the bricks. 50 stages, three balls, and a fast clear earns bonus points. A white brick brings a second ball and grows the paddle, and as long as both balls stay in play, bricks score double. A black brick turns the ball into a super ball that moves 30% faster, goes through every brick and scores quadruple. A white brick doubles a super ball too. Watching two balls at once is exactly as hard as it sounds.
 
 *Mouse or arrows, launch with space or a click.*
 
