@@ -36,6 +36,8 @@ jobs:
     name: ${{ matrix.alusta }}
     runs-on: ${{ matrix.kone }}
     strategy:
+      # Yhden alustan virhe ei saa peruuttaa muita, jotta kaikki virheet näkyvät samalla ajolla.
+      fail-fast: false
       matrix:
         include:
           # Vanhin saatavilla oleva Ubuntu, jotta paketti toimii myös vanhemman glibc:n koneissa.

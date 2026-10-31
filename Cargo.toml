@@ -14,6 +14,11 @@ ureq = { version = "3", default-features = false, features = ["native-tls"] }
 minifb = { version = "0.29.0", default-features = false, features = ["x11"] }
 native-tls = { version = "0.2", features = ["vendored"] }
 
+# minifb 0.29:n build.rs etsii kohteesta sanaa "-macos", vaikka kohde on "-apple-darwin", ja
+# kaatuu ilman tätä ominaisuutta. macOS:ssä se ei tuo mukaan X11:tä eikä muuta koodia.
+[target.'cfg(target_os = "macos")'.dependencies]
+minifb = { version = "0.29.0", default-features = false, features = ["x11"] }
+
 # Piirto on ohjelman raskain työ: nopeusoptimointi kasvattaa exeä noin 400 kt, mutta pitää
 # paketin selvästi alle 10 Mt:n rajan.
 [profile.release]
